@@ -1,4 +1,10 @@
-import type { Attendance, ObservationType, PerformanceLevel, Severity } from "../-mock/types";
+import type {
+  Attendance,
+  CampusJornada,
+  ObservationType,
+  PerformanceLevel,
+  Severity,
+} from "../-mock/types";
 import type { BadgeTone } from "./roles";
 import type { ScoreClass } from "../-mock/helpers";
 
@@ -84,4 +90,10 @@ export const OBSERVATION_TONE: Record<ObservationType, BadgeTone> = {
   negativa: "destructive",
   seguimiento: "info",
   convivencia: "warning",
+};
+
+export const JORNADA_LABEL: Record<CampusJornada, string> = {
+  manana: "Mañana",
+  tarde: "Tarde",
+  completa: "Completa",
 };

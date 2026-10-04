@@ -27,7 +27,7 @@ A clickable, login-free prototype of every SISTEMA_ESCOLAR screen (~100 Jinja te
 ## Tasks
 
 - [x] **T1 — Shell, mock data, auth & dashboards.** `/prototype/sige` layout with role switcher + role nav, shared mock dataset, login / force-password-change / error pages, profile, the 7 role dashboards; register in lab catalog. Route: delegated (react-staff) — writer trigger (many non-trivial files).
-- [ ] **T2 — Institution & users.** Institutions, campuses, grade levels, grades/groups, subjects, periods, criteria, config, institution users/admins, users list/create/edit/import. Route: delegated (react-staff).
+- [x] **T2 — Institution & users.** Institutions, campuses, grade levels, grades/groups, subjects, periods, criteria, config, institution users/admins, users list/create/edit/import. Route: delegated (react-staff).
 - [ ] **T3 — Students & scheduling.** Students list/form/profile/upload/assign parent; classrooms, blocks, subject-grades, assignments, enrollments, schedules generate/list. Route: delegated (react-staff).
 - [ ] **T4 — Grades, report cards, attendance.** Grade select/input/upload/lock/summary/student/final/annual; report cards generate/manage/history/view/PDF; attendance take/summary/group/report. Route: delegated (react-staff).
 - [ ] **T5 — Observations, alerts, achievements, metrics, QR, parent portal.** Route: delegated (react-staff).
@@ -43,7 +43,8 @@ A clickable, login-free prototype of every SISTEMA_ESCOLAR screen (~100 Jinja te
 
 - 2026-10-04: branch created; legacy inventory written (1,462 lines). It lists 94 screens in 15 modules: AUTH 5, DASH 7, INS 18, USR 4, SCH 12, STU 5, GRD 8, ATT 4, OBS 5, RPT 4, MET 7, ACH 3, ALR 3, PAR 6, QR 3. It also covers 7 roles and 9 legacy quirks, with fixes in 5.16.
 - T1 delegated to react-staff (writer trigger). Shell, mock data, auth/error/profile, 7 dashboards, screen index and pending placeholder built; `recharts` added to apps/web (peer of `@base-template/ui` chart). Checks: `pnpm check-types` exit 0, `pnpm lint` exit 0.
+- T2 delegated to react-staff (writer trigger). 22 screens INS-01..18 + USR-01..04 built; editable mock stores in `-mock/admin.ts`; shared form/list components. Checks: `pnpm check-types` exit 0, `pnpm lint` exit 0 (parent spot check). Open: T1 dashboards read static arrays (not T2 stores); one active period at a time; Excel import uses a fixed preview sheet.
 
 ## Next step
 
-T2 — Institution & users (delegated, react-staff); then review group T1+T2.
+Review group T1+T2 via gentle-ai, then T3.

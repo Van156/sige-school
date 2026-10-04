@@ -127,30 +127,46 @@ export const screens: readonly ScreenDef[] = [
   built("DASH-07", "Dashboard de Consulta", ["viewer"], { to: DASHBOARD, asRole: "viewer" }),
 
   // Institution
-  pending("INS-01", "Gestión de Instituciones", ROOT),
-  pending("INS-02", "Nueva / Editar Institución", ROOT),
-  pending("INS-03", "Seleccionar Institución", ROOT),
-  pending("INS-04", "Usuarios de la institución", ROOT),
-  pending("INS-05", "Crear usuario en la institución", ROOT),
-  pending("INS-06", "Configuración de Institución", RA),
-  pending("INS-07", "Gestión de Sedes", RAC),
-  pending("INS-08", "Nueva / Editar Sede", RA),
-  pending("INS-09", "Niveles Académicos", RAC),
-  pending("INS-10", "Nuevo / Editar Nivel Académico", RA),
-  pending("INS-11", "Gestión de Grados (Cursos)", RAC),
-  pending("INS-12", "Nuevo / Editar Grado", RA),
-  pending("INS-13", "Asignaturas", RACT),
-  pending("INS-14", "Nueva / Editar Asignatura", RA),
-  pending("INS-15", "Periodos Académicos", RAC),
-  pending("INS-16", "Nuevo / Editar Periodo", RA),
-  pending("INS-17", "Criterios de Evaluación", RACT),
-  pending("INS-18", "Nuevo / Editar Criterio", RA),
+  built("INS-01", "Gestión de Instituciones", ROOT, { to: "/prototype/sige/instituciones" }),
+  built("INS-02", "Nueva / Editar Institución", ROOT, {
+    to: "/prototype/sige/instituciones/formulario",
+  }),
+  built("INS-03", "Seleccionar Institución", ROOT, {
+    to: "/prototype/sige/instituciones/seleccionar",
+  }),
+  built("INS-04", "Usuarios de la institución", ROOT, {
+    to: "/prototype/sige/instituciones/usuarios",
+  }),
+  built("INS-05", "Crear usuario en la institución", ROOT, {
+    to: "/prototype/sige/instituciones/nuevo-usuario",
+  }),
+  built("INS-06", "Configuración de Institución", RA, {
+    to: "/prototype/sige/configuracion-institucion",
+  }),
+  built("INS-07", "Gestión de Sedes", RAC, { to: "/prototype/sige/sedes" }),
+  built("INS-08", "Nueva / Editar Sede", RA, { to: "/prototype/sige/sedes/formulario" }),
+  built("INS-09", "Niveles Académicos", RAC, { to: "/prototype/sige/niveles" }),
+  built("INS-10", "Nuevo / Editar Nivel Académico", RA, {
+    to: "/prototype/sige/niveles/formulario",
+  }),
+  built("INS-11", "Gestión de Grados (Cursos)", RAC, { to: "/prototype/sige/cursos" }),
+  built("INS-12", "Nuevo / Editar Grado", RA, { to: "/prototype/sige/cursos/formulario" }),
+  built("INS-13", "Asignaturas", RACT, { to: "/prototype/sige/asignaturas" }),
+  built("INS-14", "Nueva / Editar Asignatura", RA, {
+    to: "/prototype/sige/asignaturas/formulario",
+  }),
+  built("INS-15", "Periodos Académicos", RAC, { to: "/prototype/sige/periodos" }),
+  built("INS-16", "Nuevo / Editar Periodo", RA, { to: "/prototype/sige/periodos/formulario" }),
+  built("INS-17", "Criterios de Evaluación", RACT, { to: "/prototype/sige/criterios" }),
+  built("INS-18", "Nuevo / Editar Criterio", RA, { to: "/prototype/sige/criterios/formulario" }),
 
   // Users
-  pending("USR-01", "Gestión de Usuarios", ADMIN),
-  pending("USR-02", "Crear Nuevo Usuario", ADMIN),
-  pending("USR-03", "Editar Usuario", ADMIN),
-  pending("USR-04", "Importar Usuarios desde Excel", ADMIN),
+  built("USR-01", "Gestión de Usuarios", ADMIN, { to: "/prototype/sige/usuarios" }),
+  built("USR-02", "Crear Nuevo Usuario", ADMIN, { to: "/prototype/sige/usuarios/nuevo" }),
+  built("USR-03", "Editar Usuario", ADMIN, { to: "/prototype/sige/usuarios/editar" }),
+  built("USR-04", "Importar Usuarios desde Excel", ADMIN, {
+    to: "/prototype/sige/usuarios/importar",
+  }),
 
   // Matrícula y Programación
   pending("SCH-01", "Matrículas de Estudiantes", RAC),

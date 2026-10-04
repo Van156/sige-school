@@ -3,6 +3,7 @@
  * module load from static definitions plus seeded PRNGs, so every render sees identical data.
  */
 export * from "./academics";
+export * from "./admin";
 export * from "./base";
 export * from "./dates";
 export * from "./helpers";

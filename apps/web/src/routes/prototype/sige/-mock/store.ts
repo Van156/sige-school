@@ -54,3 +54,7 @@ export function useMockCollection<T extends { id: number }>(
 ): readonly T[] {
   return useSyncExternalStore(collection.subscribe, collection.getSnapshot, collection.getSnapshot);
 }
+
+export function mockError(message: string, description?: string) {
+  toast.error(message, description ? { description } : undefined);
+}
