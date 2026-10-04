@@ -9,6 +9,8 @@ export * from "./dates";
 export * from "./helpers";
 export * from "./people";
 export * from "./records";
+export * from "./school";
+export * from "./school-actions";
 export * from "./selectors";
 export * from "./store";
 export type * from "./types";

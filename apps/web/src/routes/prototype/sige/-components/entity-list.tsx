@@ -43,6 +43,8 @@ export function EntityList<T>({
   emptyDescription,
   create,
   footer,
+  filters,
+  action,
   pageSize = 10,
 }: {
   title: string;
@@ -58,6 +60,10 @@ export function EntityList<T>({
   /** Create shortcut of the empty state; omit for roles that cannot create. */
   create?: { screenId: string; label: string };
   footer?: ReactNode;
+  /** Extra filter controls (selects) next to the search box. */
+  filters?: ReactNode;
+  /** Header slot of the card, e.g. a count chip. */
+  action?: ReactNode;
   pageSize?: number;
 }) {
   const [query, setQuery] = useState("");
@@ -65,8 +71,10 @@ export function EntityList<T>({
   const searching = query.trim().length > 0;
 
   return (
-    <SectionCard title={title}>
-      <FilterBar query={query} onQueryChange={setQuery} placeholder={searchPlaceholder} />
+    <SectionCard title={title} action={action}>
+      <FilterBar query={query} onQueryChange={setQuery} placeholder={searchPlaceholder}>
+        {filters}
+      </FilterBar>
       <SimpleTable
         columns={columns}
         rows={visible}

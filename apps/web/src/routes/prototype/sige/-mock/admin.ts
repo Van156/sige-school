@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import { gradeRecords, finalGrades, subjectGrades } from "./academics";
+import { gradeRecords, finalGrades } from "./academics";
 import {
   INSTITUTION_ID,
   campuses,
@@ -12,8 +12,16 @@ import {
   stubInstitutionSummaries,
   subjects,
 } from "./base";
-import { parentStudents, students, users } from "./people";
+import { users } from "./people";
+import {
+  blockStore,
+  classroomStore,
+  parentLinkStore,
+  studentStore,
+  subjectGradeStore,
+} from "./school";
 import { institutionCounts } from "./selectors";
+import { REFERENCE_DATE } from "./dates";
 import { createMockCollection } from "./store";
 import type { InstitutionSummary, Role, User } from "./types";
 
@@ -30,7 +38,29 @@ export const gradeStore = createMockCollection(grades);
 export const subjectStore = createMockCollection(subjects);
 export const periodStore = createMockCollection(periods);
 export const criteriaStore = createMockCollection(criteria);
-export const userStore = createMockCollection(users);
+/**
+ * Student account created in USR-02 whose academic profile is still missing: the seed of the
+ * "Perfiles Académicos Incompletos" table of STU-01 (kept out of the read-only dashboard counts).
+ */
+const pendingStudentUser: User = {
+  id: 1000,
+  username: "bmendoza4821",
+  email: "bmendoza4821@estudiantes.colegiosanjose.edu.co",
+  firstName: "Brayan Stiven",
+  lastName: "Mendoza Ríos",
+  documentType: "TI",
+  documentNumber: "1098764821",
+  birthDate: "2013-03-18",
+  gender: "M",
+  phone: "3104567821",
+  role: "student",
+  institutionId: INSTITUTION_ID,
+  isActive: true,
+  mustChangePassword: true,
+  createdAt: REFERENCE_DATE,
+};
+
+export const userStore = createMockCollection<User>([...users, pendingStudentUser]);
 
 /* --------------------------- Root institution context --------------------------- */
 
@@ -99,6 +129,10 @@ export function deleteCampus(id: number): DeleteResult {
     gradeLevelStore.getSnapshot().some((level) => level.campusId === id) ||
     gradeStore.getSnapshot().some((grade) => grade.campusId === id);
   if (hasDependents) return blocked("La sede tiene niveles o grados asociados.");
+  const hasFacilities =
+    classroomStore.getSnapshot().some((room) => room.campusId === id) ||
+    blockStore.getSnapshot().some((block) => block.campusId === id);
+  if (hasFacilities) return blocked("La sede tiene salones o bloques horarios asociados.");
   campusStore.remove(id);
   return OK;
 }
@@ -112,10 +146,10 @@ export function deleteGradeLevel(id: number): DeleteResult {
 }
 
 export function deleteGrade(id: number): DeleteResult {
-  if (students.some((student) => student.gradeId === id)) {
+  if (studentStore.getSnapshot().some((student) => student.gradeId === id)) {
     return blocked("El grado tiene estudiantes asociados.");
   }
-  if (subjectGrades.some((item) => item.gradeId === id)) {
+  if (subjectGradeStore.getSnapshot().some((item) => item.gradeId === id)) {
     return blocked("El grado tiene asignaturas asignadas.");
   }
   gradeStore.remove(id);
@@ -123,7 +157,7 @@ export function deleteGrade(id: number): DeleteResult {
 }
 
 export function deleteSubject(id: number): DeleteResult {
-  if (subjectGrades.some((item) => item.subjectId === id)) {
+  if (subjectGradeStore.getSnapshot().some((item) => item.subjectId === id)) {
     return blocked("La asignatura está asignada a uno o más grados.");
   }
   subjectStore.remove(id);
@@ -151,14 +185,20 @@ export function deleteUser(id: number): DeleteResult {
   if (!user) return OK;
   if (user.role === "teacher") {
     const teaches =
-      subjectGrades.some((item) => item.teacherId === id) ||
+      subjectGradeStore.getSnapshot().some((item) => item.teacherId === id) ||
       gradeStore.getSnapshot().some((grade) => grade.directorId === id);
     if (teaches) return blocked("El profesor tiene asignaturas o grupos a cargo.");
   }
-  if (user.role === "student" && students.some((student) => student.userId === id)) {
+  if (
+    user.role === "student" &&
+    studentStore.getSnapshot().some((student) => student.userId === id)
+  ) {
     return blocked("El estudiante tiene un perfil académico con notas y matrículas.");
   }
-  if (user.role === "parent" && parentStudents.some((link) => link.parentId === id)) {
+  if (
+    user.role === "parent" &&
+    parentLinkStore.getSnapshot().some((link) => link.parentId === id)
+  ) {
     return blocked("El acudiente tiene estudiantes vinculados.");
   }
   userStore.remove(id);

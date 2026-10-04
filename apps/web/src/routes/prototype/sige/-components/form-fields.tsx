@@ -9,7 +9,7 @@ import { Input } from "@base-template/ui/components/input";
 import { NativeSelect, NativeSelectOption } from "@base-template/ui/components/native-select";
 import { Switch } from "@base-template/ui/components/switch";
 import { Textarea } from "@base-template/ui/components/textarea";
-import type { ComponentProps, ReactNode } from "react";
+import { useId, type ComponentProps, type ReactNode } from "react";
 
 import type { FieldBinding } from "../-lib/use-form";
 
@@ -167,6 +167,17 @@ export function SwitchField({
           <FieldDescription>{hint}</FieldDescription>
         ) : null}
       </FieldContent>
+    </Field>
+  );
+}
+
+/** Locked value shown with the look of a field (edit forms of the legacy read-only columns). */
+export function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  const id = useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input id={id} value={value} readOnly className="bg-muted/40" />
     </Field>
   );
 }

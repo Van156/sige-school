@@ -40,6 +40,7 @@ import {
   REFERENCE_DATE,
   institutionStore,
   mockAction,
+  studentStore,
   userStore,
   useMockCollection,
 } from "../../-mock";
@@ -141,9 +142,11 @@ function UserForm({ user }: { user?: User }) {
   const isRoot = viewer === "root";
   const presetParam = useRolParam();
   const userList = useMockCollection(userStore);
+  const studentList = useMockCollection(studentStore);
   const institutions = useMockCollection(institutionStore);
   const goTo = useGoToScreen();
   const isEdit = user !== undefined;
+  const studentProfile = user ? studentList.find((entry) => entry.userId === user.id) : undefined;
 
   const allowedRoles = assignableRoles(viewer);
   const presetRole =
@@ -212,7 +215,7 @@ function UserForm({ user }: { user?: User }) {
       });
       mockAction("Usuario actualizado", "Los cambios no se guardan en el prototipo.");
     } else {
-      userStore.add({
+      const created = userStore.add({
         ...newUserRecord({
           username,
           firstName: personal.firstName,
@@ -232,12 +235,13 @@ function UserForm({ user }: { user?: User }) {
         department: personal.department,
         municipality: personal.municipality,
       });
-      mockAction(
-        "Usuario creado",
-        role === "student"
-          ? `${username} · completa su perfil académico en Estudiantes.`
-          : `${username} · contraseña inicial: Nº de documento.`,
-      );
+      if (role === "student") {
+        // A student account is only half a student: continue with the academic profile (STU-03).
+        mockAction("Usuario creado", `${username} · completa su perfil académico.`);
+        goTo("STU-03", { user: String(created.id) });
+        return;
+      }
+      mockAction("Usuario creado", `${username} · contraseña inicial: Nº de documento.`);
     }
     goTo("USR-01");
   });
@@ -390,7 +394,15 @@ function UserForm({ user }: { user?: User }) {
             <HelpCard title="Acciones Rápidas">
               <div className="flex flex-col gap-2">
                 {user.role === "student" ? (
-                  <ScreenLinkButton screenId="STU-02">Ver Perfil Académico</ScreenLinkButton>
+                  studentProfile ? (
+                    <ScreenLinkButton screenId="STU-02" search={{ id: String(studentProfile.id) }}>
+                      Ver Perfil Académico
+                    </ScreenLinkButton>
+                  ) : (
+                    <ScreenLinkButton screenId="STU-03" search={{ user: String(user.id) }}>
+                      Completar Perfil Académico
+                    </ScreenLinkButton>
+                  )
                 ) : null}
                 <Button
                   variant="outline"

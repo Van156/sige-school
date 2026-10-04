@@ -13,7 +13,7 @@ import {
   deleteGrade,
   fullName,
   gradeStore,
-  studentCountOfGrade,
+  studentStore,
   useMockCollection,
   userStore,
 } from "../../-mock";
@@ -24,6 +24,7 @@ export function CoursesScreen() {
   const campusList = useMockCollection(campusStore);
   const gradeList = useMockCollection(gradeStore);
   const userList = useMockCollection(userStore);
+  const studentList = useMockCollection(studentStore);
   const canManage = useCan("INS-12");
 
   return (
@@ -41,6 +42,10 @@ export function CoursesScreen() {
             .map((campus) => [campus.id, campus.name]),
         );
         const rows = gradeList.filter((grade) => campusName.has(grade.campusId));
+        const studentCount = (grade: Grade) =>
+          studentList.filter(
+            (student) => student.gradeId === grade.id && student.status === "activo",
+          ).length;
         const director = (grade: Grade) => {
           const user = userList.find((entry) => entry.id === grade.directorId);
           return user ? fullName(user) : undefined;
@@ -89,8 +94,8 @@ export function CoursesScreen() {
             key: "students",
             header: "Estudiantes",
             align: "right",
-            sortValue: (grade) => studentCountOfGrade(grade.id),
-            cell: (grade) => <span className="tabular-nums">{studentCountOfGrade(grade.id)}</span>,
+            sortValue: studentCount,
+            cell: (grade) => <span className="tabular-nums">{studentCount(grade)}</span>,
           },
           ...(canManage
             ? [

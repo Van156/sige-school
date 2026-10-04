@@ -236,6 +236,10 @@ export interface ScheduleCell {
   subject: string;
   teacher: string;
   classroom: string;
+  /** Course name; set by the live schedule views (SCH-11) that show several courses. */
+  course?: string;
+  /** Schedule row behind the cell, so managers can remove the class. */
+  scheduleId?: number;
 }
 
 export interface ScheduleRow {

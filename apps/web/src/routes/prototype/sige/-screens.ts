@@ -169,25 +169,35 @@ export const screens: readonly ScreenDef[] = [
   }),
 
   // Matrícula y Programación
-  pending("SCH-01", "Matrículas de Estudiantes", RAC),
-  pending("SCH-02", "Nueva / Editar Matrícula", RAC),
-  pending("SCH-03", "Asignación de Profesores", RAC),
-  pending("SCH-04", "Nueva / Editar Asignación", RAC),
-  pending("SCH-05", "Materias por Grado", RAC),
-  pending("SCH-06", "Asignar Materias a Grados", RAC),
-  pending("SCH-07", "Gestión de Salones", RAC),
-  pending("SCH-08", "Nuevo / Editar Salón", RAC),
-  pending("SCH-09", "Bloques de Tiempo", RAC),
-  pending("SCH-10", "Nuevo / Editar Bloque de Tiempo", RAC),
-  pending("SCH-11", "Horarios de Clases", RACTS),
-  pending("SCH-12", "Generar Horario Automático", RAC),
+  built("SCH-01", "Matrículas de Estudiantes", RAC, { to: "/prototype/sige/matriculas" }),
+  built("SCH-02", "Nueva / Editar Matrícula", RAC, { to: "/prototype/sige/matriculas/formulario" }),
+  built("SCH-03", "Asignación de Profesores", RAC, { to: "/prototype/sige/asignaciones" }),
+  built("SCH-04", "Nueva / Editar Asignación", RAC, {
+    to: "/prototype/sige/asignaciones/formulario",
+  }),
+  built("SCH-05", "Materias por Grado", RAC, { to: "/prototype/sige/materias-por-grado" }),
+  built("SCH-06", "Asignar Materias a Grados", RAC, {
+    to: "/prototype/sige/materias-por-grado/asignar",
+  }),
+  built("SCH-07", "Gestión de Salones", RAC, { to: "/prototype/sige/salones" }),
+  built("SCH-08", "Nuevo / Editar Salón", RAC, { to: "/prototype/sige/salones/formulario" }),
+  built("SCH-09", "Bloques de Tiempo", RAC, { to: "/prototype/sige/bloques" }),
+  built("SCH-10", "Nuevo / Editar Bloque de Tiempo", RAC, {
+    to: "/prototype/sige/bloques/formulario",
+  }),
+  built("SCH-11", "Horarios de Clases", RACTS, { to: "/prototype/sige/horarios" }),
+  built("SCH-12", "Generar Horario Automático", RAC, { to: "/prototype/sige/horarios/generar" }),
 
   // Students
-  pending("STU-01", "Gestión de Estudiantes", RACT),
-  pending("STU-02", "Perfil del Estudiante", RACT),
-  pending("STU-03", "Nuevo / Editar Estudiante", RAC),
-  pending("STU-04", "Asignar Acudientes", RAC),
-  pending("STU-05", "Cargar Estudiantes desde Excel", RAC),
+  built("STU-01", "Gestión de Estudiantes", RACT, { to: "/prototype/sige/estudiantes" }),
+  built("STU-02", "Perfil del Estudiante", RACT, { to: "/prototype/sige/estudiantes/perfil" }),
+  built("STU-03", "Nuevo / Editar Estudiante", RAC, {
+    to: "/prototype/sige/estudiantes/formulario",
+  }),
+  built("STU-04", "Asignar Acudientes", RAC, { to: "/prototype/sige/estudiantes/acudientes" }),
+  built("STU-05", "Cargar Estudiantes desde Excel", RAC, {
+    to: "/prototype/sige/estudiantes/importar",
+  }),
 
   // Grades
   pending("GRD-01", "Ingreso de Notas: selección", RACT),
