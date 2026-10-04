@@ -4,7 +4,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@base-template/ui/components/sidebar";
-import { Outlet, createFileRoute, notFound } from "@tanstack/react-router";
+import { Outlet, createFileRoute, notFound, useLocation } from "@tanstack/react-router";
 
 import { LabSidebar } from "./-lab-sidebar";
 
@@ -19,7 +19,15 @@ export const Route = createFileRoute("/prototype")({
   component: PrototypeLayout,
 });
 
+/** The SIGE prototype ships its own app shell (and sidebar provider), so it skips the lab chrome. */
+function isSigePath(pathname: string): boolean {
+  return pathname === "/prototype/sige" || pathname.startsWith("/prototype/sige/");
+}
+
 function PrototypeLayout() {
+  const bare = useLocation({ select: (location) => isSigePath(location.pathname) });
+  if (bare) return <Outlet />;
+
   return (
     <SidebarProvider>
       <LabSidebar />

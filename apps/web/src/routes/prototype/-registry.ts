@@ -16,6 +16,10 @@ export const exampleVariants: readonly PrototypeVariant[] = [
   { key: "C", name: "Timeline feed" },
 ];
 
+export const sigeVariants: readonly PrototypeVariant[] = [
+  { key: "A", name: "Design-system adaptation" },
+];
+
 /** Register new prototypes here so they show up on `/prototype`. */
 export const prototypes: readonly PrototypeEntry[] = [
   {
@@ -23,5 +27,11 @@ export const prototypes: readonly PrototypeEntry[] = [
     title: "Team activity overview",
     question: "How should a team lead scan what everyone did this week?",
     variants: exampleVariants,
+  },
+  {
+    to: "/prototype/sige",
+    title: "SIGE School — sistema completo",
+    question: "How does every SISTEMA_ESCOLAR screen look in our design system?",
+    variants: sigeVariants,
   },
 ];
