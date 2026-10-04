@@ -150,13 +150,17 @@ export function TeacherDashboard() {
     {
       key: "actions",
       header: "Acciones",
-      cell: () => (
+      cell: (item) => (
         <div className="flex flex-wrap gap-1.5">
-          <ScreenLinkButton screenId="GRD-02" size="sm">
+          <ScreenLinkButton screenId="GRD-02" size="sm" search={{ sg: String(item.id) }}>
             <NotebookPen />
             Notas
           </ScreenLinkButton>
-          <ScreenLinkButton screenId="ATT-01" size="sm">
+          <ScreenLinkButton
+            screenId="ATT-01"
+            size="sm"
+            search={{ sg: String(item.id), grade: String(item.gradeId) }}
+          >
             <CalendarCheck />
             Asistencia
           </ScreenLinkButton>

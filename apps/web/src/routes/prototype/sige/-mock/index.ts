@@ -6,6 +6,7 @@ export * from "./academics";
 export * from "./admin";
 export * from "./base";
 export * from "./dates";
+export * from "./grading";
 export * from "./helpers";
 export * from "./people";
 export * from "./records";

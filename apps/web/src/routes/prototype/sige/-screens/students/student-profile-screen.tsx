@@ -1,7 +1,14 @@
 import { Avatar, AvatarFallback } from "@base-template/ui/components/avatar";
 import { Badge } from "@base-template/ui/components/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@base-template/ui/components/tabs";
-import { CalendarCheck, FileText, MessageSquarePlus, Pencil, UsersRound } from "lucide-react";
+import {
+  CalendarCheck,
+  FileText,
+  MessageSquarePlus,
+  NotebookPen,
+  Pencil,
+  UsersRound,
+} from "lucide-react";
 
 import { ActionLink } from "../../-components/action-link";
 import { DetailList } from "../../-components/detail-list";
@@ -129,6 +136,7 @@ function Profile({
               title="Observación"
               search={search}
             />
+            <ActionLink screenId="GRD-08" icon={NotebookPen} title="Notas" search={search} />
             <ActionLink screenId="ATT-02" icon={CalendarCheck} title="Asistencia" search={search} />
             <ActionLink screenId="RPT-03" icon={FileText} title="Boletines" search={search} />
           </div>

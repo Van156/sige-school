@@ -20,6 +20,8 @@ export interface MockCollection<T extends { id: number }> {
   add: (item: Omit<T, "id">) => T;
   update: (id: number, patch: Partial<T>) => void;
   remove: (id: number) => void;
+  /** Swaps the whole collection in one notification (bulk upserts of the grade and attendance sheets). */
+  replace: (next: readonly T[]) => void;
 }
 
 export function createMockCollection<T extends { id: number }>(
@@ -46,6 +48,7 @@ export function createMockCollection<T extends { id: number }>(
     update: (id, patch) =>
       commit(items.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry))),
     remove: (id) => commit(items.filter((entry) => entry.id !== id)),
+    replace: (next) => commit(next),
   };
 }
 

@@ -200,20 +200,24 @@ export const screens: readonly ScreenDef[] = [
   }),
 
   // Grades
-  pending("GRD-01", "Ingreso de Notas: selección", RACT),
-  pending("GRD-02", "Planilla de Calificaciones", RACT),
-  pending("GRD-03", "Carga Masiva de Notas desde Excel", RACT),
-  pending("GRD-04", "Panel de Bloqueo de Periodos", RAC),
-  pending("GRD-05", "Notas Finales del Periodo", RACT),
-  pending("GRD-06", "Notas Anuales", RACT),
-  pending("GRD-07", "Resumen de Notas", RACT),
-  pending("GRD-08", "Notas del Estudiante", RACTSP),
+  built("GRD-01", "Ingreso de Notas: selección", RACT, { to: "/prototype/sige/notas" }),
+  built("GRD-02", "Planilla de Calificaciones", RACT, { to: "/prototype/sige/notas/planilla" }),
+  built("GRD-03", "Carga Masiva de Notas desde Excel", RACT, {
+    to: "/prototype/sige/notas/carga-masiva",
+  }),
+  built("GRD-04", "Panel de Bloqueo de Periodos", RAC, { to: "/prototype/sige/notas/bloqueo" }),
+  built("GRD-05", "Notas Finales del Periodo", RACT, { to: "/prototype/sige/notas/finales" }),
+  built("GRD-06", "Notas Anuales", RACT, { to: "/prototype/sige/notas/anuales" }),
+  built("GRD-07", "Resumen de Notas", RACT, { to: "/prototype/sige/notas/resumen" }),
+  built("GRD-08", "Notas del Estudiante", RACTSP, { to: "/prototype/sige/notas/estudiante" }),
 
   // Attendance
-  pending("ATT-01", "Tomar Asistencia", RACT),
-  pending("ATT-02", "Historial de Asistencia", RACTS),
-  pending("ATT-03", "Resumen de Asistencia", RACT),
-  pending("ATT-04", "Reporte de Asistencia", RACT),
+  built("ATT-01", "Tomar Asistencia", RACT, { to: "/prototype/sige/asistencia" }),
+  built("ATT-02", "Historial de Asistencia", RACTS, {
+    to: "/prototype/sige/asistencia/estudiante",
+  }),
+  built("ATT-03", "Resumen de Asistencia", RACT, { to: "/prototype/sige/asistencia/resumen" }),
+  built("ATT-04", "Reporte de Asistencia", RACT, { to: "/prototype/sige/asistencia/reporte" }),
 
   // Observations
   pending("OBS-01", "Observaciones de Comportamiento", RACT),
@@ -223,10 +227,14 @@ export const screens: readonly ScreenDef[] = [
   pending("OBS-05", "Historial de Observaciones", RACTS),
 
   // Report cards
-  pending("RPT-01", "Gestión de Boletines", RAC),
-  pending("RPT-02", "Generar Boletín de Calificaciones", RACTS),
-  pending("RPT-03", "Historial de Boletines", RACTS),
-  pending("RPT-04", "Boletín (vista de impresión / PDF)", RACTSP),
+  built("RPT-01", "Gestión de Boletines", RAC, { to: "/prototype/sige/boletines" }),
+  built("RPT-02", "Generar Boletín de Calificaciones", RACTS, {
+    to: "/prototype/sige/boletines/generar",
+  }),
+  built("RPT-03", "Historial de Boletines", RACTS, { to: "/prototype/sige/boletines/historial" }),
+  built("RPT-04", "Boletín (vista de impresión / PDF)", RACTSP, {
+    to: "/prototype/sige/boletines/ver",
+  }),
 
   // Metrics
   pending("MET-01", "Métricas Institucionales", RAC),

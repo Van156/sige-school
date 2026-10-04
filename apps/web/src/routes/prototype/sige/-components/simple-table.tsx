@@ -3,6 +3,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -45,6 +46,7 @@ export function SimpleTable<T>({
   getRowId,
   pageSize,
   empty,
+  footer,
   className,
 }: {
   columns: readonly TableColumn<T>[];
@@ -52,6 +54,8 @@ export function SimpleTable<T>({
   getRowId: (row: T) => string | number;
   pageSize?: number;
   empty?: ReactNode;
+  /** Summary rows (`<TableRow>`s) rendered in the table footer, e.g. column averages. */
+  footer?: ReactNode;
   className?: string;
 }) {
   const [page, setPage] = useState(0);
@@ -135,6 +139,7 @@ export function SimpleTable<T>({
               </TableRow>
             ))}
           </TableBody>
+          {footer ? <TableFooter>{footer}</TableFooter> : null}
         </Table>
       </div>
       {pageSize && pageCount > 1 ? (
