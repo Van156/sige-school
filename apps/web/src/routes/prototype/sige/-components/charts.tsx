@@ -15,8 +15,12 @@ import {
   LineChart,
   Pie,
   PieChart,
+  ReferenceLine,
+  Scatter,
+  ScatterChart,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 
 export interface BarDatum {
@@ -94,6 +98,8 @@ export function SeriesChart({
   series,
   variant = "bar",
   stacked = false,
+  domain,
+  decimals = false,
   ariaLabel,
   className,
 }: {
@@ -102,6 +108,10 @@ export function SeriesChart({
   series: readonly SeriesDef[];
   variant?: "bar" | "line";
   stacked?: boolean;
+  /** Fixed value domain, e.g. `[0, 5]` for scores. */
+  domain?: [number, number];
+  /** Allows fractional ticks (scores); counts keep integer ticks. */
+  decimals?: boolean;
   ariaLabel: string;
   className?: string;
 }) {
@@ -112,7 +122,13 @@ export function SeriesChart({
     <>
       <CartesianGrid vertical={false} />
       <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-      <YAxis tickLine={false} axisLine={false} width={32} allowDecimals={false} />
+      <YAxis
+        tickLine={false}
+        axisLine={false}
+        width={32}
+        allowDecimals={decimals}
+        domain={domain}
+      />
       <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
       <ChartLegend content={<ChartLegendContent />} />
     </>
@@ -200,5 +216,113 @@ export function DonutChart({
         <ChartLegend content={<ChartLegendContent nameKey="label" />} />
       </PieChart>
     </ChartContainer>
+  );
+}
+
+export interface ScatterSeries<P> {
+  key: string;
+  label: string;
+  color: string;
+  points: readonly P[];
+}
+
+/**
+ * Scatter plot with one coloured series per group and an optional trend segment. `point` supplies
+ * the numeric coordinates of a datum and `describe` the tooltip text.
+ */
+export function ScatterPlot<P extends { x: number; y: number }>({
+  series,
+  trend,
+  xLabel,
+  yLabel,
+  xDomain,
+  yDomain,
+  describe,
+  ariaLabel,
+  className,
+}: {
+  series: readonly ScatterSeries<P>[];
+  trend?: readonly [{ x: number; y: number }, { x: number; y: number }] | null;
+  xLabel: string;
+  yLabel: string;
+  xDomain: [number, number];
+  yDomain: [number, number];
+  describe: (point: P) => string;
+  ariaLabel: string;
+  className?: string;
+}) {
+  const config = Object.fromEntries(
+    series.map((entry) => [entry.key, { label: entry.label, color: entry.color }]),
+  ) satisfies ChartConfig;
+  return (
+    <div className="flex flex-col gap-2">
+      <ChartContainer
+        config={config}
+        className={className ?? "aspect-[16/9] w-full"}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        <ScatterChart accessibilityLayer margin={{ left: -4, right: 8, top: 8, bottom: 16 }}>
+          <CartesianGrid />
+          <XAxis
+            type="number"
+            dataKey="x"
+            name={xLabel}
+            domain={xDomain}
+            tickLine={false}
+            label={{ value: xLabel, position: "insideBottom", offset: -8, fontSize: 12 }}
+          />
+          <YAxis
+            type="number"
+            dataKey="y"
+            name={yLabel}
+            domain={yDomain}
+            tickLine={false}
+            width={36}
+          />
+          <ZAxis range={[60, 60]} />
+          <ChartTooltip
+            cursor={{ strokeDasharray: "3 3" }}
+            content={({ active, payload }) => {
+              const datum = active ? (payload?.[0]?.payload as P | undefined) : undefined;
+              if (!datum) return null;
+              return (
+                <div className="rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-xl">
+                  {describe(datum)}
+                </div>
+              );
+            }}
+          />
+          {trend ? (
+            <ReferenceLine
+              segment={[...trend]}
+              stroke="var(--muted-foreground)"
+              strokeDasharray="5 4"
+              ifOverflow="extendDomain"
+            />
+          ) : null}
+          {series.map((entry) => (
+            <Scatter
+              key={entry.key}
+              name={entry.label}
+              data={[...entry.points]}
+              fill={`var(--color-${entry.key})`}
+            />
+          ))}
+        </ScatterChart>
+      </ChartContainer>
+      <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+        {series.map((entry) => (
+          <li key={entry.key} className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: entry.color }}
+            />
+            {entry.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

@@ -47,12 +47,19 @@ import {
   toggleNavParent,
 } from "@/shared/lib/nav-parent-state";
 
-import { currentUserFor, fullName, mockInfo, openAlertCount } from "../-mock";
+import { alertStore, currentUserFor, fullName, mockInfo, useMockCollection } from "../-mock";
 import { navForRole, type NavLeaf, type VisibleNavEntry } from "../-nav";
 import { dashboardScreenId, type ScreenDef } from "../-screens";
 import { ROLE_LABEL } from "../-lib/roles";
 import { useCurrentScreen, useRole, useRoleFilter } from "../-lib/use-role";
 import { ScreenLink } from "./sige-link";
+
+/** Live count of unresolved alerts (hidden at 0, "99+" cap) next to "Alertas Tempranas". */
+function OpenAlertsBadge() {
+  const open = useMockCollection(alertStore).filter((alert) => !alert.resolved).length;
+  if (open === 0) return null;
+  return <SidebarMenuBadge>{open > 99 ? "99+" : open}</SidebarMenuBadge>;
+}
 
 function useLeafActive() {
   const current = useCurrentScreen();
@@ -229,9 +236,7 @@ export function SigeSidebar() {
                         <Icon />
                         <span>{leaf.label}</span>
                       </SidebarMenuButton>
-                      {leaf.badge === "alerts" ? (
-                        <SidebarMenuBadge>{openAlertCount()}</SidebarMenuBadge>
-                      ) : null}
+                      {leaf.badge === "alerts" ? <OpenAlertsBadge /> : null}
                     </SidebarMenuItem>
                   );
                 }

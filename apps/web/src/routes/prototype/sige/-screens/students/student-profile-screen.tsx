@@ -3,10 +3,12 @@ import { Badge } from "@base-template/ui/components/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@base-template/ui/components/tabs";
 import {
   CalendarCheck,
+  ClipboardList,
   FileText,
   MessageSquarePlus,
   NotebookPen,
   Pencil,
+  Trophy,
   UsersRound,
 } from "lucide-react";
 
@@ -139,6 +141,13 @@ function Profile({
             <ActionLink screenId="GRD-08" icon={NotebookPen} title="Notas" search={search} />
             <ActionLink screenId="ATT-02" icon={CalendarCheck} title="Asistencia" search={search} />
             <ActionLink screenId="RPT-03" icon={FileText} title="Boletines" search={search} />
+            <ActionLink
+              screenId="OBS-05"
+              icon={ClipboardList}
+              title="Historial de observaciones"
+              search={search}
+            />
+            <ActionLink screenId="ACH-02" icon={Trophy} title="Logros" search={search} />
           </div>
         </SectionCard>
       </div>

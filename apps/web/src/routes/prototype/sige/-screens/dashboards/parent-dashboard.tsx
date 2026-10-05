@@ -6,7 +6,9 @@ import { EmptyBlock } from "../../-components/empty-block";
 import { ScreenLinkButton } from "../../-components/link-button";
 import { SigePageHeader } from "../../-components/page-header";
 import { useRole } from "../../-lib/use-role";
-import { childrenOf, currentUserFor, fullName } from "../../-mock";
+import { useSchool } from "../../-lib/use-school";
+import { useStudentScope } from "../../-lib/use-student-scope";
+import { INSTITUTION_ID, currentUserFor, fullName } from "../../-mock";
 
 /**
  * DASH-06: generic parent dashboard (children as cards). The full portal is PAR-01; this view keeps
@@ -15,7 +17,21 @@ import { childrenOf, currentUserFor, fullName } from "../../-mock";
 export function ParentDashboard() {
   const role = useRole();
   const user = currentUserFor(role);
-  const children = childrenOf(user.id);
+  const school = useSchool(INSTITUTION_ID);
+  const scope = useStudentScope(school);
+  const children = scope.allowed.map((student) => {
+    const child = school.userOfStudent(student);
+    return {
+      studentId: student.id,
+      name: school.studentName(student.id),
+      grade: school.gradeName(student.gradeId) ?? "Sin grado",
+      document: child ? `${child.documentType} ${child.documentNumber}` : "",
+      relationship:
+        school.parentLinks.find(
+          (link) => link.parentId === user.id && link.studentId === student.id,
+        )?.relationship ?? "Acudiente",
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,7 +71,11 @@ export function ParentDashboard() {
                   <dd className="tabular-nums">{child.document}</dd>
                 </dl>
                 <div>
-                  <ScreenLinkButton screenId="PAR-02" size="sm">
+                  <ScreenLinkButton
+                    screenId="PAR-02"
+                    size="sm"
+                    search={{ student: String(child.studentId) }}
+                  >
                     <NotebookPen />
                     Ver Notas
                   </ScreenLinkButton>

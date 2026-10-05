@@ -15,13 +15,38 @@ import { EmptyBlock } from "../../-components/empty-block";
 import { ScreenLinkButton } from "../../-components/link-button";
 import { SigePageHeader } from "../../-components/page-header";
 import { StatGrid, StatTile } from "../../-components/stat-tile";
-import { globalCounts, institutionSummaries, institutions } from "../../-mock";
+import {
+  campusStore,
+  institutionStore,
+  studentStore,
+  summarizeInstitution,
+  useMockCollection,
+  userStore,
+} from "../../-mock";
 import type { Institution, InstitutionSummary } from "../../-mock/types";
 
 /** DASH-01: global KPIs, one card per institution and quick access. */
 export function RootDashboard() {
-  const totals = globalCounts();
-  const summaries = new Map(institutionSummaries().map((item) => [item.institutionId, item]));
+  const institutions = useMockCollection(institutionStore);
+  const campuses = useMockCollection(campusStore);
+  const users = useMockCollection(userStore);
+  // Subscribing to the students keeps the San José headcount live (summarizeInstitution reads it).
+  useMockCollection(studentStore);
+  const summaries = new Map(
+    institutions.map((institution) => [
+      institution.id,
+      summarizeInstitution(institution.id, campuses, users),
+    ]),
+  );
+  const sum = (pick: (summary: InstitutionSummary) => number) =>
+    [...summaries.values()].reduce((total, summary) => total + pick(summary), 0);
+  const totals = {
+    institutions: institutions.length,
+    users: sum((summary) => summary.users),
+    students: sum((summary) => summary.students),
+    teachers: sum((summary) => summary.teachers),
+    admins: sum((summary) => summary.admins),
+  };
 
   return (
     <div className="flex flex-col gap-6">

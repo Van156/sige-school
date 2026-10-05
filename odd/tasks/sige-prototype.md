@@ -30,7 +30,7 @@ A clickable, login-free prototype of every SISTEMA_ESCOLAR screen (~100 Jinja te
 - [x] **T2 — Institution & users.** Institutions, campuses, grade levels, grades/groups, subjects, periods, criteria, config, institution users/admins, users list/create/edit/import. Route: delegated (react-staff).
 - [x] **T3 — Students & scheduling.** Students list/form/profile/upload/assign parent; classrooms, blocks, subject-grades, assignments, enrollments, schedules generate/list. Route: delegated (react-staff).
 - [x] **T4 — Grades, report cards, attendance.** Grade select/input/upload/lock/summary/student/final/annual; report cards generate/manage/history/view/PDF; attendance take/summary/group/report. Route: delegated (react-staff).
-- [ ] **T5 — Observations, alerts, achievements, metrics, QR, parent portal.** Route: delegated (react-staff).
+- [x] **T5 — Observations, alerts, achievements, metrics, QR, parent portal.** Route: delegated (react-staff).
 
 ## Acceptance criteria
 
@@ -47,7 +47,8 @@ A clickable, login-free prototype of every SISTEMA_ESCOLAR screen (~100 Jinja te
 - T2 commit b3695ef. Review T1+T2 (2b42e69..HEAD, 14.6k lines, risk high): consent auto-granted, START stopped `lens_context_budget_exceeded`. Fallback per task: T2 alone (bf78411..HEAD, 5.7k lines, medium) also `lens_context_budget_exceeded`. No authority created. User decision (2026-10-04): continue T3–T5, defer the review decision to the end.
 - T3 delegated to react-staff (writer trigger). 17 screens SCH-01..12 + STU-01..05; stores in `-mock/school.ts`, multi-store actions and greedy schedule generator in `-mock/school-actions.ts`; USR-02 student creation now opens STU-03 complete mode. Checks: `pnpm check-types` exit 0, `pnpm lint` exit 0 (parent spot check). Open: SCH-11 shows one course at a time; SCH-02 caps at grade maxStudents; seeded students cannot be deleted (have records); initial password = document number.
 - T4 delegated to react-staff (writer trigger). 16 screens GRD-01..08, ATT-01..04, RPT-01..04; stores in `-mock/grading.ts` (grade records, period locks, attendance, report cards); finals/annuals derived live; RPT-04 printable sheet. Checks: `pnpm check-types` exit 0, `pnpm lint` exit 0 (parent spot check); no browser run. Open: attendance statuses follow inventory (no "tarde"); dashboards still read static arrays.
+- T5 delegated to react-staff (writer trigger). 25 screens OBS/MET/ACH/ALR/PAR/QR; stores in `-mock/engagement.ts`, alert and achievement engines, live finals; dashboards and sidebar alert badge rewired to live stores. Zero `pending` rows left. Checks: `pnpm check-types` exit 0, `pnpm lint` exit 0 (parent spot check); writer smoke-tested 47 route/role combos in headless Chromium with no errors. Open: ATT-02 opened to parents; QR simulator has a simulated-time input; OBS-01 "Exportar CSV" overflows slightly at phone width.
 
 ## Next step
 
-T5 — Observations, alerts, achievements, metrics, QR, parent portal (delegated, react-staff). Review decision deferred to feature end.
+All tasks done. Pending user decision on gentle-ai review (deferred; per-task candidates exceed the reviewer context budget).

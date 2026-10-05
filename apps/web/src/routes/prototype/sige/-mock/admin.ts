@@ -20,7 +20,6 @@ import {
   studentStore,
   subjectGradeStore,
 } from "./school";
-import { institutionCounts } from "./selectors";
 import { REFERENCE_DATE } from "./dates";
 import { createMockCollection } from "./store";
 import type { InstitutionSummary, Role, User } from "./types";
@@ -101,7 +100,12 @@ export function summarizeInstitution(
     admins: count("admin"),
     campuses: campusList.filter((campus) => campus.institutionId === id).length,
     teachers: count("teacher"),
-    students: id === INSTITUTION_ID ? institutionCounts().students : count("student"),
+    students:
+      id === INSTITUTION_ID
+        ? studentStore
+            .getSnapshot()
+            .filter((student) => student.institutionId === id && student.status === "activo").length
+        : count("student"),
     users: own.length,
   };
 }

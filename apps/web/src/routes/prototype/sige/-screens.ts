@@ -7,8 +7,9 @@ import type { Role } from "./-mock/types";
  *
  * Add a screen in three steps:
  * 1. Create the route file under `sige/_shell/` (thin) and its component under `-screens/`.
- * 2. Flip its row below from `pending(...)` to `built(..., { to: "/prototype/sige/..." })`; `to` is
- *    type-checked against the generated route tree. Add `params` for `$param` routes.
+ * 2. Add its `built(...)` row below with `{ to: "/prototype/sige/..." }`; `to` is type-checked against
+ *    the generated route tree. Add `params` for `$param` routes. Every legacy screen is built now;
+ *    the "pending" status and placeholder route stay only for screens added to the list later.
  * 3. Done: the nav, the screen index, breadcrumbs and the "Pantalla pendiente" placeholder all read
  *    this file.
  */
@@ -87,10 +88,6 @@ const PARENT: readonly Role[] = ["parent"];
 
 function moduleOf(id: string): ModuleKey {
   return id.split("-")[0] as ModuleKey;
-}
-
-function pending(id: string, title: string, roles: readonly Role[]): ScreenDef {
-  return { id, module: moduleOf(id), title, roles, status: "pending" };
 }
 
 function built(id: string, title: string, roles: readonly Role[], route: ScreenRoute): ScreenDef {
@@ -213,18 +210,22 @@ export const screens: readonly ScreenDef[] = [
 
   // Attendance
   built("ATT-01", "Tomar Asistencia", RACT, { to: "/prototype/sige/asistencia" }),
-  built("ATT-02", "Historial de Asistencia", RACTS, {
+  built("ATT-02", "Historial de Asistencia", RACTSP, {
     to: "/prototype/sige/asistencia/estudiante",
   }),
   built("ATT-03", "Resumen de Asistencia", RACT, { to: "/prototype/sige/asistencia/resumen" }),
   built("ATT-04", "Reporte de Asistencia", RACT, { to: "/prototype/sige/asistencia/reporte" }),
 
   // Observations
-  pending("OBS-01", "Observaciones de Comportamiento", RACT),
-  pending("OBS-02", "Detalle de Observación", RACT),
-  pending("OBS-03", "Nueva / Editar Observación", RACT),
-  pending("OBS-04", "Observación Rápida", RACT),
-  pending("OBS-05", "Historial de Observaciones", RACTS),
+  built("OBS-01", "Observaciones de Comportamiento", RACT, { to: "/prototype/sige/observaciones" }),
+  built("OBS-02", "Detalle de Observación", RACT, { to: "/prototype/sige/observaciones/detalle" }),
+  built("OBS-03", "Nueva / Editar Observación", RACT, {
+    to: "/prototype/sige/observaciones/formulario",
+  }),
+  built("OBS-04", "Observación Rápida", RACT, { to: "/prototype/sige/observaciones/rapida" }),
+  built("OBS-05", "Historial de Observaciones", RACTS, {
+    to: "/prototype/sige/observaciones/historial",
+  }),
 
   // Report cards
   built("RPT-01", "Gestión de Boletines", RAC, { to: "/prototype/sige/boletines" }),
@@ -237,36 +238,50 @@ export const screens: readonly ScreenDef[] = [
   }),
 
   // Metrics
-  pending("MET-01", "Métricas Institucionales", RAC),
-  pending("MET-02", "Mapa de Calor de Rendimiento", RAC),
-  pending("MET-03", "Tendencias Académicas", RAC),
-  pending("MET-04", "Comparativa Anónima de Docentes", RAC),
-  pending("MET-05", "Métricas del Docente", RACT),
-  pending("MET-06", "Asistencia vs Rendimiento", RACT),
-  pending("MET-07", "Estudiantes en Riesgo", RACT),
+  built("MET-01", "Métricas Institucionales", RAC, { to: "/prototype/sige/metricas" }),
+  built("MET-02", "Mapa de Calor de Rendimiento", RAC, {
+    to: "/prototype/sige/metricas/mapa-calor",
+  }),
+  built("MET-03", "Tendencias Académicas", RAC, { to: "/prototype/sige/metricas/tendencias" }),
+  built("MET-04", "Comparativa Anónima de Docentes", RAC, {
+    to: "/prototype/sige/metricas/comparativa-docentes",
+  }),
+  built("MET-05", "Métricas del Docente", RACT, { to: "/prototype/sige/metricas/docente" }),
+  built("MET-06", "Asistencia vs Rendimiento", RACT, {
+    to: "/prototype/sige/metricas/asistencia-rendimiento",
+  }),
+  built("MET-07", "Estudiantes en Riesgo", RACT, {
+    to: "/prototype/sige/metricas/estudiantes-riesgo",
+  }),
 
   // Achievements
-  pending("ACH-01", "Logros y Gamificación", RACT),
-  pending("ACH-02", "Logros del Estudiante", RACTSP),
-  pending("ACH-03", "Ranking Estudiantil", RACTSP),
+  built("ACH-01", "Logros y Gamificación", RACT, { to: "/prototype/sige/logros" }),
+  built("ACH-02", "Logros del Estudiante", RACTSP, { to: "/prototype/sige/logros/estudiante" }),
+  built("ACH-03", "Ranking Estudiantil", RACTSP, { to: "/prototype/sige/logros/ranking" }),
 
   // Alerts
-  pending("ALR-01", "Alertas Tempranas", RAC),
-  pending("ALR-02", "Detalle de Alerta", RAC),
-  pending("ALR-03", "Ejecutar Motor de Alertas", RAC),
+  built("ALR-01", "Alertas Tempranas", RAC, { to: "/prototype/sige/alertas" }),
+  built("ALR-02", "Detalle de Alerta", RAC, { to: "/prototype/sige/alertas/detalle" }),
+  built("ALR-03", "Ejecutar Motor de Alertas", RAC, { to: "/prototype/sige/alertas/motor" }),
 
   // Parent portal
-  pending("PAR-01", "Portal de Acudientes", PARENT),
-  pending("PAR-02", "Notas del hijo/a", PARENT),
-  pending("PAR-03", "Asistencia del hijo/a", PARENT),
-  pending("PAR-04", "Observaciones del hijo/a", PARENT),
-  pending("PAR-05", "Boletines del hijo/a", PARENT),
-  pending("PAR-06", "Logros del hijo/a", PARENT),
+  built("PAR-01", "Portal de Acudientes", PARENT, { to: "/prototype/sige/portal-padres" }),
+  built("PAR-02", "Notas del hijo/a", PARENT, { to: "/prototype/sige/portal-padres/notas" }),
+  built("PAR-03", "Asistencia del hijo/a", PARENT, {
+    to: "/prototype/sige/portal-padres/asistencia",
+  }),
+  built("PAR-04", "Observaciones del hijo/a", PARENT, {
+    to: "/prototype/sige/portal-padres/observaciones",
+  }),
+  built("PAR-05", "Boletines del hijo/a", PARENT, {
+    to: "/prototype/sige/portal-padres/boletines",
+  }),
+  built("PAR-06", "Logros del hijo/a", PARENT, { to: "/prototype/sige/portal-padres/logros" }),
 
   // QR access
-  pending("QR-01", "Mi Código QR (Identidad Digital)", ALL),
-  pending("QR-02", "Simulador de Hardware QR", ROOT),
-  pending("QR-03", "Monitoreo de Accesos QR", RAC),
+  built("QR-01", "Mi Código QR (Identidad Digital)", ALL, { to: "/prototype/sige/qr" }),
+  built("QR-02", "Simulador de Hardware QR", ROOT, { to: "/prototype/sige/qr/simulador" }),
+  built("QR-03", "Monitoreo de Accesos QR", RAC, { to: "/prototype/sige/qr/monitoreo" }),
 ];
 
 export const screenById: ReadonlyMap<string, ScreenDef> = new Map(

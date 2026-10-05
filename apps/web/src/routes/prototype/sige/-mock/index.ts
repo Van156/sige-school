@@ -3,9 +3,13 @@
  * module load from static definitions plus seeded PRNGs, so every render sees identical data.
  */
 export * from "./academics";
+export * from "./achievement-engine";
+export * from "./alert-engine";
 export * from "./admin";
 export * from "./base";
 export * from "./dates";
+export * from "./engagement";
+export * from "./finals";
 export * from "./grading";
 export * from "./helpers";
 export * from "./people";

@@ -23,20 +23,22 @@ import { SectionCard } from "../../-components/section-card";
 import { SimpleTable, type TableColumn } from "../../-components/simple-table";
 import { StatGrid, StatTile } from "../../-components/stat-tile";
 import { formatScore } from "../../-lib/format";
+import {
+  dashboardSuggestions,
+  teacherClassStats,
+  type TeacherClassStats,
+} from "../../-lib/metrics";
+import { useMetrics } from "../../-lib/use-metrics";
 import { useRole } from "../../-lib/use-role";
 import {
+  INSTITUTION_ID,
   currentUserFor,
   fullName,
-  gradeById,
-  studentCountOfGrade,
-  subjectById,
-  teacherAnalytics,
-  teacherSubjectGrades,
-  teacherSuggestions,
+  type SubjectGradeRecord,
   type TeacherGroupState,
 } from "../../-mock";
 
-type AnalyticsRow = ReturnType<typeof teacherAnalytics>[number];
+type AnalyticsRow = TeacherClassStats;
 
 const STATE_COPY: Record<
   TeacherGroupState,
@@ -88,11 +90,17 @@ function RateBar({ rate }: { rate: number }) {
 export function TeacherDashboard() {
   const role = useRole();
   const user = currentUserFor(role);
-  const assignments = teacherSubjectGrades(user.id);
-  const analytics = teacherAnalytics(user.id);
-  const suggestions = teacherSuggestions(user.id);
+  const metrics = useMetrics(INSTITUTION_ID);
+  const { school } = metrics;
+  const assignments = school.subjectGrades.filter((item) => item.teacherId === user.id);
+  const analytics = teacherClassStats(metrics, user.id);
+  const suggestions = dashboardSuggestions(analytics);
   const groupIds = [...new Set(assignments.map((item) => item.gradeId))];
-  const studentsInCharge = groupIds.reduce((sum, gradeId) => sum + studentCountOfGrade(gradeId), 0);
+  const studentsInCharge = groupIds.reduce(
+    (sum, gradeId) =>
+      sum + metrics.activeStudents.filter((student) => student.gradeId === gradeId).length,
+    0,
+  );
 
   const analyticsColumns: TableColumn<AnalyticsRow>[] = [
     {
@@ -128,12 +136,12 @@ export function TeacherDashboard() {
     },
   ];
 
-  const classColumns: TableColumn<(typeof assignments)[number]>[] = [
+  const classColumns: TableColumn<SubjectGradeRecord>[] = [
     {
       key: "subject",
       header: "Asignatura",
       cell: (item) => {
-        const subject = subjectById.get(item.subjectId);
+        const subject = school.subjectById.get(item.subjectId);
         return (
           <div className="flex flex-col leading-tight">
             <span className="font-medium">{subject?.name}</span>
@@ -145,7 +153,7 @@ export function TeacherDashboard() {
     {
       key: "grade",
       header: "Grado",
-      cell: (item) => <Badge variant="secondary">{gradeById.get(item.gradeId)?.name}</Badge>,
+      cell: (item) => <Badge variant="secondary">{school.gradeName(item.gradeId)}</Badge>,
     },
     {
       key: "actions",

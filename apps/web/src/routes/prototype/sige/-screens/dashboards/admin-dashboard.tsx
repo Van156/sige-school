@@ -20,7 +20,14 @@ import { SigePageHeader } from "../../-components/page-header";
 import { SectionCard } from "../../-components/section-card";
 import { StatGrid, StatTile } from "../../-components/stat-tile";
 import { formatScore } from "../../-lib/format";
-import { groupPerformance, institutionCounts, performanceDistribution } from "../../-mock";
+import {
+  groupPerformanceOf,
+  levelDistribution,
+  referencePeriod,
+  schoolCounts,
+} from "../../-lib/metrics";
+import { useMetrics } from "../../-lib/use-metrics";
+import { INSTITUTION_ID } from "../../-mock";
 
 const LEVEL_COLORS = {
   Superior: "var(--success)",
@@ -31,9 +38,11 @@ const LEVEL_COLORS = {
 
 /** DASH-02: institution KPIs, quick actions, configuration links and academic snapshot. */
 export function AdminDashboard() {
-  const counts = institutionCounts();
-  const groups = groupPerformance(3);
-  const distribution = performanceDistribution(3);
+  const metrics = useMetrics(INSTITUTION_ID);
+  const counts = schoolCounts(metrics);
+  const period = referencePeriod(metrics);
+  const groups = groupPerformanceOf(metrics, period);
+  const distribution = levelDistribution(metrics, period);
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,16 +128,22 @@ export function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Promedio por grupo" description="Tercer periodo, escala 1.0 a 5.0">
+        <SectionCard
+          title="Promedio por grupo"
+          description={`${period?.name ?? "Sin periodo"}, escala 1.0 a 5.0`}
+        >
           <CategoryBarChart
-            ariaLabel="Promedio de notas por grupo en el tercer periodo"
+            ariaLabel="Promedio de notas por grupo en el último periodo cerrado"
             seriesLabel="Promedio"
             domain={[0, 5]}
             valueFormatter={(value) => formatScore(value, 1)}
             data={groups.map((group) => ({ label: group.group, value: group.average }))}
           />
         </SectionCard>
-        <SectionCard title="Niveles de desempeño" description="Notas finales del tercer periodo">
+        <SectionCard
+          title="Niveles de desempeño"
+          description={`Notas finales de ${period?.name ?? "ningún periodo"}`}
+        >
           <CategoryBarChart
             ariaLabel="Cantidad de notas finales por nivel de desempeño"
             seriesLabel="Notas"

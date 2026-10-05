@@ -21,15 +21,16 @@ import { SimpleTable, type TableColumn } from "../../-components/simple-table";
 import { StatGrid, StatTile } from "../../-components/stat-tile";
 import { ToneBadge } from "../../-components/tone-badge";
 import { OBSERVATION_TONE, capitalize, formatDate } from "../../-lib/format";
+import { schoolCounts } from "../../-lib/metrics";
+import { useMetrics } from "../../-lib/use-metrics";
 import { useRole } from "../../-lib/use-role";
 import {
-  alerts,
+  INSTITUTION_ID,
+  alertStore,
   currentUserFor,
   fullName,
-  institutionCounts,
-  recentObservations,
-  studentName,
-  userById,
+  observationStore,
+  useMockCollection,
 } from "../../-mock";
 import type { Observation } from "../../-mock/types";
 
@@ -42,8 +43,13 @@ const SEVERITY_COLOR = {
 /** DASH-03: KPIs (all four populated), quick actions, academic summary, alerts and recent notes. */
 export function CoordinatorDashboard() {
   const role = useRole();
-  const counts = institutionCounts();
-  const open = alerts.filter((alert) => !alert.resolved);
+  const metrics = useMetrics(INSTITUTION_ID);
+  const { school } = metrics;
+  const counts = schoolCounts(metrics);
+  const open = useMockCollection(alertStore).filter((alert) => !alert.resolved);
+  const recent = useMockCollection(observationStore)
+    .toSorted((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
   const bySeverity = (["alta", "media", "baja"] as const).map((severity) => ({
     label: capitalize(severity),
     value: open.filter((alert) => alert.severity === severity).length,
@@ -53,7 +59,7 @@ export function CoordinatorDashboard() {
     {
       key: "student",
       header: "Estudiante",
-      cell: (row) => <span className="font-medium">{studentName(row.studentId)}</span>,
+      cell: (row) => <span className="font-medium">{school.studentName(row.studentId)}</span>,
     },
     {
       key: "type",
@@ -71,10 +77,7 @@ export function CoordinatorDashboard() {
     {
       key: "author",
       header: "Autor",
-      cell: (row) => {
-        const author = userById.get(row.authorId);
-        return author ? fullName(author) : "";
-      },
+      cell: (row) => school.userName(row.authorId) ?? "",
     },
     { key: "date", header: "Fecha", cell: (row) => formatDate(row.date) },
   ];
@@ -182,7 +185,7 @@ export function CoordinatorDashboard() {
             </ScreenLinkButton>
           }
         >
-          <SimpleTable columns={columns} rows={recentObservations(6)} getRowId={(row) => row.id} />
+          <SimpleTable columns={columns} rows={recent} getRowId={(row) => row.id} />
         </SectionCard>
       </div>
     </div>

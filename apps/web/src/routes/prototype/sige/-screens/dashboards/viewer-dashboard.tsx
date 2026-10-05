@@ -8,14 +8,18 @@ import { SectionCard } from "../../-components/section-card";
 import { StatGrid, StatTile } from "../../-components/stat-tile";
 import { formatPercent } from "../../-lib/format";
 import { useRole } from "../../-lib/use-role";
-import { currentUserFor, fullName, groupPerformance, institutionCounts } from "../../-mock";
+import { groupPerformanceOf, referencePeriod, schoolCounts } from "../../-lib/metrics";
+import { useMetrics } from "../../-lib/use-metrics";
+import { INSTITUTION_ID, currentUserFor, fullName } from "../../-mock";
 
 /** DASH-07: read-only institution KPIs. */
 export function ViewerDashboard() {
   const role = useRole();
   const user = currentUserFor(role);
-  const counts = institutionCounts();
-  const groups = groupPerformance(3);
+  const metrics = useMetrics(INSTITUTION_ID);
+  const counts = schoolCounts(metrics);
+  const period = referencePeriod(metrics);
+  const groups = groupPerformanceOf(metrics, period);
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,10 +43,10 @@ export function ViewerDashboard() {
 
       <SectionCard
         title="Aprobación por grupo"
-        description="Porcentaje de asignaturas ganadas en el tercer periodo"
+        description={`Porcentaje de asignaturas ganadas en ${period?.name ?? "el último periodo"}`}
       >
         <CategoryBarChart
-          ariaLabel="Porcentaje de aprobación por grupo en el tercer periodo"
+          ariaLabel="Porcentaje de aprobación por grupo en el último periodo cerrado"
           seriesLabel="Aprobación"
           domain={[0, 100]}
           valueFormatter={(value) => formatPercent(value)}

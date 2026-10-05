@@ -11,16 +11,10 @@ import { SigePageHeader } from "../../-components/page-header";
 import { SectionCard } from "../../-components/section-card";
 import { WeeklySchedule } from "../../-components/weekly-schedule";
 import { SCORE_TONE, formatScore } from "../../-lib/format";
+import { referencePeriod } from "../../-lib/metrics";
+import { useMetrics } from "../../-lib/use-metrics";
 import { useRole } from "../../-lib/use-role";
-import {
-  currentUserFor,
-  fullName,
-  gradeById,
-  groupWeeklySchedule,
-  scoreClass,
-  studentByUserId,
-  studentLatestFinals,
-} from "../../-mock";
+import { INSTITUTION_ID, currentUserFor, fullName, scoreClass } from "../../-mock";
 
 const TONE_COLOR = {
   success: "var(--success)",
@@ -36,8 +30,10 @@ const TONE_COLOR = {
 export function StudentDashboard() {
   const role = useRole();
   const user = currentUserFor(role);
-  const student = studentByUserId.get(user.id);
-  const grade = student?.gradeId ? gradeById.get(student.gradeId) : undefined;
+  const metrics = useMetrics(INSTITUTION_ID);
+  const { school, grading } = metrics;
+  const student = school.students.find((entry) => entry.userId === user.id);
+  const grade = student?.gradeId ? school.gradeById.get(student.gradeId) : undefined;
 
   if (!student) {
     return (
@@ -48,8 +44,15 @@ export function StudentDashboard() {
     );
   }
 
-  const schedule = grade ? groupWeeklySchedule(grade.id) : [];
-  const finals = studentLatestFinals(student.id, 3);
+  const schedule = grade ? school.gradeScheduleRows(grade) : [];
+  const period = referencePeriod(metrics);
+  const finals = school.subjectGrades
+    .filter((item) => item.gradeId === student.gradeId)
+    .flatMap((item) => {
+      const score = period ? grading.finalOf(student.id, item.id, period.id) : null;
+      const subject = school.subjectById.get(item.subjectId);
+      return score === null ? [] : [{ code: subject?.code ?? subject?.name ?? "", score }];
+    });
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,14 +99,14 @@ export function StudentDashboard() {
       </div>
 
       <SectionCard
-        title="Mis notas del tercer periodo"
+        title={`Mis notas de ${period?.name ?? "ningún periodo"}`}
         description="Nota final por asignatura, escala 1.0 a 5.0"
       >
         {finals.length === 0 ? (
           <EmptyBlock title="Sin notas registradas" />
         ) : (
           <CategoryBarChart
-            ariaLabel="Notas finales del tercer periodo por asignatura"
+            ariaLabel="Notas finales del último periodo cerrado por asignatura"
             seriesLabel="Nota final"
             domain={[0, 5]}
             valueFormatter={(value) => formatScore(value, 1)}
