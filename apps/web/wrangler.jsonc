@@ -1,0 +1,11 @@
+// Static preview deploy of the web app through Cloudflare Workers Builds (Git integration).
+// Build the app first with NODE_ENV=production; set VITE_ENABLE_PROTOTYPE=true to expose /prototype.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "sige-school-web",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+}
