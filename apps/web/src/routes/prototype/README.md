@@ -20,9 +20,15 @@ Open `/prototype` for the catalog, or `/prototype/example?variant=B` directly. U
 
 ## Throwaway rule
 
-- Each idea's prototype lives on its own `prototype/<name>` branch. Do not merge it into `main`.
+- Each idea's prototype lives on its own `prototype/<name>` branch. By default, do not merge it into `main`.
 - When a variant wins, rewrite it properly into the real feature code (prototype code has no tests or error handling), then keep the full variant set on the throwaway branch.
-- `main` keeps only the lab infrastructure and the example.
+- `main` keeps the lab infrastructure, the example, and reference prototypes merged on purpose.
+
+### Reference prototypes on `main`
+
+A prototype may be merged into `main` when it serves as a shared, long-lived reference rather than a throwaway variant comparison. It stays prototype code: dev-only, mock data, no tests. Never import from it in feature code; rewrite instead.
+
+- `sige/`: full-system adaptation of every SISTEMA_ESCOLAR screen in the institutional design system (`/prototype/sige`). Screen list in `sige/-screens.ts`; legacy inventory in `odd/tasks/sige-prototype-inventory.md`.
 
 ## Logic-only questions
 

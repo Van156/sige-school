@@ -1,7 +1,7 @@
 # Feature: SIGE School full-system prototype
 
 - **Source:** user request 2026-10-04 — "create a prototype using the prototype lab based on SISTEMA_ESCOLAR of all screens in this system but adapted to the system design".
-- **Branch:** `prototype/sige-school` from `main` (`2b42e69`). Throwaway per `apps/web/src/routes/prototype/README.md`: never merged into `main`.
+- **Branch:** `prototype/sige-school` from `main` (`2b42e69`). User decision 2026-10-04: merged into `main` as a reference prototype; README throwaway rule amended accordingly.
 - **Delivery:** strategy `exception-ok` — throwaway prototype branch, no PRs, no slicing. Forecast ~8k–12k authored lines (mock UI).
 - **TDD:** off — source: prototype skill rule "no tests" + project convention (TDD only for server/auth/API). Checks: `pnpm check-types`, `pnpm lint`.
 - **Review (RDD):** on (global); user policy: review every two tasks, auto-consent. Groups: T1+T2, T3+T4, T5 alone. First boundary: `2b42e69`.
@@ -51,4 +51,4 @@ A clickable, login-free prototype of every SISTEMA_ESCOLAR screen (~100 Jinja te
 
 ## Next step
 
-All tasks done. Pending user decision on gentle-ai review (deferred; per-task candidates exceed the reviewer context budget).
+Done. Review skipped by user decision (prototype only; candidates exceed reviewer context budget). Merged into `main` locally; push is the user's call.
