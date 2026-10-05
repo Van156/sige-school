@@ -6,15 +6,17 @@ import {
 } from "@base-template/ui/components/sidebar";
 import { Outlet, createFileRoute, notFound, useLocation } from "@tanstack/react-router";
 
+import { isPrototypeEnabled } from "@/shared/prototype/enabled";
+
 import { LabSidebar } from "./-lab-sidebar";
 
 /**
  * Public, dev-only layout for the prototype lab. Outside `_auth`/`_public-auth`, so no session is
- * needed; production builds resolve it to not-found.
+ * needed; production builds resolve it to not-found unless `VITE_ENABLE_PROTOTYPE=true`.
  */
 export const Route = createFileRoute("/prototype")({
   beforeLoad: () => {
-    if (import.meta.env.PROD) throw notFound();
+    if (!isPrototypeEnabled) throw notFound();
   },
   component: PrototypeLayout,
 });

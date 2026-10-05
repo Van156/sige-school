@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect } from "react";
 
+import { isPrototypeEnabled } from "@/shared/prototype/enabled";
 import { cycleVariant, type PrototypeVariant } from "@/shared/prototype/variants";
 
 interface PrototypeSwitcherProps {
@@ -34,7 +35,7 @@ export function PrototypeSwitcher({ variants, current }: PrototypeSwitcherProps)
   );
 
   useEffect(() => {
-    if (import.meta.env.PROD) return;
+    if (!isPrototypeEnabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
@@ -45,7 +46,7 @@ export function PrototypeSwitcher({ variants, current }: PrototypeSwitcherProps)
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [go]);
 
-  if (import.meta.env.PROD) return null;
+  if (!isPrototypeEnabled) return null;
 
   const active = variants.find((variant) => variant.key === current);
 

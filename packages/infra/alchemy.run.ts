@@ -19,6 +19,9 @@ export default Alchemy.Stack(
       },
       env: {
         VITE_SERVER_URL: Config.String("VITE_SERVER_URL"),
+        VITE_ENABLE_PROTOTYPE: Config.String("VITE_ENABLE_PROTOTYPE").pipe(
+          Config.withDefault("false"),
+        ),
       },
       dev: {
         port: 3001,
