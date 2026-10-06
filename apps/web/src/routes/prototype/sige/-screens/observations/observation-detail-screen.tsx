@@ -48,7 +48,7 @@ function DetailView({ institution, id }: { institution: Institution; id?: number
   const observation = useMockCollection(observationStore).find((row) => row.id === id);
 
   if (!observation || !access.canSeeStudent(observation.studentId)) {
-    return <NotFoundBlock entity="La observación" backScreenId="OBS-01" />;
+    return <NotFoundBlock entity="Observación" feminine backScreenId="OBS-01" />;
   }
   const student = school.studentById.get(observation.studentId);
   const author = school.userById.get(observation.authorId);

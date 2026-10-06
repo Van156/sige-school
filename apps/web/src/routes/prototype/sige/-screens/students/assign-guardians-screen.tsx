@@ -50,7 +50,7 @@ function GuardiansLoader({ institution, id }: { institution: Institution; id?: n
   return student ? (
     <Guardians student={student} school={school} />
   ) : (
-    <NotFoundBlock entity="El estudiante" backScreenId="STU-01" />
+    <NotFoundBlock entity="Estudiante" backScreenId="STU-01" />
   );
 }
 

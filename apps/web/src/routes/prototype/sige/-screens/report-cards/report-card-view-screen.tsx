@@ -69,7 +69,7 @@ function ViewContent({ institution }: { institution: Institution }) {
   const allowed = student ? scope.allowed.some((entry) => entry.id === student.id) : false;
 
   if (!card || !student || !period || !allowed) {
-    return <NotFoundBlock entity="El boletín" backScreenId={backScreenId} />;
+    return <NotFoundBlock entity="Boletín" backScreenId={backScreenId} />;
   }
   return (
     <>

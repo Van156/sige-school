@@ -85,7 +85,7 @@ export function InstitutionUserFormScreen() {
       {institution ? (
         <InstitutionUserForm institution={institution} />
       ) : (
-        <NotFoundBlock entity="La institución" backScreenId="INS-01" />
+        <NotFoundBlock entity="Institución" feminine backScreenId="INS-01" />
       )}
     </ScreenPage>
   );

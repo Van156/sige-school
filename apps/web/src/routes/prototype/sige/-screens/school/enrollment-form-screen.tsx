@@ -49,7 +49,7 @@ function EnrollmentFormLoader({ institution, id }: { institution: Institution; i
   return enrollment ? (
     <EditEnrollmentForm key={enrollment.id} enrollment={enrollment} school={school} />
   ) : (
-    <NotFoundBlock entity="La matrícula" backScreenId="SCH-01" />
+    <NotFoundBlock entity="Matrícula" feminine backScreenId="SCH-01" />
   );
 }
 

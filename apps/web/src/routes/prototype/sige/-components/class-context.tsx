@@ -61,7 +61,7 @@ export function ClassContext({
   const subjectGrade = school.subjectGrades.find((item) => item.id === subjectGradeId);
   const grade = subjectGrade ? school.gradeById.get(subjectGrade.gradeId) : undefined;
   if (!subjectGrade || !grade) {
-    return <NotFoundBlock entity="La asignatura" backScreenId={selectScreenId} />;
+    return <NotFoundBlock entity="Asignatura" feminine backScreenId={selectScreenId} />;
   }
   if (!access.canAccess(subjectGrade.id)) {
     return (

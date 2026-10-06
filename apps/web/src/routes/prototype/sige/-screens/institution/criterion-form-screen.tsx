@@ -34,7 +34,7 @@ export function CriterionFormScreen() {
     >
       {(institution) =>
         id !== undefined && existing?.institutionId !== institution.id ? (
-          <NotFoundBlock entity="El criterio" backScreenId="INS-17" />
+          <NotFoundBlock entity="Criterio" backScreenId="INS-17" />
         ) : (
           <CriterionForm
             key={existing?.id ?? "new"}

@@ -33,7 +33,7 @@ function BlockFormLoader({ institution, id }: { institution: Institution; id?: n
   const school = useSchool(institution.id);
   const block = id === undefined ? undefined : school.blocks.find((entry) => entry.id === id);
   return id !== undefined && !block ? (
-    <NotFoundBlock entity="El bloque" backScreenId="SCH-09" />
+    <NotFoundBlock entity="Bloque" backScreenId="SCH-09" />
   ) : (
     <BlockForm key={block?.id ?? "new"} institution={institution} block={block} school={school} />
   );

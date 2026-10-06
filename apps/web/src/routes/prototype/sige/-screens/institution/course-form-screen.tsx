@@ -62,7 +62,7 @@ export function CourseFormScreen() {
             (campus) => campus.id === existing.campusId && campus.institutionId === institution.id,
           );
         return id !== undefined && !own ? (
-          <NotFoundBlock entity="El grado" backScreenId="INS-11" />
+          <NotFoundBlock entity="Grado" backScreenId="INS-11" />
         ) : (
           <CourseForm key={existing?.id ?? "new"} institution={institution} grade={existing} />
         );

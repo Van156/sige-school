@@ -26,6 +26,30 @@ const TONE_COLOR = {
   outline: "var(--chart-1)",
 } as const;
 
+/** Legend entries by performance band; risk and critical share the destructive color. */
+const SCORE_LEGEND = [
+  {
+    label: "Excelente (4.5 a 5.0)",
+    color: TONE_COLOR.success,
+    test: (score: number) => scoreClass(score) === "excellent",
+  },
+  {
+    label: "Bueno (4.0 a 4.4)",
+    color: TONE_COLOR.info,
+    test: (score: number) => scoreClass(score) === "good",
+  },
+  {
+    label: "Aceptable (3.0 a 3.9)",
+    color: TONE_COLOR.warning,
+    test: (score: number) => scoreClass(score) === "passing",
+  },
+  {
+    label: "En riesgo (menos de 3.0)",
+    color: TONE_COLOR.destructive,
+    test: (score: number) => score < 3,
+  },
+] as const;
+
 /** DASH-05: profile card, shortcuts, latest finals and the weekly timetable of the student's group. */
 export function StudentDashboard() {
   const role = useRole();
@@ -108,7 +132,11 @@ export function StudentDashboard() {
           <CategoryBarChart
             ariaLabel="Notas finales del último periodo cerrado por asignatura"
             seriesLabel="Nota final"
-            domain={[0, 5]}
+            domain={[1, 5]}
+            ticks={[1, 2, 3, 4, 5]}
+            legend={SCORE_LEGEND.filter((band) =>
+              finals.some((final) => band.test(final.score)),
+            ).map(({ label, color }) => ({ label, color }))}
             valueFormatter={(value) => formatScore(value, 1)}
             data={finals.map((final) => ({
               label: final.code,

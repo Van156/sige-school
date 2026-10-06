@@ -81,7 +81,7 @@ function ProfileLoader({
   return student ? (
     <Profile student={student} school={school} canManage={canManage} />
   ) : (
-    <NotFoundBlock entity="El estudiante" backScreenId="STU-01" />
+    <NotFoundBlock entity="Estudiante" backScreenId="STU-01" />
   );
 }
 
@@ -99,7 +99,7 @@ function Profile({
   canManage: boolean;
 }) {
   const user = school.userOfStudent(student);
-  if (!user) return <NotFoundBlock entity="El estudiante" backScreenId="STU-01" />;
+  if (!user) return <NotFoundBlock entity="Estudiante" backScreenId="STU-01" />;
   const search = { student: String(student.id) };
 
   return (

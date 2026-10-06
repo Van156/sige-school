@@ -38,7 +38,7 @@ function ClassroomFormLoader({ institution, id }: { institution: Institution; id
   const school = useSchool(institution.id);
   const classroom = id === undefined ? undefined : school.classrooms.find((room) => room.id === id);
   return id !== undefined && !classroom ? (
-    <NotFoundBlock entity="El salón" backScreenId="SCH-07" />
+    <NotFoundBlock entity="Salón" backScreenId="SCH-07" />
   ) : (
     <ClassroomForm key={classroom?.id ?? "new"} classroom={classroom} school={school} />
   );

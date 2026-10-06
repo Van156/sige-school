@@ -53,7 +53,7 @@ function QuickLoader({ institution, studentId }: { institution: Institution; stu
   const access = useObservationAccess(school);
   const student = school.students.find((entry) => entry.id === studentId);
   if (!student || !access.canSeeStudent(student.id)) {
-    return <NotFoundBlock entity="El estudiante" backScreenId="STU-01" />;
+    return <NotFoundBlock entity="Estudiante" backScreenId="STU-01" />;
   }
   return <QuickForm key={student.id} student={student} school={school} authorId={access.userId} />;
 }

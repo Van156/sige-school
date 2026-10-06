@@ -48,7 +48,7 @@ function AssignmentFormLoader({ institution, id }: { institution: Institution; i
   return assignment ? (
     <EditAssignmentForm key={assignment.id} assignment={assignment} school={school} />
   ) : (
-    <NotFoundBlock entity="La asignación" backScreenId="SCH-03" />
+    <NotFoundBlock entity="Asignación" feminine backScreenId="SCH-03" />
   );
 }
 

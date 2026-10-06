@@ -41,7 +41,7 @@ export function LevelFormScreen() {
             (campus) => campus.id === existing.campusId && campus.institutionId === institution.id,
           );
         return id !== undefined && !own ? (
-          <NotFoundBlock entity="El nivel" backScreenId="INS-09" />
+          <NotFoundBlock entity="Nivel" backScreenId="INS-09" />
         ) : (
           <LevelForm key={existing?.id ?? "new"} institution={institution} level={existing} />
         );

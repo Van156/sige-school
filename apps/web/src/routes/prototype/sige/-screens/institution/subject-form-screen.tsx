@@ -37,7 +37,7 @@ export function SubjectFormScreen() {
     >
       {(institution) =>
         id !== undefined && existing?.institutionId !== institution.id ? (
-          <NotFoundBlock entity="La asignatura" backScreenId="INS-13" />
+          <NotFoundBlock entity="Asignatura" feminine backScreenId="INS-13" />
         ) : (
           <SubjectForm key={existing?.id ?? "new"} institution={institution} subject={existing} />
         )

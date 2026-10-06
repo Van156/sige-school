@@ -74,7 +74,7 @@ export function InstitutionUsersScreen() {
       {institution ? (
         <InstitutionUsers institution={institution} />
       ) : (
-        <NotFoundBlock entity="La institución" backScreenId="INS-01" />
+        <NotFoundBlock entity="Institución" feminine backScreenId="INS-01" />
       )}
     </ScreenPage>
   );

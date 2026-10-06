@@ -58,7 +58,7 @@ function FormLoader({ institution, id }: { institution: Institution; id?: number
   const preselected = useIntParam("student");
 
   if (id !== undefined && (!observation || !access.canSeeStudent(observation.studentId))) {
-    return <NotFoundBlock entity="La observación" backScreenId="OBS-01" />;
+    return <NotFoundBlock entity="Observación" feminine backScreenId="OBS-01" />;
   }
   return (
     <ObservationForm

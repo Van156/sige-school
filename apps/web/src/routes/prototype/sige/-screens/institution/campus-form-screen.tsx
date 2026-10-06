@@ -51,7 +51,7 @@ export function CampusFormScreen() {
     >
       {(institution) =>
         id !== undefined && (!existing || existing.institutionId !== institution.id) ? (
-          <NotFoundBlock entity="La sede" backScreenId="INS-07" />
+          <NotFoundBlock entity="Sede" feminine backScreenId="INS-07" />
         ) : (
           <CampusForm key={existing?.id ?? "new"} institution={institution} campus={existing} />
         )

@@ -100,7 +100,7 @@ function ModeLoader({
         mode={{ kind: "edit", student, user }}
       />
     ) : (
-      <NotFoundBlock entity="El estudiante" backScreenId="STU-01" />
+      <NotFoundBlock entity="Estudiante" backScreenId="STU-01" />
     );
   }
   if (userId !== undefined) {
@@ -117,7 +117,7 @@ function ModeLoader({
         mode={{ kind: "complete", user }}
       />
     ) : (
-      <NotFoundBlock entity="El usuario" backScreenId="STU-01" />
+      <NotFoundBlock entity="Usuario" backScreenId="STU-01" />
     );
   }
   return <StudentForm key="new" institution={institution} school={school} mode={{ kind: "new" }} />;

@@ -11,5 +11,6 @@ export const Route = createFileRoute("/prototype/sige")({
   validateSearch: (search: Record<string, unknown>): { role: Role } => ({
     role: parseRole(search.role),
   }),
+  head: () => ({ meta: [{ title: "SIGE" }] }),
   component: Outlet,
 });

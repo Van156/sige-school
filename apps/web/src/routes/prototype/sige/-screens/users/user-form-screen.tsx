@@ -131,7 +131,7 @@ export function UserEditScreen() {
       {reachable ? (
         <UserForm key={user.id} user={user} />
       ) : (
-        <NotFoundBlock entity="El usuario" backScreenId="USR-01" />
+        <NotFoundBlock entity="Usuario" backScreenId="USR-01" />
       )}
     </ScreenPage>
   );

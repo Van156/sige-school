@@ -49,7 +49,7 @@ function Detail({ institution, id }: { institution: Institution; id?: number }) 
   const [notes, setNotes] = useState("");
 
   if (!alert || !school.studentById.has(alert.studentId)) {
-    return <NotFoundBlock entity="La alerta" backScreenId="ALR-01" />;
+    return <NotFoundBlock entity="Alerta" feminine backScreenId="ALR-01" />;
   }
   const student = school.studentById.get(alert.studentId);
   const user = student ? school.userOfStudent(student) : undefined;

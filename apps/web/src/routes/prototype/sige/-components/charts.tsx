@@ -30,11 +30,19 @@ export interface BarDatum {
   color?: string;
 }
 
-/** Single-series bar chart with an optional per-bar color and a fixed value domain. */
+export interface BarLegendItem {
+  label: string;
+  /** CSS color matching the bars it describes. */
+  color: string;
+}
+
+/** Single-series bar chart with an optional per-bar color, fixed value domain, ticks and legend. */
 export function CategoryBarChart({
   data,
   seriesLabel,
   domain,
+  ticks,
+  legend,
   ariaLabel,
   className,
   valueFormatter,
@@ -42,46 +50,67 @@ export function CategoryBarChart({
   data: readonly BarDatum[];
   seriesLabel: string;
   domain?: [number, number];
+  /** Explicit Y ticks, e.g. `[1, 2, 3, 4, 5]` for scores. */
+  ticks?: readonly number[];
+  /** Names the per-bar colors; rendered under the chart when provided. */
+  legend?: readonly BarLegendItem[];
   ariaLabel: string;
   className?: string;
   valueFormatter?: (value: number) => string;
 }) {
   const config = { value: { label: seriesLabel, color: "var(--chart-1)" } } satisfies ChartConfig;
   return (
-    <ChartContainer
-      config={config}
-      className={className ?? "aspect-[16/7] w-full"}
-      role="img"
-      aria-label={ariaLabel}
-    >
-      <BarChart accessibilityLayer data={[...data]} margin={{ left: -12, right: 4, top: 8 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={0} />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          width={40}
-          domain={domain}
-          tickFormatter={valueFormatter}
-        />
-        <ChartTooltip
-          cursor={false}
-          content={
-            <ChartTooltipContent
-              hideLabel={false}
-              formatter={(value) =>
-                valueFormatter ? valueFormatter(Number(value)) : String(value)
-              }
-            />
-          }
-        />
-        <Bar dataKey="value" fill="var(--color-value)" radius={2} maxBarSize={44}>
-          {data.map((datum) => (
-            <Cell key={datum.label} fill={datum.color ?? "var(--color-value)"} />
+    <div className="flex flex-col gap-2">
+      <ChartContainer
+        config={config}
+        className={className ?? "aspect-[16/7] w-full"}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        <BarChart accessibilityLayer data={[...data]} margin={{ left: -12, right: 4, top: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={0} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={40}
+            domain={domain}
+            ticks={ticks ? [...ticks] : undefined}
+            tickFormatter={valueFormatter}
+          />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                hideLabel={false}
+                formatter={(value) =>
+                  valueFormatter ? valueFormatter(Number(value)) : String(value)
+                }
+              />
+            }
+          />
+          <Bar dataKey="value" fill="var(--color-value)" radius={2} maxBarSize={44}>
+            {data.map((datum) => (
+              <Cell key={datum.label} fill={datum.color ?? "var(--color-value)"} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
+      {legend && legend.length > 0 ? (
+        <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+          {legend.map((item) => (
+            <li key={item.label} className="flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="size-2.5 rounded-[2px]"
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </li>
           ))}
-        </Bar>
-      </BarChart>
-    </ChartContainer>
+        </ul>
+      ) : null}
+    </div>
   );
 }
 

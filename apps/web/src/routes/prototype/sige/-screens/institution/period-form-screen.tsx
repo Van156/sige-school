@@ -41,7 +41,7 @@ export function PeriodFormScreen() {
     >
       {(institution) =>
         id !== undefined && existing?.institutionId !== institution.id ? (
-          <NotFoundBlock entity="El periodo" backScreenId="INS-15" />
+          <NotFoundBlock entity="Periodo" backScreenId="INS-15" />
         ) : (
           <PeriodForm key={existing?.id ?? "new"} institution={institution} period={existing} />
         )

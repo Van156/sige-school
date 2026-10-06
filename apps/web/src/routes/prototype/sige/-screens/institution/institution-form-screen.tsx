@@ -76,7 +76,7 @@ export function InstitutionFormScreen() {
       actions={<BackButton screenId="INS-01" />}
     >
       {id !== undefined && !existing ? (
-        <NotFoundBlock entity="La institución" backScreenId="INS-01" />
+        <NotFoundBlock entity="Institución" feminine backScreenId="INS-01" />
       ) : (
         <InstitutionForm key={existing?.id ?? "new"} institution={existing} />
       )}
