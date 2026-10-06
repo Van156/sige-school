@@ -44,6 +44,7 @@ export function StudentProfileScreen() {
       description="Información académica, horario y acudientes"
       target="Estudiantes"
       banner={false}
+      back={<BackButton screenId="STU-01" />}
       actions={
         <>
           {canManage && id !== undefined ? (
@@ -58,7 +59,6 @@ export function StudentProfileScreen() {
               </ScreenLinkButton>
             </>
           ) : null}
-          <BackButton screenId="STU-01" />
         </>
       }
     >

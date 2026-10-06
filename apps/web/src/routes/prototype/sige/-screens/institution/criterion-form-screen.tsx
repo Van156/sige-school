@@ -28,7 +28,7 @@ export function CriterionFormScreen() {
       screenId="INS-18"
       title={id === undefined ? "Nuevo Criterio" : "Editar Criterio"}
       description="Complete los datos del criterio"
-      actions={<BackButton screenId="INS-17" />}
+      back={<BackButton screenId="INS-17" />}
       target="Criterios"
       banner={false}
     >

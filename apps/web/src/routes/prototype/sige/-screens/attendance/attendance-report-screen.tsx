@@ -37,6 +37,12 @@ export function AttendanceReportScreen() {
       description="Asistencia por rango de fechas, lista para imprimir"
       target="Asistencia"
       banner={false}
+      back={
+        <BackButton
+          screenId="ATT-03"
+          search={{ sg: subjectGrade === undefined ? undefined : String(subjectGrade) }}
+        />
+      }
       actions={
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Button onClick={() => window.print()}>
@@ -50,10 +56,6 @@ export function AttendanceReportScreen() {
             <FileDown data-icon="inline-start" />
             CSV
           </Button>
-          <BackButton
-            screenId="ATT-03"
-            search={{ sg: subjectGrade === undefined ? undefined : String(subjectGrade) }}
-          />
         </div>
       }
     >

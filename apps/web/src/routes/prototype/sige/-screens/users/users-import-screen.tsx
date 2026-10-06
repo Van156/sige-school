@@ -128,7 +128,7 @@ export function UsersImportScreen() {
       screenId="USR-04"
       title="Importar Usuarios desde Excel"
       description="Carga masiva de usuarios desde archivo Excel"
-      actions={<BackButton screenId="USR-01" />}
+      back={<BackButton screenId="USR-01" />}
     >
       {result ? (
         <ImportResult result={result} onReset={reset} />

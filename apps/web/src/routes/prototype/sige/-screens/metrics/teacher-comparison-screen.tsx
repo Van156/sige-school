@@ -2,7 +2,12 @@ import { Award, Percent, Trophy, Users } from "lucide-react";
 
 import { CategoryBarChart, DonutChart } from "../../-components/charts";
 import { EmptyBlock } from "../../-components/empty-block";
-import { MetricsActions, PassRateBar, ScoreText } from "../../-components/metric-parts";
+import {
+  MetricsActions,
+  MetricsBack,
+  PassRateBar,
+  ScoreText,
+} from "../../-components/metric-parts";
 import { ScopedPage } from "../../-components/scoped-page";
 import { SectionCard } from "../../-components/section-card";
 import { SimpleTable, type TableColumn } from "../../-components/simple-table";
@@ -23,6 +28,7 @@ export function TeacherComparisonScreen() {
       description="Rendimiento anonimizado por profesor (A, B, C...)"
       target="Métricas"
       banner={false}
+      back={<MetricsBack />}
       actions={<MetricsActions />}
     >
       {(institution) => <Comparison institution={institution} />}

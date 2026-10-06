@@ -34,7 +34,7 @@ export function EnrollmentFormScreen() {
       screenId="SCH-02"
       title={id === undefined ? "Nueva Matrícula" : "Editar Matrícula"}
       description="Matricula estudiantes en todas las materias de un grado"
-      actions={<BackButton screenId="SCH-01" />}
+      back={<BackButton screenId="SCH-01" />}
       target="Matrículas"
     >
       {(institution) => <EnrollmentFormLoader institution={institution} id={id} />}

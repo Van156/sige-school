@@ -1,6 +1,7 @@
 import { cn } from "@base-template/ui/lib/utils";
 import type { ReactNode } from "react";
 
+import { BackButton } from "./form-layout";
 import { NoStudentBlock, StudentSwitcher } from "./student-strip";
 import { ScopedPage } from "./scoped-page";
 import { ScreenLinkButton } from "./link-button";
@@ -47,7 +48,7 @@ export function ParentChildPage({
       description="Seguimiento académico de tus hijos"
       target="Portal de Acudientes"
       banner={false}
-      actions={<ScreenLinkButton screenId="PAR-01">Volver al portal</ScreenLinkButton>}
+      back={<BackButton screenId="PAR-01" label="Volver al portal" />}
     >
       {(institution) => (
         <ChildFrame institution={institution} screenId={screenId} section={section}>

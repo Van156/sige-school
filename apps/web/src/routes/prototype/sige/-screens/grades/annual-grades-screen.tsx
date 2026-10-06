@@ -32,7 +32,7 @@ export function AnnualGradesScreen() {
       description="Nota por periodo y definitiva del año"
       target="Notas"
       banner={false}
-      actions={
+      back={
         <BackButton
           screenId="GRD-01"
           search={{ sg: subjectGrade === undefined ? undefined : String(subjectGrade) }}

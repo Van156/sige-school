@@ -30,7 +30,7 @@ export function LevelFormScreen() {
           ? "Define un nuevo nivel académico (ej: Primero, Sexto, Once)"
           : "Modifica los datos del nivel"
       }
-      actions={<BackButton screenId="INS-09" />}
+      back={<BackButton screenId="INS-09" />}
       target="Niveles"
       banner={false}
     >

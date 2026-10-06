@@ -124,19 +124,21 @@ function History({
       <StudentStrip
         student={student}
         school={school}
+        back={
+          staff ? (
+            <BackButton
+              screenId="STU-02"
+              search={{ id: String(student.id) }}
+              label="Volver al Perfil"
+            />
+          ) : undefined
+        }
         actions={
           staff ? (
-            <div className="flex flex-wrap gap-2">
-              <BackButton
-                screenId="STU-02"
-                search={{ id: String(student.id) }}
-                label="Volver al Perfil"
-              />
-              <ScreenLinkButton screenId="ATT-01" variant="default">
-                <CalendarCheck data-icon="inline-start" />
-                Tomar Asistencia
-              </ScreenLinkButton>
-            </div>
+            <ScreenLinkButton screenId="ATT-01" variant="default">
+              <CalendarCheck data-icon="inline-start" />
+              Tomar Asistencia
+            </ScreenLinkButton>
           ) : undefined
         }
       />

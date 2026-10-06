@@ -45,7 +45,7 @@ export function CampusFormScreen() {
       screenId="INS-08"
       title={id === undefined ? "Nueva Sede" : "Editar Sede"}
       description="Datos de la ubicación física de la institución"
-      actions={<BackButton screenId="INS-07" />}
+      back={<BackButton screenId="INS-07" />}
       target="Sedes"
       banner={false}
     >

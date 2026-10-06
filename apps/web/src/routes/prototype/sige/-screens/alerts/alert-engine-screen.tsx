@@ -58,7 +58,7 @@ export function AlertEngineScreen() {
       description="Evalúa las reglas sobre las notas y la asistencia actuales"
       target="Alertas"
       banner={false}
-      actions={<BackButton screenId="ALR-01" label="Volver al listado" />}
+      back={<BackButton screenId="ALR-01" label="Volver al listado" />}
     >
       {() => (
         <>

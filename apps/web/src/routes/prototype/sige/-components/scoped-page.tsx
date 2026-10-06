@@ -19,19 +19,21 @@ export function ScreenPage({
   screenId,
   title,
   description,
+  back,
   actions,
   children,
 }: {
   screenId: string;
   title: string;
   description?: ReactNode;
+  back?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <RoleGate screenId={screenId}>
       <div className="flex flex-col gap-4">
-        <SigePageHeader title={title} description={description} actions={actions} />
+        <SigePageHeader title={title} description={description} back={back} actions={actions} />
         {children}
       </div>
     </RoleGate>
@@ -46,6 +48,7 @@ export function ScopedPage({
   screenId,
   title,
   description,
+  back,
   actions,
   target,
   banner = true,
@@ -54,6 +57,7 @@ export function ScopedPage({
   screenId: string;
   title: string;
   description?: ReactNode;
+  back?: ReactNode;
   actions?: ReactNode;
   /** What root will manage after choosing, e.g. "Sedes" (button "Seleccionar y Gestionar Sedes"). */
   target: string;
@@ -68,6 +72,7 @@ export function ScopedPage({
       screenId={screenId}
       title={title}
       description={description}
+      back={back}
       actions={
         <>
           {role === "root" && scope ? (

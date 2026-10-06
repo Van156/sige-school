@@ -92,7 +92,7 @@ export function GradesUploadScreen() {
       description="Carga las notas de un grado y asignatura en un solo paso"
       target="Notas"
       banner={false}
-      actions={<BackButton screenId="GRD-01" label="Volver a Selección" />}
+      back={<BackButton screenId="GRD-01" label="Volver a Selección" />}
     >
       {(institution) => <UploadView institution={institution} />}
     </ScopedPage>

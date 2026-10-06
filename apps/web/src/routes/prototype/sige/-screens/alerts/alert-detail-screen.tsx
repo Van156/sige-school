@@ -35,7 +35,7 @@ export function AlertDetailScreen() {
       title={id === undefined ? "Detalle de Alerta" : `Alerta #${id}`}
       target="Alertas"
       banner={false}
-      actions={<BackButton screenId="ALR-01" label="Volver al listado" />}
+      back={<BackButton screenId="ALR-01" label="Volver al listado" />}
     >
       {(institution) => <Detail institution={institution} id={id} />}
     </ScopedPage>

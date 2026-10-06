@@ -26,7 +26,7 @@ export function ClassroomFormScreen() {
       screenId="SCH-08"
       title={id === undefined ? "Nuevo Salón" : "Editar Salón"}
       description="Salón o espacio físico donde se dictan las clases"
-      actions={<BackButton screenId="SCH-07" />}
+      back={<BackButton screenId="SCH-07" />}
       target="Salones"
     >
       {(institution) => <ClassroomFormLoader institution={institution} id={id} />}

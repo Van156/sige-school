@@ -19,10 +19,13 @@ import type { AcademicStudent } from "../-mock/types";
 export function StudentStrip({
   student,
   school,
+  back,
   actions,
 }: {
   student: AcademicStudent;
   school: School;
+  /** Back navigation (see `BackButton`), rendered on the left above the card. */
+  back?: ReactNode;
   actions?: ReactNode;
 }) {
   const user = school.userOfStudent(student);
@@ -30,7 +33,7 @@ export function StudentStrip({
   const initials = user
     ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase()
     : "?";
-  return (
+  const card = (
     <SectionCard title="Estudiante" action={actions}>
       <div className="flex flex-wrap items-center gap-3">
         <Avatar size="lg">
@@ -52,6 +55,13 @@ export function StudentStrip({
         </ToneBadge>
       </div>
     </SectionCard>
+  );
+  if (!back) return card;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2 print:hidden">{back}</div>
+      {card}
+    </div>
   );
 }
 

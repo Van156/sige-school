@@ -22,7 +22,7 @@ export function ScheduleGenerateScreen() {
       title="Generar Horario Automático"
       description="El sistema generará automáticamente los horarios evitando conflictos"
       target="Horarios"
-      actions={<BackButton screenId="SCH-11" />}
+      back={<BackButton screenId="SCH-11" />}
     >
       {(institution) => <GenerateView institution={institution} />}
     </ScopedPage>

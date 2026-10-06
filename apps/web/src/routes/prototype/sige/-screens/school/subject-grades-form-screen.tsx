@@ -22,7 +22,7 @@ export function SubjectGradesFormScreen() {
       screenId="SCH-06"
       title="Asignar Materias a Grados"
       description="Asigna varias materias a uno o más grados a la vez"
-      actions={<BackButton screenId="SCH-05" />}
+      back={<BackButton screenId="SCH-05" />}
       target="Materias por Grado"
     >
       {(institution) => <SubjectGradesForm institution={institution} />}

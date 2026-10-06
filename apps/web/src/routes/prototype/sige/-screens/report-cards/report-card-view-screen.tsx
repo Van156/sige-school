@@ -26,6 +26,7 @@ export function ReportCardViewScreen() {
       description="Vista de impresión del boletín"
       target="Boletines"
       banner={false}
+      back={staff ? <BackButton screenId="RPT-01" label="Volver a Gestión" /> : undefined}
       actions={
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Button onClick={() => window.print()}>
@@ -41,7 +42,6 @@ export function ReportCardViewScreen() {
             <Download data-icon="inline-start" />
             Descargar PDF
           </Button>
-          {staff ? <BackButton screenId="RPT-01" label="Volver a Gestión" /> : null}
         </div>
       }
     >

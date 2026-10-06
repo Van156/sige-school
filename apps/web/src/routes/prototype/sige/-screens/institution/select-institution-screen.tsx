@@ -33,7 +33,7 @@ export function SelectInstitutionScreen() {
       screenId="INS-03"
       title="Seleccionar Institución"
       description="Como administrador del sistema, seleccione la institución donde desea trabajar"
-      actions={<BackButton screenId="DASH-01" label="Volver al Dashboard" />}
+      back={<BackButton screenId="DASH-01" label="Volver al Dashboard" />}
     >
       <Callout tone="info" title="Importante">
         Debe seleccionar una institución para gestionar sedes, grados y otros elementos. Esta

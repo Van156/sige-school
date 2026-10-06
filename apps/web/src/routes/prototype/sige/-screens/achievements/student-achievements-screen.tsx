@@ -93,15 +93,17 @@ function Earned({
       <StudentStrip
         student={student}
         school={school}
+        back={
+          staff ? (
+            <BackButton
+              screenId="STU-02"
+              search={{ id: String(student.id) }}
+              label="Volver al Estudiante"
+            />
+          ) : undefined
+        }
         actions={
           <div className="flex flex-wrap gap-2">
-            {staff ? (
-              <BackButton
-                screenId="STU-02"
-                search={{ id: String(student.id) }}
-                label="Volver al Estudiante"
-              />
-            ) : null}
             <ScreenLinkButton screenId="ACH-03">Ranking</ScreenLinkButton>
             {canManage ? (
               <ConfirmActionButton

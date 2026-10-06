@@ -40,19 +40,21 @@ export function ScoreText({ value }: { value: number | null }) {
   );
 }
 
-/** Header actions of the metrics sub-screens: back to MET-01 plus the (stub) export. */
+/** Header back link of the metrics sub-screens: back to MET-01. */
+export function MetricsBack() {
+  return <BackButton screenId="MET-01" label="Volver a Métricas" />;
+}
+
+/** Header actions of the metrics sub-screens: the (stub) export. */
 export function MetricsActions({ exportLabel = "Exportar" }: { exportLabel?: string }) {
   return (
-    <>
-      <Button
-        variant="outline"
-        onClick={() => mockInfo(exportLabel, "La descarga no existe en el prototipo.")}
-      >
-        <FileDown data-icon="inline-start" />
-        {exportLabel}
-      </Button>
-      <BackButton screenId="MET-01" label="Volver a Métricas" />
-    </>
+    <Button
+      variant="outline"
+      onClick={() => mockInfo(exportLabel, "La descarga no existe en el prototipo.")}
+    >
+      <FileDown data-icon="inline-start" />
+      {exportLabel}
+    </Button>
   );
 }
 

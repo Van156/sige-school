@@ -38,7 +38,7 @@ export function GradeSummaryScreen() {
       description="Promedios, aprobación y distribución del grupo"
       target="Notas"
       banner={false}
-      actions={
+      back={
         <BackButton
           screenId="GRD-02"
           label="Volver a Planilla"

@@ -1,7 +1,12 @@
 import { Callout } from "../../-components/callout";
 import { CategoryBarChart, SeriesChart } from "../../-components/charts";
 import { EmptyBlock } from "../../-components/empty-block";
-import { MetricsActions, PassRateBar, ScoreText } from "../../-components/metric-parts";
+import {
+  MetricsActions,
+  MetricsBack,
+  PassRateBar,
+  ScoreText,
+} from "../../-components/metric-parts";
 import { ScopedPage } from "../../-components/scoped-page";
 import { SectionCard } from "../../-components/section-card";
 import { SimpleTable, type TableColumn } from "../../-components/simple-table";
@@ -26,6 +31,7 @@ export function TrendsScreen() {
       description="Evolución del rendimiento a lo largo del año"
       target="Métricas"
       banner={false}
+      back={<MetricsBack />}
       actions={<MetricsActions />}
     >
       {(institution) => <Trends institution={institution} />}

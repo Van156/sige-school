@@ -33,7 +33,7 @@ export function AssignmentFormScreen() {
       screenId="SCH-04"
       title={id === undefined ? "Nueva Asignación de Profesor" : "Editar Asignación"}
       description="Asigna un profesor a una materia de un grado"
-      actions={<BackButton screenId="SCH-03" />}
+      back={<BackButton screenId="SCH-03" />}
       target="Asignaciones"
     >
       {(institution) => <AssignmentFormLoader institution={institution} id={id} />}

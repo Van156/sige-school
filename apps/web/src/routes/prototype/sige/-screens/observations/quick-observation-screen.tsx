@@ -35,7 +35,7 @@ export function QuickObservationScreen() {
       description="Crear observación para el estudiante"
       target="Observaciones"
       banner={false}
-      actions={
+      back={
         <BackButton
           screenId="STU-02"
           search={studentId === undefined ? undefined : { id: String(studentId) }}

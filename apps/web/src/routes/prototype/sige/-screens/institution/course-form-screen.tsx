@@ -52,7 +52,7 @@ export function CourseFormScreen() {
       screenId="INS-12"
       title={id === undefined ? "Nuevo Grado" : "Editar Grado"}
       description="Grupo específico de estudiantes en un año lectivo y sede"
-      actions={<BackButton screenId="INS-11" />}
+      back={<BackButton screenId="INS-11" />}
       target="Grados"
     >
       {(institution) => {

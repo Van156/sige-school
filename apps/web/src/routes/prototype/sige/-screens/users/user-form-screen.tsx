@@ -103,7 +103,7 @@ export function UserCreateScreen() {
       screenId="USR-02"
       title="Crear Nuevo Usuario"
       description="Complete los datos para registrar un nuevo usuario en el sistema"
-      actions={<BackButton screenId="USR-01" label="Volver a la Lista" />}
+      back={<BackButton screenId="USR-01" label="Volver a la Lista" />}
     >
       <UserForm />
     </ScreenPage>
@@ -126,7 +126,7 @@ export function UserEditScreen() {
       description={
         user ? `Editando: ${user.username} - ${user.firstName} ${user.lastName}` : undefined
       }
-      actions={<BackButton screenId="USR-01" label="Volver a la Lista" />}
+      back={<BackButton screenId="USR-01" label="Volver a la Lista" />}
     >
       {reachable ? (
         <UserForm key={user.id} user={user} />

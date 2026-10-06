@@ -35,7 +35,7 @@ export function PeriodFormScreen() {
       screenId="INS-16"
       title={id === undefined ? "Nuevo Periodo" : "Editar Periodo"}
       description="Complete los datos del periodo académico"
-      actions={<BackButton screenId="INS-15" />}
+      back={<BackButton screenId="INS-15" />}
       target="Periodos"
       banner={false}
     >

@@ -73,7 +73,7 @@ export function InstitutionFormScreen() {
           ? "Complete los datos para crear la institución educativa"
           : "Modifique los datos de la institución educativa"
       }
-      actions={<BackButton screenId="INS-01" />}
+      back={<BackButton screenId="INS-01" />}
     >
       {id !== undefined && !existing ? (
         <NotFoundBlock entity="Institución" feminine backScreenId="INS-01" />

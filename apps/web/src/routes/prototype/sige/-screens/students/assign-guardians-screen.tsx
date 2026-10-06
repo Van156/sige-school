@@ -28,12 +28,10 @@ export function AssignGuardiansScreen() {
       description="Vincula las cuentas de acudientes con el estudiante"
       target="Estudiantes"
       banner={false}
-      actions={
+      back={
         <>
           {id !== undefined ? (
-            <ScreenLinkButton screenId="STU-02" search={{ id: String(id) }}>
-              Volver al Perfil
-            </ScreenLinkButton>
+            <BackButton screenId="STU-02" search={{ id: String(id) }} label="Volver al Perfil" />
           ) : null}
           <BackButton screenId="STU-01" label="Lista de Estudiantes" />
         </>

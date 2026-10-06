@@ -20,7 +20,7 @@ import { Grid3x3 } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyBlock } from "../../-components/empty-block";
-import { MetricsActions } from "../../-components/metric-parts";
+import { MetricsActions, MetricsBack } from "../../-components/metric-parts";
 import { ScopedPage } from "../../-components/scoped-page";
 import { SectionCard } from "../../-components/section-card";
 import { HEAT_BANDS, heatBand, heatmap, type HeatCell } from "../../-lib/metrics";
@@ -36,6 +36,7 @@ export function HeatmapScreen() {
       description="Matriz de porcentaje de pérdida por grado y asignatura"
       target="Métricas"
       banner={false}
+      back={<MetricsBack />}
       actions={<MetricsActions />}
     >
       {(institution) => <Heatmap institution={institution} />}

@@ -36,7 +36,7 @@ export function GradeInputScreen() {
       description="Planilla de calificaciones por criterio"
       target="Notas"
       banner={false}
-      actions={
+      back={
         <BackButton
           screenId="GRD-01"
           search={{ period: period === undefined ? undefined : String(period) }}

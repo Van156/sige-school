@@ -38,7 +38,7 @@ export function ObservationFormScreen() {
       }
       target="Observaciones"
       banner={false}
-      actions={
+      back={
         <BackButton
           screenId={id === undefined ? "OBS-01" : "OBS-02"}
           search={id === undefined ? undefined : { id: String(id) }}

@@ -35,7 +35,7 @@ export function FinalGradesScreen() {
       description="Nota final ponderada por estudiante"
       target="Notas"
       banner={false}
-      actions={
+      back={
         <BackButton
           screenId="GRD-02"
           label="Volver a Planilla"

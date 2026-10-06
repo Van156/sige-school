@@ -95,7 +95,7 @@ export function StudentsImportScreen() {
       description="Carga masiva de estudiantes desde archivo Excel"
       target="Estudiantes"
       banner={false}
-      actions={<BackButton screenId="STU-01" />}
+      back={<BackButton screenId="STU-01" />}
     >
       {(institution) => <ImportView institution={institution} />}
     </ScopedPage>

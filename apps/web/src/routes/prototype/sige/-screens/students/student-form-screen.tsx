@@ -68,7 +68,7 @@ export function StudentFormScreen() {
       screenId="STU-03"
       title={COPY[kind].title}
       description={COPY[kind].description}
-      actions={<BackButton screenId={kind === "complete" ? "USR-01" : "STU-01"} />}
+      back={<BackButton screenId={kind === "complete" ? "USR-01" : "STU-01"} />}
       target="Estudiantes"
     >
       {(institution) => (

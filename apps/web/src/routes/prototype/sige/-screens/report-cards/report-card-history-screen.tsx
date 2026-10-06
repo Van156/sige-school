@@ -33,7 +33,7 @@ export function ReportCardHistoryScreen() {
       description="Boletines generados y su estado de entrega"
       target="Boletines"
       banner={false}
-      actions={manager ? <BackButton screenId="RPT-01" label="Volver a Gestión" /> : undefined}
+      back={manager ? <BackButton screenId="RPT-01" label="Volver a Gestión" /> : undefined}
     >
       {(institution) => <HistoryView institution={institution} />}
     </ScopedPage>

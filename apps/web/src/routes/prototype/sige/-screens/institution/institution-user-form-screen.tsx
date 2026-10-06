@@ -78,7 +78,7 @@ export function InstitutionUserFormScreen() {
         institution ? `Crear Usuario en ${institution.name}` : "Crear Usuario en la institución"
       }
       description={institution ? `Crear nuevo usuario para ${institution.name}` : undefined}
-      actions={
+      back={
         <BackButton screenId="INS-04" search={id === undefined ? undefined : { id: String(id) }} />
       }
     >

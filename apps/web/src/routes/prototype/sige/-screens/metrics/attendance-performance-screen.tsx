@@ -59,7 +59,7 @@ export function AttendancePerformanceScreen() {
       description="Correlación entre asistencia y notas de los estudiantes a cargo"
       target="Métricas"
       banner={false}
-      actions={<BackButton screenId="MET-05" label="Volver al Dashboard" />}
+      back={<BackButton screenId="MET-05" label="Volver al Dashboard" />}
     >
       {(institution) => <Correlation institution={institution} />}
     </ScopedPage>

@@ -34,7 +34,7 @@ export function ObservationDetailScreen() {
       description={id === undefined ? undefined : `ID: #${id}`}
       target="Observaciones"
       banner={false}
-      actions={<BackButton screenId="OBS-01" label="Volver a la lista" />}
+      back={<BackButton screenId="OBS-01" label="Volver a la lista" />}
     >
       {(institution) => <DetailView institution={institution} id={id} />}
     </ScopedPage>

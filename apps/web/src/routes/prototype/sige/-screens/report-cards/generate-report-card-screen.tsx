@@ -29,7 +29,7 @@ export function GenerateReportCardScreen() {
       description="Elige el periodo y genera el boletín del estudiante"
       target="Boletines"
       banner={false}
-      actions={manager ? <BackButton screenId="RPT-01" label="Volver a Gestión" /> : undefined}
+      back={manager ? <BackButton screenId="RPT-01" label="Volver a Gestión" /> : undefined}
     >
       {(institution) => <GenerateView institution={institution} />}
     </ScopedPage>

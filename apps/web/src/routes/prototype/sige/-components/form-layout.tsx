@@ -6,7 +6,7 @@ import type { FormEvent, ReactNode } from "react";
 import { ScreenLinkButton } from "./link-button";
 import { SectionCard } from "./section-card";
 
-/** "Volver" button of every form header. */
+/** "Volver" link of every page header: ghost, flush left so the arrow aligns with the title. */
 export function BackButton({
   screenId,
   search,
@@ -17,7 +17,13 @@ export function BackButton({
   label?: string;
 }) {
   return (
-    <ScreenLinkButton screenId={screenId} search={search}>
+    <ScreenLinkButton
+      screenId={screenId}
+      search={search}
+      variant="ghost"
+      size="sm"
+      className="-ml-2.5 text-muted-foreground hover:text-foreground"
+    >
       <ArrowLeft data-icon="inline-start" />
       {label}
     </ScreenLinkButton>

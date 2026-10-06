@@ -85,7 +85,7 @@ function Grades({
       <StudentStrip
         student={student}
         school={school}
-        actions={
+        back={
           scope.mode === "staff" ? (
             <BackButton
               screenId="STU-02"

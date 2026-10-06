@@ -55,6 +55,7 @@ export function InstitutionUsersScreen() {
       screenId="INS-04"
       title={institution ? `Usuarios de ${institution.name}` : "Usuarios de la institución"}
       description="Gestión de usuarios asignados a esta institución"
+      back={<BackButton screenId="INS-01" />}
       actions={
         <>
           {institution ? (
@@ -67,7 +68,6 @@ export function InstitutionUsersScreen() {
               Nuevo Admin
             </ScreenLinkButton>
           ) : null}
-          <BackButton screenId="INS-01" />
         </>
       }
     >

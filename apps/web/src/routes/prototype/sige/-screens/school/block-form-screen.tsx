@@ -21,7 +21,7 @@ export function BlockFormScreen() {
       screenId="SCH-10"
       title={id === undefined ? "Nuevo Bloque de Tiempo" : "Editar Bloque"}
       description="Período de clase o descanso dentro de la jornada"
-      actions={<BackButton screenId="SCH-09" />}
+      back={<BackButton screenId="SCH-09" />}
       target="Bloques"
     >
       {(institution) => <BlockFormLoader institution={institution} id={id} />}

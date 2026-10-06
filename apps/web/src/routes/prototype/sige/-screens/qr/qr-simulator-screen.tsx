@@ -62,7 +62,7 @@ export function QrSimulatorScreen() {
       screenId="QR-02"
       title="Simulador de Hardware QR"
       description="Herramienta de desarrollo - Solo ROOT"
-      actions={<BackButton screenId="QR-03" label="Volver al monitoreo" />}
+      back={<BackButton screenId="QR-03" label="Volver al monitoreo" />}
     >
       <FormLayout
         form={

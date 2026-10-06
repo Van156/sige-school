@@ -31,7 +31,7 @@ export function SubjectFormScreen() {
       screenId="INS-14"
       title={id === undefined ? "Nueva Asignatura" : "Editar Asignatura"}
       description="Complete los datos de la asignatura"
-      actions={<BackButton screenId="INS-13" />}
+      back={<BackButton screenId="INS-13" />}
       target="Asignaturas"
       banner={false}
     >
