@@ -3,7 +3,9 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
+import { campusRouter } from "./sige/campus";
 import { institutionAdminRouter } from "./sige/institution-admin";
+import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
@@ -34,6 +36,9 @@ export const appRouter = {
   me: meRouter,
   // INS-01/02 minimal (sige/02 §3.1): platform-only institution creation and list.
   institutionAdmin: institutionAdminRouter,
+  // Module 02 structure (sige/02 §3.3): campuses and levels.
+  campus: campusRouter,
+  level: levelRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
