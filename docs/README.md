@@ -17,6 +17,10 @@
   - [05 Students and guardians](./specs/sige/05-students.md)
   - [06 Grades](./specs/sige/06-grades.md)
   - [07 Attendance](./specs/sige/07-attendance.md)
+  - [08 Observations](./specs/sige/08-observations.md)
+  - [09 Report cards](./specs/sige/09-report-cards.md)
+  - [10 Metrics](./specs/sige/10-metrics.md)
+  - [11 Achievements](./specs/sige/11-achievements.md)
 - [Storybook](./specs/storybook.md)
 
 ## Architecture
