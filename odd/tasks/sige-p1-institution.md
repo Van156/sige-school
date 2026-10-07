@@ -23,8 +23,9 @@
 
 Server (TDD; delegated writer):
 
-- [ ] T1 — sige-core pure rules (`sumWeights`, `periodsOverlap`, weight/order/capacity validators) with spec §7.1 boundary tests; zod fragments `packages/api/src/sige/schemas/institution.ts` with §4.1 Spanish messages.
-- [ ] T2 — DB schema + migration: enums `jornada`, `course_shift`; tables `institution_profile`, `campus`, `grade_level`, `course`, `subject`, `academic_period`, `grade_criterion` (indexes, checks, partial uniques, composite FKs, D6); constraint tests.
+- [x] T1 — sige-core pure rules (`sumWeights`, `periodsOverlap`, weight/order/capacity validators) with spec §7.1 boundary tests; zod fragments `packages/api/src/sige/schemas/institution.ts` with §4.1 Spanish messages.
+- [x] T2 — DB schema + migration: enums `jornada`, `course_shift`; tables `institution_profile`, `campus`, `grade_level`, `course`, `subject`, `academic_period`, `grade_criterion` (indexes, checks, partial uniques, composite FKs, D6); constraint tests.
+- [ ] T2-fix — Review warnings: optional `nit`/`email` must treat "" as absent; ISO date fields must be calendar-valid (reject 2026-02-31). Route: delegated with T3.
 - [ ] T3 — shared service helpers: pg 23503/23505 → `HAS_DEPENDENTS`/`CONFLICT` mapper by constraint name, audit-record helper (one event, before/after of changed fields), matrix harness accepts `HAS_DEPENDENTS` as "passed the gate".
 - [ ] T4 — `campus` and `level` routers: CRUD, one-main rule, campus immutability on level, delete blocks, audit; tenant-isolation and permission-matrix suites.
 - [ ] T5 — `subject` and `criterion` routers: unique code, `totalWeight`, no-op recompute port, `affectedFinals: 0`.
@@ -46,3 +47,5 @@ Web (react-staff):
 ## Progress
 
 - Mapping done (delegated explorer). Branch created from `de7b7ab`.
+- T1 done in 62b4987, T2 in faaa497 (delegated writer, ≈1,000 authored lines, mostly tests; migration `20261007232722_sige_institution` generated). TDD: RED observed (missing modules); GREEN sige-core 59, api `src/sige` 134, db 88 pass (integration ran on 5438, no skips); check-types/lint 0. Parent spot check: db institution integration 19 pass. Notes for T3: `ON DELETE RESTRICT` raises 23001 (restrict_violation), inserts raise 23503 — the mapper must handle both. Bounded columns are `varchar(n)`; year columns have a 4-digit check. NIT format and max-length messages are not in spec §4.1 (writer-authored).
+- Review T1+T2 (de7b7ab..faaa497): 1 lens (reliability), approved and acknowledged. Warnings → T2-fix. Suggestion not taken: R3-default-drift (`current_academic_year` default emitted without `::text`). Next boundary: faaa497.
