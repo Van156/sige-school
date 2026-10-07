@@ -9,11 +9,36 @@ import { eq, or, sql } from "drizzle-orm";
 export const ACCOUNT_DISABLED_CODE = "ACCOUNT_DISABLED";
 export const ACCOUNT_DISABLED_MESSAGE = "Su cuenta está desactivada. Contacte al administrador.";
 
+function accountDisabled() {
+  return new APIError("FORBIDDEN", {
+    code: ACCOUNT_DISABLED_CODE,
+    message: ACCOUNT_DISABLED_MESSAGE,
+  });
+}
+
+/**
+ * Single choke point for AUTH-R7: wired as `databaseHooks.session.create.before`, it runs for every
+ * session better-auth issues (email, username, Google, invitation sign-up, impersonation, ...), so
+ * a new sign-in route cannot forget the check. Users without a `person` are untouched.
+ */
+export function createSessionGuard(database: Database) {
+  return async (session: { userId: string }): Promise<void> => {
+    const [row] = await database
+      .select({ isActive: schema.person.isActive })
+      .from(schema.person)
+      .where(eq(schema.person.userId, session.userId))
+      .limit(1);
+    if (row && !row.isActive) {
+      throw accountDisabled();
+    }
+  };
+}
+
 const SIGN_IN_PATHS = new Set(["/sign-in/email", "/sign-in/username"]);
 
 /**
  * SIGE sign-in hooks (sige/01 AUTH-R7, AUTH-R8). Before: a user whose `person` is inactive gets no
- * session. After: a successful sign-in stamps `person.last_login_at`. Users without a `person`
+ * session. `createSessionGuard` covers every other session route. After: a successful sign-in stamps `person.last_login_at` (best-effort). Users without a `person`
  * (platform admins) are untouched. See docs/architecture/auth.md#sige-sign-in-hooks
  */
 export function sigeSignInPlugin(database: Database) {
@@ -44,10 +69,7 @@ export function sigeSignInPlugin(database: Database) {
               )
               .limit(1);
             if (row && !row.isActive) {
-              throw new APIError("FORBIDDEN", {
-                code: ACCOUNT_DISABLED_CODE,
-                message: ACCOUNT_DISABLED_MESSAGE,
-              });
+              throw accountDisabled();
             }
           }),
         },
@@ -64,10 +86,15 @@ export function sigeSignInPlugin(database: Database) {
             if (!userId) {
               return;
             }
-            await database
-              .update(schema.person)
-              .set({ lastLoginAt: new Date() })
-              .where(eq(schema.person.userId, userId));
+            // Best-effort: a failed stamp must never fail a sign-in that already succeeded.
+            try {
+              await database
+                .update(schema.person)
+                .set({ lastLoginAt: new Date() })
+                .where(eq(schema.person.userId, userId));
+            } catch (error) {
+              console.error("[sige-sign-in] last_login_at update failed", error);
+            }
           }),
         },
       ],

@@ -30,7 +30,7 @@ import { hasOwnerRole } from "./owner-role";
 import { isBuiltInOrgRole, orgAc, orgRoles, platformAc, platformRoles } from "./permissions";
 import type { PermissionsRecord } from "./permissions";
 import { invitationSignUpPlugin } from "./plugins/invitation-sign-up";
-import { sigeSignInPlugin } from "./plugins/sige-sign-in";
+import { createSessionGuard, sigeSignInPlugin } from "./plugins/sige-sign-in";
 import { resolveGoogleCredentials } from "./social-providers";
 import type { SocialProviderEnv } from "./social-providers";
 
@@ -260,6 +260,12 @@ export function createAuth(
           before: async (user) => {
             await assertInvitedEmailMatchesOAuthUser(database, user);
           },
+        },
+      },
+      // sige/01 AUTH-R7: no session for an inactive person, whatever route issues it.
+      session: {
+        create: {
+          before: createSessionGuard(database),
         },
       },
     },

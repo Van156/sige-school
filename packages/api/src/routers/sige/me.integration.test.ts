@@ -68,11 +68,13 @@ await sigeSuite("me.get gate and shape", (fx) => {
     test("an inactive person is rejected with ACCOUNT_DISABLED", async () => {
       const tenant = await fx.provisionTenant("Gamma", ["viewer"]);
       const viewer = tenant.people.viewer!;
+      // The session is issued first (the session guard refuses new ones for inactive people);
+      // deactivating afterwards proves the procedure gate still stops an already-open session.
+      const context = await fx.contextFor(viewer, tenant);
       await fx.db
         .update(schema.person)
         .set({ isActive: false })
         .where(eq(schema.person.id, viewer.personId));
-      const context = await fx.contextFor(viewer, tenant);
       expect(await code(call(meRouter.get, undefined, { context }))).toBe("ACCOUNT_DISABLED");
     });
 

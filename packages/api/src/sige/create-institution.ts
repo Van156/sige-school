@@ -45,18 +45,63 @@ export function slugify(name: string): string {
   return slug || "institucion";
 }
 
-async function uniqueSlug(database: Database, name: string): Promise<string> {
-  const base = slugify(name);
+async function takenSlugs(database: Database, base: string): Promise<Set<string>> {
   const rows = await database
     .select({ slug: schema.organization.slug })
     .from(schema.organization)
     .where(like(schema.organization.slug, `${base}%`));
-  const taken = new Set(rows.map((row) => row.slug));
+  return new Set(rows.map((row) => row.slug));
+}
+
+function nextFreeSlug(base: string, taken: Set<string>): string {
   if (!taken.has(base)) return base;
   for (let suffix = 2; ; suffix += 1) {
     const candidate = `${base}-${suffix}`;
     if (!taken.has(candidate)) return candidate;
   }
+}
+
+/** Postgres unique violation, possibly wrapped by drizzle (`cause`). */
+function isUniqueViolation(error: unknown): boolean {
+  for (let current = error, depth = 0; current && depth < 5; depth += 1) {
+    if ((current as { code?: unknown }).code === "23505") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/** Bounded: past a few collisions the candidate gets a random suffix so contention converges. */
+const SLUG_ATTEMPTS = 8;
+const RANDOM_SUFFIX_FROM_ATTEMPT = 3;
+
+/**
+ * Inserts the organization under a free slug. The read-then-insert check races with concurrent
+ * creates of the same name, so the unique constraint is the arbiter: a collision recomputes the
+ * slug and retries instead of surfacing the raw violation.
+ */
+async function insertOrganization(database: Database, organizationId: string, name: string) {
+  const base = slugify(name);
+  for (let attempt = 1; attempt <= SLUG_ATTEMPTS; attempt += 1) {
+    const free = nextFreeSlug(base, await takenSlugs(database, base));
+    const slug =
+      attempt < RANDOM_SUFFIX_FROM_ATTEMPT
+        ? free
+        : `${base.slice(0, 55).replace(/-+$/g, "")}-${crypto.randomUUID().slice(0, 4)}`;
+    try {
+      const [row] = await database
+        .insert(schema.organization)
+        .values({ id: organizationId, name, slug })
+        .returning();
+      if (!row) throw new Error("Organization insert returned no row.");
+      return row;
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
+  throw new InstitutionCreationError(
+    "CONFLICT",
+    "No pudimos asignar un identificador único a la institución. Inténtalo de nuevo.",
+  );
 }
 
 export class InstitutionCreationError extends Error {
@@ -74,12 +119,7 @@ export async function createInstitution(
   input: CreateInstitutionInput,
 ): Promise<CreatedInstitution> {
   const organizationId = crypto.randomUUID();
-  const slug = await uniqueSlug(database, input.name);
-  const [institution] = await database
-    .insert(schema.organization)
-    .values({ id: organizationId, name: input.name, slug })
-    .returning();
-  if (!institution) throw new Error("Organization insert returned no row.");
+  const institution = await insertOrganization(database, organizationId, input.name);
 
   const deleteOrganization = async () => {
     try {

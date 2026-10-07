@@ -2,7 +2,7 @@ import * as schema from "@base-template/db/schema";
 import { createTestDatabase, requireTestDatabaseOrSkip } from "@base-template/db/testing";
 import type { TestDatabaseHandle } from "@base-template/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { createAuth } from "./index";
 import { provisionUser } from "./provision-user";
@@ -102,6 +102,25 @@ describe.skipIf(!reachable)("SIGE sign-in hooks", () => {
     return null;
   }
 
+  /** Makes every UPDATE that sets `column` of `person` fail, for the duration of `body`. */
+  async function withFailingPersonUpdate(column: string, body: () => Promise<void>) {
+    await handle.db.execute(
+      sql.raw(
+        `CREATE OR REPLACE FUNCTION test_fail_person_update() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'blocked by test'; END; $$ LANGUAGE plpgsql`,
+      ),
+    );
+    await handle.db.execute(
+      sql.raw(
+        `CREATE TRIGGER test_fail_person BEFORE UPDATE OF ${column} ON person FOR EACH ROW EXECUTE FUNCTION test_fail_person_update()`,
+      ),
+    );
+    try {
+      await body();
+    } finally {
+      await handle.db.execute(sql.raw(`DROP TRIGGER IF EXISTS test_fail_person ON person`));
+    }
+  }
+
   describe("last_login_at (AUTH-R8)", () => {
     test("is written on username sign-in", async () => {
       const provisioned = await provision();
@@ -114,6 +133,15 @@ describe.skipIf(!reachable)("SIGE sign-in hooks", () => {
       const provisioned = await provision({ email: "juan@example.com" });
       await auth.api.signInEmail({ body: { email: "juan@example.com", password: "1234560001" } });
       expect((await personOf(provisioned.userId)).lastLoginAt).toBeInstanceOf(Date);
+    });
+
+    test("a failed write is best-effort: the sign-in still succeeds", async () => {
+      const provisioned = await provision();
+      await withFailingPersonUpdate("last_login_at", async () => {
+        const { response } = await signInByUsername(provisioned.username, "1234560001");
+        expect(response.status).toBe(200);
+      });
+      expect((await personOf(provisioned.userId)).lastLoginAt).toBeNull();
     });
 
     test("a failed sign-in leaves it untouched", async () => {
@@ -158,6 +186,25 @@ describe.skipIf(!reachable)("SIGE sign-in hooks", () => {
       expect(failure?.message).toBe(INACTIVE_MESSAGE);
     });
 
+    test("no route can issue a session for an inactive person (session choke point)", async () => {
+      const provisioned = await provision();
+      await handle.db
+        .update(schema.person)
+        .set({ isActive: false })
+        .where(eq(schema.person.userId, provisioned.userId));
+      const context = await auth.$context;
+      const failure = await failureOf(context.internalAdapter.createSession(provisioned.userId));
+      expect(failure?.code).toBe("ACCOUNT_DISABLED");
+      expect(await handle.db.select().from(schema.session)).toHaveLength(0);
+    });
+
+    test("an active person gets a session from the same choke point", async () => {
+      const provisioned = await provision();
+      const context = await auth.$context;
+      const session = await context.internalAdapter.createSession(provisioned.userId);
+      expect(session.userId).toBe(provisioned.userId);
+    });
+
     test("an active person and a user without a person still sign in", async () => {
       const provisioned = await provision();
       await signInByUsername(provisioned.username, "1234560001");
@@ -184,6 +231,36 @@ describe.skipIf(!reachable)("SIGE sign-in hooks", () => {
       expect(events).toHaveLength(1);
       expect(events[0]?.metadata).toMatchObject({ forced: true });
       await signInByUsername(provisioned.username, "nueva-clave-2026");
+    });
+
+    test("a failed flag clear still sends the notice and audit, then tells the user", async () => {
+      const provisioned = await provision({ email: "juan@example.com" });
+      const { headers } = await signInByUsername(provisioned.username, "1234560001");
+      emailSender.reset();
+      auditLogger.reset();
+
+      await withFailingPersonUpdate("must_change_password", async () => {
+        const failure = await failureOf(
+          auth.api.changePassword({
+            body: { currentPassword: "1234560001", newPassword: "nueva-clave-2026" },
+            headers,
+          }),
+        );
+        expect(failure?.code).toBe("PASSWORD_CHANGED_GATE_NOT_CLEARED");
+      });
+
+      // The password did change, so the notice and the audit row must exist.
+      expect(emailSender.passwordChangedNotices).toHaveLength(1);
+      expect(auditLogger.eventsFor("user.password_changed")).toHaveLength(1);
+      expect((await personOf(provisioned.userId)).mustChangePassword).toBe(true);
+
+      // Not stuck: the new password is now the current one, so a retry with another one clears it.
+      const retry = await signInByUsername(provisioned.username, "nueva-clave-2026");
+      await auth.api.changePassword({
+        body: { currentPassword: "nueva-clave-2026", newPassword: "tercera-clave-2026" },
+        headers: retry.headers,
+      });
+      expect((await personOf(provisioned.userId)).mustChangePassword).toBe(false);
     });
 
     test("a voluntary change is not audited as forced", async () => {

@@ -33,6 +33,32 @@ export async function clearMustChangePassword(database: Database, userId: string
   await database.update(person).set({ mustChangePassword: false }).where(eq(person.userId, userId));
 }
 
+/** The password changed but the forced-change gate could not be lifted; the user can retry. */
+export const GATE_NOT_CLEARED_CODE = "PASSWORD_CHANGED_GATE_NOT_CLEARED";
+export const GATE_NOT_CLEARED_MESSAGE =
+  "Su contraseña se cambió, pero no pudimos completar el proceso. Cambie la contraseña de nuevo.";
+
+const CLEAR_ATTEMPTS = 2;
+
+/**
+ * Lifts the gate with a bounded retry. Returns false (after logging) when every attempt failed;
+ * the password change is not transactional with this write, so the caller must not hide that.
+ */
+async function clearGateWithRetry(database: Database, userId: string): Promise<boolean> {
+  for (let attempt = 1; attempt <= CLEAR_ATTEMPTS; attempt += 1) {
+    try {
+      await clearMustChangePassword(database, userId);
+      return true;
+    } catch (error) {
+      console.error(
+        `[account-security] clearing must_change_password failed (attempt ${attempt}/${CLEAR_ATTEMPTS})`,
+        error,
+      );
+    }
+  }
+  return false;
+}
+
 /** Safe, token-free description of a session that was revoked (R4.2, R4.3). */
 export type RevokedSessionInfo = {
   /** The session row id, NOT the bearer token. */
@@ -376,12 +402,21 @@ export function createAccountSecurity({ database, emailSender, events = {} }: Ac
             const subject = { userId: changed.id, email: changed.email };
             const forced = forcedChanges.get(ctx.context) === true;
             forcedChanges.delete(ctx.context);
-            // sige/01 AUTH-R9: not best-effort; a lifted gate must never silently stay armed.
-            await clearMustChangePassword(database, changed.id);
+            // sige/01 AUTH-R9: the gate must never silently stay armed. The password change is
+            // already committed (not atomic with this write), so a failed clear must not hide the
+            // notice or the audit row; it is reported to the user after both ran. The user is not
+            // stuck: the new password is now the current one, so changing it again clears the gate.
+            const cleared = await clearGateWithRetry(database, changed.id);
             notifyPasswordChanged(subject);
             await bestEffort("passwordChanged event", async () =>
               events.passwordChanged?.(forced ? { ...subject, forced } : subject),
             );
+            if (!cleared) {
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                code: GATE_NOT_CLEARED_CODE,
+                message: GATE_NOT_CLEARED_MESSAGE,
+              });
+            }
           }),
         },
       ],

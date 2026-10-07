@@ -1,10 +1,9 @@
-import * as schema from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
-import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { platformProcedure } from "../../index";
 import { createInstitution, InstitutionCreationError } from "../../sige/create-institution";
+import { listInstitutions } from "../../sige/list-institutions";
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -27,49 +26,9 @@ const createInput = z.object({
 /** Platform (root) institution procedures; INS-01/02 minimal slice (sige/02 §3.1). */
 export const institutionAdminRouter = {
   /** INS-01 list. Bounded (no paging in P0); the full list contract lands with module 02. */
-  list: platformProcedure({ institution: ["update"] }).handler(async ({ context }) => {
-    const rows = await context.db
-      .select({
-        id: schema.organization.id,
-        name: schema.organization.name,
-        slug: schema.organization.slug,
-        logo: schema.organization.logo,
-        createdAt: schema.organization.createdAt,
-        rectorUserId: schema.user.id,
-        rectorName: schema.user.name,
-        rectorUsername: schema.user.username,
-      })
-      .from(schema.organization)
-      .leftJoin(
-        schema.member,
-        and(
-          eq(schema.member.organizationId, schema.organization.id),
-          eq(schema.member.role, "owner"),
-        ),
-      )
-      .leftJoin(schema.user, eq(schema.user.id, schema.member.userId))
-      .orderBy(desc(schema.organization.createdAt), desc(schema.organization.id))
-      .limit(200);
-
-    // One row per institution (oldest owner wins when several exist).
-    const seen = new Set<string>();
-    return rows.flatMap((row) => {
-      if (seen.has(row.id)) return [];
-      seen.add(row.id);
-      return [
-        {
-          id: row.id,
-          name: row.name,
-          slug: row.slug,
-          logo: row.logo,
-          createdAt: row.createdAt,
-          rector: row.rectorUserId
-            ? { userId: row.rectorUserId, name: row.rectorName ?? "", username: row.rectorUsername }
-            : null,
-        },
-      ];
-    });
-  }),
+  list: platformProcedure({ institution: ["update"] }).handler(({ context }) =>
+    listInstitutions(context.db),
+  ),
 
   /** INS-02: creates the institution and its rector (role `owner`) as one audited operation. */
   create: platformProcedure({ institution: ["create"] })
