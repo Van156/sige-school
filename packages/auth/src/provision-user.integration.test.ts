@@ -248,6 +248,20 @@ describe.skipIf(!reachable)("provisionUser integration", () => {
     expect(await counts()).toEqual([2, 1, 1, 1]);
   });
 
+  test("a failure after the user insert inside the transaction rolls everything back", async () => {
+    // "2020-02-31" passes input validation but Postgres rejects it at the person insert, the last
+    // statement of the transaction, after user, account and member were already written.
+    const failure = await provisionUser(deps(), input({ birthDate: "2020-02-31" })).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(ProvisionUserError);
+    expect((failure as { cause?: { code?: string } }).cause?.code).toBe("22008");
+    expect(await counts()).toEqual([0, 0, 0, 0]);
+    expect(auditLogger.eventsFor("user.created")).toHaveLength(0);
+  });
+
   test("concurrent provisioning of one document yields exactly one user", async () => {
     const results = await Promise.allSettled([
       provisionUser(deps(), input()),
