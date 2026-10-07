@@ -13,6 +13,7 @@ const {
   isPasswordChangeRequiredError,
   redirectOnPasswordChangeRequired,
 } = await import("./password-gate");
+const { clearSigeMeCache } = await import("./sige-me");
 
 describe("isPasswordChangeRequiredError", () => {
   test("matches the oRPC gate error by code", () => {
@@ -73,7 +74,7 @@ describe("enforcePasswordChangeGate", () => {
   });
 
   test("redirects to AUTH-03 and warns while the password change is pending", async () => {
-    const thrown = await enforcePasswordChangeGate(queryClient, async () => me(true)).catch(
+    const thrown = await enforcePasswordChangeGate(queryClient, "u1", async () => me(true)).catch(
       (error: unknown) => error,
     );
     expect(isRedirect(thrown)).toBe(true);
@@ -82,7 +83,7 @@ describe("enforcePasswordChangeGate", () => {
   });
 
   test("passes through when no change is pending", async () => {
-    await enforcePasswordChangeGate(queryClient, async () => me(false));
+    await enforcePasswordChangeGate(queryClient, "u1", async () => me(false));
     expect(warning).not.toHaveBeenCalled();
   });
 
@@ -90,10 +91,30 @@ describe("enforcePasswordChangeGate", () => {
     const fetchMe = mock(async () => {
       throw { code: "NO_PERSON" };
     });
-    await enforcePasswordChangeGate(queryClient, fetchMe);
-    await enforcePasswordChangeGate(queryClient, fetchMe);
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
     expect(fetchMe).toHaveBeenCalledTimes(1);
     expect(warning).not.toHaveBeenCalled();
+  });
+
+  test("re-fetches for a different user instead of reusing the previous user's cached result", async () => {
+    const fetchMe = mock(async () => {
+      throw { code: "NO_PERSON" };
+    });
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
+    const thrown = await enforcePasswordChangeGate(queryClient, "u2", async () => me(true)).catch(
+      (error: unknown) => error,
+    );
+    expect(isRedirect(thrown)).toBe(true);
+    expect(fetchMe).toHaveBeenCalledTimes(1);
+  });
+
+  test("re-fetches after the cache is cleared", async () => {
+    const fetchMe = mock(async () => me(false));
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
+    clearSigeMeCache(queryClient);
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
+    expect(fetchMe).toHaveBeenCalledTimes(2);
   });
 
   test("does not block navigation on a real lookup failure, and does not cache it", async () => {
@@ -101,8 +122,8 @@ describe("enforcePasswordChangeGate", () => {
     const fetchMe = mock(async () => {
       throw new Error("network");
     });
-    await enforcePasswordChangeGate(queryClient, fetchMe);
-    await enforcePasswordChangeGate(queryClient, fetchMe);
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
+    await enforcePasswordChangeGate(queryClient, "u1", fetchMe);
     expect(fetchMe).toHaveBeenCalledTimes(2);
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();

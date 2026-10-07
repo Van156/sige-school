@@ -11,9 +11,12 @@ export async function handleSignOut({
   signOut,
   onSignedOut,
   showError,
+  clearSession,
 }: {
   signOut: () => Promise<{ error?: unknown } | undefined>;
   onSignedOut: () => void;
+  /** Drops per-user client caches (e.g. `me.get`) once the sign-out succeeded. */
+  clearSession?: () => void;
   showError: (message: string) => void;
 }): Promise<boolean> {
   try {
@@ -26,6 +29,7 @@ export async function handleSignOut({
     showError(SIGN_OUT_FALLBACK_MESSAGE);
     return false;
   }
+  clearSession?.();
   onSignedOut();
   return true;
 }

@@ -1,5 +1,5 @@
 import { Button } from "@base-template/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { CircleAlert, Mail } from "lucide-react";
 import { useState } from "react";
@@ -7,12 +7,14 @@ import { toast } from "sonner";
 
 import Loader from "@/shared/components/feedback/loader";
 import { authClient } from "@/app/auth-client";
+import { clearSigeMeCache } from "@/app/sige-me";
 import { resolveAcceptInvitationErrorState } from "../lib/accept-invitation-errors";
 import { AuthStatusNotice, betterAuthErrorMessage, handleSignOut } from "@/features/auth";
 
 /** R2.3, R2.5, R2.6: accept-invitation for an already signed-in, verified user. */
 export default function AcceptInvitationSignedIn({ invitationId }: { invitationId: string }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   // Both buttons disable while either mutation runs: no racing two exclusive actions on one invitation.
   const [pendingAction, setPendingAction] = useState<"accept" | "reject" | null>(null);
@@ -56,6 +58,7 @@ export default function AcceptInvitationSignedIn({ invitationId }: { invitationI
             onClick={() =>
               handleSignOut({
                 signOut: () => authClient.signOut(),
+                clearSession: () => clearSigeMeCache(queryClient),
                 onSignedOut: () => navigate({ to: "/sign-in", search: { invitationId } }),
                 showError: (message) => toast.error(message),
               })

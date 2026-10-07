@@ -11,15 +11,7 @@ import { filterNavGroups, flattenNavItems, type NavGroup } from "@/shared/lib/na
 import type { RoleKind } from "@/shared/lib/role-label";
 
 /** The SIGE caller kind `me.get` resolves from `member.role`; `custom` is any non-built-in role. */
-export type NavKind =
-  | "owner"
-  | "admin"
-  | "coordinator"
-  | "teacher"
-  | "student"
-  | "parent"
-  | "viewer"
-  | "custom";
+export type NavKind = Exclude<RoleKind, "root">;
 
 /** Inputs to the sidebar items' `visible` predicates. */
 export type NavContext = {

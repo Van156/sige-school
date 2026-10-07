@@ -318,6 +318,9 @@ importers:
       '@base-template/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@base-template/sige-core':
+        specifier: workspace:*
+        version: link:../../packages/sige-core
       '@base-template/ui':
         specifier: workspace:*
         version: link:../../packages/ui

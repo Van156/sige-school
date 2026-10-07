@@ -1,3 +1,5 @@
+import type { SigeKind } from "@base-template/sige-core";
+
 /**
  * Display label for a member role string. better-auth stores multiple roles as one
  * comma-separated string; returns `undefined` when there is nothing to show.
@@ -12,16 +14,7 @@ export function formatRoleLabel(role: string | null | undefined): string | undef
 }
 
 /** Who the signed-in user is for display: a SIGE `kind` from `me.get`, or `root` for a platform superadmin. */
-export type RoleKind =
-  | "root"
-  | "owner"
-  | "admin"
-  | "coordinator"
-  | "teacher"
-  | "student"
-  | "parent"
-  | "viewer"
-  | "custom";
+export type RoleKind = SigeKind | "custom" | "root";
 
 /** Spanish role names (sige/01 §5.2); owner and admin share "Administrador". */
 const ROLE_KIND_LABELS: Record<RoleKind, string> = {

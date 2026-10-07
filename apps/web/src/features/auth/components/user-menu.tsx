@@ -11,9 +11,11 @@ import {
 import { Skeleton } from "@base-template/ui/components/skeleton";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LayoutDashboardIcon, UserRoundIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { authClient } from "@/app/auth-client";
+import { clearSigeMeCache } from "@/app/sige-me";
 import SidebarUserMenu, { type SidebarUser } from "@/shared/components/layout/sidebar-user-menu";
 
 import { handleSignOut } from "../lib/sign-out";
@@ -34,11 +36,13 @@ export default function UserMenu({
   showDashboard?: boolean;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session, isPending } = authClient.useSession();
 
   const signOut = () =>
     handleSignOut({
       signOut: () => authClient.signOut(),
+      clearSession: () => clearSigeMeCache(queryClient),
       onSignedOut: () => navigate({ to: "/" }),
       showError: (message) => toast.error(message),
     });

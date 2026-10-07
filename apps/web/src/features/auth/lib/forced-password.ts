@@ -54,3 +54,34 @@ export function forcedPasswordErrorMessage(error: unknown): string {
       return FORCED_CHANGE_FALLBACK_MESSAGE;
   }
 }
+
+/**
+ * Runs the forced password change. A failure throws an `Error` carrying the AUTH-03 copy. When the
+ * password changed but the gate flag stayed armed (`PASSWORD_CHANGED_GATE_NOT_CLEARED`), the new
+ * session cookie is already valid: the session is refreshed best-effort and the cached gate is
+ * dropped, so the user stays on the change form with the message instead of being bounced by a
+ * stale session or a stale "no gate" entry.
+ */
+export async function submitForcedPasswordChange({
+  changePassword,
+  refreshSession,
+  clearGateCache,
+}: {
+  changePassword: () => Promise<{ error?: unknown } | undefined>;
+  refreshSession: () => Promise<unknown>;
+  clearGateCache: () => void;
+}): Promise<void> {
+  const result = await changePassword();
+  if (!result?.error) {
+    return;
+  }
+  if (betterAuthErrorCode(result.error) === "PASSWORD_CHANGED_GATE_NOT_CLEARED") {
+    try {
+      await refreshSession();
+    } catch {
+      // Best-effort: the next navigation reloads the session.
+    }
+    clearGateCache();
+  }
+  throw new Error(forcedPasswordErrorMessage(result.error));
+}

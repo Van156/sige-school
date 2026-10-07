@@ -7,11 +7,11 @@ import { Button } from "@base-template/ui/components/button";
 
 import { authClient } from "@/app/auth-client";
 import { orpc } from "@/app/orpc";
-import { PASSWORD_GATE_QUERY_KEY } from "@/app/password-gate";
+import { clearSigeMeCache } from "@/app/sige-me";
 import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
 
-import { FORCED_CHANGE_SUCCESS_MESSAGE, forcedPasswordErrorMessage } from "../lib/forced-password";
+import { FORCED_CHANGE_SUCCESS_MESSAGE, submitForcedPasswordChange } from "../lib/forced-password";
 import { handleSignOut } from "../lib/sign-out";
 import AuthCard from "./auth-card";
 import ForcedPasswordForm, { type ForcedPasswordValues } from "./forced-password-form";
@@ -26,21 +26,19 @@ export default function ForcedPasswordPage() {
   const queryClient = useQueryClient();
   const changePassword = useMutation({
     mutationFn: async ({ currentPassword, newPassword }: ForcedPasswordValues) => {
-      const { error } = await authClient.changePassword({
-        currentPassword,
-        newPassword,
-        revokeOtherSessions: true,
+      await submitForcedPasswordChange({
+        changePassword: () =>
+          authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }),
+        refreshSession: () => authClient.getSession({ query: { disableCookieCache: true } }),
+        clearGateCache: () => clearSigeMeCache(queryClient),
       });
-      if (error) {
-        throw new Error(forcedPasswordErrorMessage(error));
-      }
     },
     onSuccess: async () => {
       // The change issues a fresh session without an active organization. Drop the cached gate
       // state (no refetch: `me.get` needs the organization) so the `_org` guard on `/dashboard`
       // re-activates the institution and re-reads `me`.
       queryClient.removeQueries({ queryKey: orpc.me.key() });
-      queryClient.removeQueries({ queryKey: PASSWORD_GATE_QUERY_KEY });
+      clearSigeMeCache(queryClient);
       toast.success(FORCED_CHANGE_SUCCESS_MESSAGE);
       // The password change already succeeded: refreshing the session is best-effort, and a
       // failure (network blip) falls back to a hard navigation that reloads it.
@@ -96,6 +94,7 @@ export default function ForcedPasswordPage() {
         onClick={() =>
           void handleSignOut({
             signOut: () => authClient.signOut(),
+            clearSession: () => clearSigeMeCache(queryClient),
             onSignedOut: () => void navigate({ to: "/sign-in", search: {} }),
             showError: (message) => toast.error(message),
           })

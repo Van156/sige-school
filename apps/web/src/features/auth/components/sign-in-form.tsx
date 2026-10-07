@@ -3,10 +3,12 @@ import { FieldGroup } from "@base-template/ui/components/field";
 import { Input } from "@base-template/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { authClient } from "@/app/auth-client";
+import { clearSigeMeCache } from "@/app/sige-me";
 import FormField from "@/shared/components/form/form-field";
 import PasswordInput from "@/shared/components/form/password-input";
 
@@ -28,6 +30,7 @@ import AuthFormError from "./auth-form-error";
  */
 export default function SignInForm({ search }: { search?: AuthSearch }) {
   const navigate = useNavigate({ from: "/" });
+  const queryClient = useQueryClient();
   const [formError, setFormError] = useState<{ tone: "warning" | "error"; message: string } | null>(
     null,
   );
@@ -50,6 +53,7 @@ export default function SignInForm({ search }: { search?: AuthSearch }) {
           setFormError({ tone: "error", message: signInErrorMessage(result.error) });
           return;
         }
+        clearSigeMeCache(queryClient);
         toast.success(`Bienvenido/a, ${firstNameOf(result.data?.user.name)}!`);
         void navigate({ to: postSignInPath(search) });
       } catch {

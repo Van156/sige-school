@@ -4,16 +4,8 @@ import { authClient } from "@/app/auth-client";
 import { orpc } from "@/app/orpc";
 import { isSuperadminRole, useOrgRoles } from "@/features/access-control";
 
+import { sigeMeQueryOptions } from "./sige-me";
 import { resolveHasOrganization, resolveNavPermissions, type NavContext } from "./navigation";
-
-/** `me.get` rejects with `NO_PERSON` for accounts without a person row (platform admins). */
-function isNoPersonError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "NO_PERSON"
-  );
-}
 
 /**
  * The signed-in user's SIGE identity from `me.get`. Keyed by user id so a second sign-in in the
@@ -24,20 +16,8 @@ export function useSigeMe() {
   const { data: session } = authClient.useSession();
   const userId = session?.user.id;
   return useQuery({
-    queryKey: ["sige-me", userId],
-    queryFn: async () => {
-      try {
-        return await orpc.me.get.call();
-      } catch (error) {
-        if (isNoPersonError(error)) {
-          return null;
-        }
-        throw error;
-      }
-    },
+    ...sigeMeQueryOptions(userId, () => orpc.me.get.call()),
     enabled: Boolean(userId),
-    staleTime: 60_000,
-    retry: false,
   });
 }
 
