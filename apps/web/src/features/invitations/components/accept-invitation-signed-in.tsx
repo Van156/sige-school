@@ -58,7 +58,7 @@ export default function AcceptInvitationSignedIn({ invitationId }: { invitationI
             onClick={() =>
               handleSignOut({
                 signOut: () => authClient.signOut(),
-                clearSession: () => clearSigeMeCache(queryClient),
+                clearUserCaches: () => clearSigeMeCache(queryClient),
                 onSignedOut: () => navigate({ to: "/sign-in", search: { invitationId } }),
                 showError: (message) => toast.error(message),
               })

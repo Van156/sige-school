@@ -94,7 +94,7 @@ export default function ForcedPasswordPage() {
         onClick={() =>
           void handleSignOut({
             signOut: () => authClient.signOut(),
-            clearSession: () => clearSigeMeCache(queryClient),
+            clearUserCaches: () => clearSigeMeCache(queryClient),
             onSignedOut: () => void navigate({ to: "/sign-in", search: {} }),
             showError: (message) => toast.error(message),
           })

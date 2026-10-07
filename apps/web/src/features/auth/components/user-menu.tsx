@@ -42,7 +42,7 @@ export default function UserMenu({
   const signOut = () =>
     handleSignOut({
       signOut: () => authClient.signOut(),
-      clearSession: () => clearSigeMeCache(queryClient),
+      clearUserCaches: () => clearSigeMeCache(queryClient),
       onSignedOut: () => navigate({ to: "/" }),
       showError: (message) => toast.error(message),
     });
