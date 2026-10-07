@@ -72,6 +72,10 @@ Import from `packages/api/src/sige/testing`. Both run against the test database 
 
 `routers/sige/me.integration.test.ts` is the pilot, and `sige/testing/harness.integration.test.ts` proves the harnesses catch a forbidden call and a leaky query.
 
+### Institution creation
+
+`institutionAdmin.create` (`routers/sige/institution-admin.ts`, `platformProcedure({ institution: ["create"] })`, so only superadmin) delegates to `createInstitution` in `sige/create-institution.ts`: insert the organization (slug from the name, `-2`, `-3` on collision), provision the rector with `provisionUser` (role `owner`, actor = root, `impersonatorUserId` when the root session is impersonated), cap `user.maxOrganizations` at 1, then record `organization.created`. `user.created` is written by `provisionUser`. Any failure after the organization insert compensates in reverse (organization delete cascades member and person, then the rector user). USR-R3 is structural: the procedure only ever provisions `owner`. P0 slice: `institution_profile` and default seeding belong to module 02. `institutionAdmin.list` is a bounded (200) list of institutions with their rector, gated on `institution:update`. Mapped errors: `BAD_REQUEST` (validation), `CONFLICT` (rector email or document taken).
+
 ## Authorization port
 
 `AuthorizationPort` (`authorization.ts`) is the only thing the procedure builders depend on:

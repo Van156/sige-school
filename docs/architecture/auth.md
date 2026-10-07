@@ -25,8 +25,9 @@ Plugins, in order:
 1. `organization`: static roles plus dynamic access control (custom roles, max 25 per organization, R4.8), 48h invitation expiry, and `organizationHooks`.
 2. `admin`: platform roles, `defaultRole: "user"`, `adminRoles: ["superadmin"]`, 1h impersonation sessions (R6.4). The duration equals better-auth's default but is set explicitly so it cannot drift upstream.
 3. `username`: `POST /sign-in/username`, `user.username` (unique, lowercase) and `user.displayUsername` (sige/00 R1.19). `maxUsernameLength` is `MAX_USERNAME_LENGTH` (64, `sige-core`; `generateUsername` truncates long surnames to fit) because generated usernames contain the whole last name. Sign-in by username does not check password length, so a short document number works as the initial password; new passwords keep better-auth's default minimum of 8 (R1.24; `minPasswordLength` is not overridden).
-4. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
-5. `extraPlugins` (tests).
+4. `sigeSignInPlugin` (`plugins/sige-sign-in.ts`): see [SIGE sign-in hooks](#sige-sign-in-hooks).
+5. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
+6. `extraPlugins` (tests).
 
 Other hooks:
 
@@ -42,6 +43,15 @@ Organization rules enforced in `organizationHooks` and options:
 ## SIGE provisioning
 
 `provisionUser(deps, input)` in `provision-user.ts` is the only code path that writes `user`, credential `account`, `member` and `person` rows (sige/00 R1.18, sige/03 §3.1). It writes them in one Drizzle transaction, bypassing better-auth's create hooks on purpose (the adapter is not transactional with Drizzle). Rules: username from `generateUsername` in `@base-template/sige-core` (R1.19, OD-25) checked globally with a retry when it loses a race; placeholder email `<username>@sin-correo.<org-slug>.invalid` with `emailVerified = true` and `has_real_email = false` when no email is given (OD-1); initial password is the document number hashed with better-auth's hasher (OD-2); `must_change_password = true` unless the seed overrides it. The `user.created` audit event is written after commit; if that write fails the rows are deleted. Caller rules (who may create `owner`/`admin`) belong to the calling procedure.
+
+## SIGE sign-in hooks
+
+Sign-in and password hooks of sige/01 AUTH-R7..R9. They only touch users that have a `person`; platform admins pass through.
+
+- **Inactive block** (`sigeSignInPlugin`, before `/sign-in/email` and `/sign-in/username`): the identifier (email lowercased, or username) is resolved to a `person`; `is_active = false` throws `FORBIDDEN` with `code: "ACCOUNT_DISABLED"` and the message "Su cuenta está desactivada. Contacte al administrador." No session is created. Like better-auth's own banned-user check, this reveals the account state before the password is verified, as the spec requires (§4.1).
+- **`last_login_at`** (`sigeSignInPlugin`, after both sign-in paths): a successful sign-in stamps `person.last_login_at`.
+- **Forced change** (`account-security.ts`, `/change-password`): the before-hook rejects a new password equal to the current one (`BAD_REQUEST`, `code: "PASSWORD_UNCHANGED"`, "La nueva contraseña debe ser diferente a la actual.") and remembers whether the caller was under the gate; the after-hook sets `person.must_change_password = false` (not best-effort: a failure fails the request) and records `user.password_changed` with `metadata.forced = true` for a forced change. A successful change issues a new session cookie (other sessions are revoked), so clients must keep the response cookie.
+- **Reset completion**: `emailAndPassword.onPasswordReset` also clears `must_change_password`. An administrator reset (module 03) sets it back to true.
 
 ## Invitation email match
 

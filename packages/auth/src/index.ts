@@ -10,7 +10,7 @@ import { username } from "better-auth/plugins/username";
 import { MAX_USERNAME_LENGTH } from "@base-template/sige-core";
 import { and, eq, inArray, ne } from "drizzle-orm";
 
-import { createAccountSecurity } from "./account-security";
+import { clearMustChangePassword, createAccountSecurity } from "./account-security";
 import type { AccountSecurityEvents } from "./account-security";
 import { createAuditAfterHook } from "./audit/after-hooks";
 import { createUserAuditEvents } from "./audit/user-events";
@@ -30,6 +30,7 @@ import { hasOwnerRole } from "./owner-role";
 import { isBuiltInOrgRole, orgAc, orgRoles, platformAc, platformRoles } from "./permissions";
 import type { PermissionsRecord } from "./permissions";
 import { invitationSignUpPlugin } from "./plugins/invitation-sign-up";
+import { sigeSignInPlugin } from "./plugins/sige-sign-in";
 import { resolveGoogleCredentials } from "./social-providers";
 import type { SocialProviderEnv } from "./social-providers";
 
@@ -267,6 +268,11 @@ export function createAuth(
       // R0.1: sign-in is refused until the email is verified.
       requireEmailVerification: true,
       ...accountSecurity.emailAndPassword,
+      // sige/01 AUTH-R9: completing a password reset also ends the forced-change state.
+      onPasswordReset: async (data) => {
+        await accountSecurity.emailAndPassword.onPasswordReset(data);
+        await clearMustChangePassword(database, data.user.id);
+      },
     },
     emailVerification: {
       // R0.1: send a verification email on sign-up.
@@ -539,6 +545,7 @@ export function createAuth(
       // sige/00 R1.19: username sign-in. Generated usernames are `[a-z0-9_]` and can exceed the
       // 30-char default (whole last name), hence the larger bound.
       username({ maxUsernameLength: MAX_USERNAME_LENGTH }),
+      sigeSignInPlugin(database),
       invitationSignUpPlugin(auditLogger),
       accountSecurity.plugin,
       ...extraPlugins,

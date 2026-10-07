@@ -35,8 +35,11 @@ export function createUserAuditEvents(auditLogger: AuditLogger): AccountSecurity
       record("user.email_changed", user, { oldEmail: previousEmail, newEmail: user.email }),
     // The other sessions were revoked as part of the change; recorded here, not as one
     // `user.session_revoked` row each (those are for user-initiated revokes).
-    passwordChanged: (user) =>
-      record("user.password_changed", user, { otherSessionsRevoked: true }),
+    passwordChanged: ({ forced, ...user }) =>
+      record("user.password_changed", user, {
+        otherSessionsRevoked: true,
+        ...(forced ? { forced: true } : {}),
+      }),
     passwordReset: (user) => record("user.password_reset", user, { allSessionsRevoked: true }),
     sessionRevoked: async ({ sessions, ...user }) => {
       // Sequential, one row per session, in the order better-auth listed them. The logger has no

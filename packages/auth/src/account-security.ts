@@ -1,4 +1,5 @@
 import type { Database } from "@base-template/db";
+import { person } from "@base-template/db/schema";
 import * as schema from "@base-template/db/schema/auth";
 import { createAuthMiddleware } from "@better-auth/core/api";
 import { APIError } from "better-auth";
@@ -23,6 +24,15 @@ export const CANNOT_REVOKE_CURRENT_SESSION_CODE = "CANNOT_REVOKE_CURRENT_SESSION
 
 export type AccountSecurityUser = { userId: string; email: string };
 
+/** Spanish copy of the same-password rule (sige/01 §4.2), enforced server-side on `/change-password`. */
+export const PASSWORD_UNCHANGED_CODE = "PASSWORD_UNCHANGED";
+export const PASSWORD_UNCHANGED_MESSAGE = "La nueva contraseña debe ser diferente a la actual.";
+
+/** Lifts the forced-change gate of a SIGE person (sige/01 AUTH-R9). No-op for users without one. */
+export async function clearMustChangePassword(database: Database, userId: string): Promise<void> {
+  await database.update(person).set({ mustChangePassword: false }).where(eq(person.userId, userId));
+}
+
 /** Safe, token-free description of a session that was revoked (R4.2, R4.3). */
 export type RevokedSessionInfo = {
   /** The session row id, NOT the bearer token. */
@@ -45,7 +55,8 @@ export type RevokedSessionInfo = {
  * already say the other sessions were revoked.
  */
 export type AccountSecurityEvents = {
-  passwordChanged?: (event: AccountSecurityUser) => Promise<void>;
+  /** `forced` is true when the change lifted the SIGE first-login gate (sige/01 §3.3). */
+  passwordChanged?: (event: AccountSecurityUser & { forced?: boolean }) => Promise<void>;
   passwordReset?: (event: AccountSecurityUser) => Promise<void>;
   /** `email` is the NEW address; fired when the new address was verified and the change applied. */
   emailChanged?: (event: AccountSecurityUser & { previousEmail: string }) => Promise<void>;
@@ -134,6 +145,9 @@ type PendingRevocation = AccountSecurityUser & { sessions: RevokedSessionInfo[] 
 
 /** What the before-hook saw for one dispatched request; the after-hook reads it by context identity. */
 const pendingRevocations = new WeakMap<object, PendingRevocation>();
+
+/** Whether a `/change-password` request came from a person still under the forced-change gate. */
+const forcedChanges = new WeakMap<object, boolean>();
 
 type ChangeEmailTokenPayload = { email?: string; updateTo?: string; requestType?: string };
 
@@ -252,6 +266,30 @@ export function createAccountSecurity({ database, emailSender, events = {} }: Ac
           })),
         },
         {
+          // sige/01 §4.2: the new password must differ from the current one; also remembers whether
+          // this change is the forced first-login one, for the audit row.
+          matcher: (context) => context.path === "/change-password",
+          handler: createAuthMiddleware(async (ctx) => {
+            const body = (ctx.body ?? {}) as { currentPassword?: string; newPassword?: string };
+            if (body.newPassword !== undefined && body.newPassword === body.currentPassword) {
+              throw new APIError("BAD_REQUEST", {
+                code: PASSWORD_UNCHANGED_CODE,
+                message: PASSWORD_UNCHANGED_MESSAGE,
+              });
+            }
+            const current = await getSessionFromCtx(ctx).catch(() => null);
+            if (!current) {
+              return;
+            }
+            const [row] = await database
+              .select({ mustChangePassword: person.mustChangePassword })
+              .from(person)
+              .where(eq(person.userId, current.user.id))
+              .limit(1);
+            forcedChanges.set(ctx.context, row?.mustChangePassword === true);
+          }),
+        },
+        {
           // R4.2: revoke any session except the current one (that is what sign-out is for).
           matcher: (context) => context.path === "/revoke-session",
           handler: createAuthMiddleware(async (ctx) => {
@@ -336,9 +374,13 @@ export function createAccountSecurity({ database, emailSender, events = {} }: Ac
               return;
             }
             const subject = { userId: changed.id, email: changed.email };
+            const forced = forcedChanges.get(ctx.context) === true;
+            forcedChanges.delete(ctx.context);
+            // sige/01 AUTH-R9: not best-effort; a lifted gate must never silently stay armed.
+            await clearMustChangePassword(database, changed.id);
             notifyPasswordChanged(subject);
             await bestEffort("passwordChanged event", async () =>
-              events.passwordChanged?.(subject),
+              events.passwordChanged?.(forced ? { ...subject, forced } : subject),
             );
           }),
         },
