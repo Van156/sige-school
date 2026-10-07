@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
+import { meRouter } from "./sige/me";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
 import { projectRouter } from "./project";
@@ -28,6 +29,8 @@ export const appRouter = {
   members: membersRouter,
   // Organization lifecycle: organization.transferOwnership (spec account-and-org-settings §6.5).
   organization: organizationRouter,
+  // SIGE (sige/00 R3.1): routers under ./sige build on `sigeProcedure`.
+  me: meRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

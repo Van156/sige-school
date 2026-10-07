@@ -37,6 +37,41 @@ Platform permissions are layer-isolated: an org `owner` holds none merely by own
 
 `packages/sige-core` owns the SIGE permission features and the role to grant table as pure data (spec sige/00 §4.2). `packages/auth/src/permissions/org.ts` spreads it into `orgStatements` and builds the built-in roles `coordinator`, `teacher`, `student`, `parent`, `viewer` (and extends `owner`/`admin`); `platform.ts` adds `institution` and `qr:simulate` for `superadmin`. Row-level scope is not part of the grants; it belongs to `ScopePolicy`.
 
+## SIGE procedures
+
+Code: `packages/api/src/sige/{procedure,scope}.ts`, routers in `packages/api/src/routers/sige/`. Spec: sige/00 §4.3 and §6.1, sige/01 AUTH-R1/AUTH-R2.
+
+`sigeProcedure` = `orgProcedure` plus `requireActivePerson`. It reuses the authorization port (session, active-organization membership, custom roles); nothing is forked. After the org checks it loads the caller's `person` by `(context.org.id, session.user.id)` and rejects, in order:
+
+| Condition                           | Error (status 403)         |
+| ----------------------------------- | -------------------------- |
+| no `person` row in this institution | `NO_PERSON`                |
+| `is_active = false`                 | `ACCOUNT_DISABLED`         |
+| `must_change_password = true`       | `PASSWORD_CHANGE_REQUIRED` |
+
+It then injects `context.person` (`id`, `userId`, `kind`, `roleName`, names, `mustChangePassword`) and `context.scope`. `kind` is `member.role` when it is a built-in SIGE role, else `custom` (institution-wide, R1.10). Add the permission check as usual: `sigeProcedure.use(requirePermission({ grade: ["read"] }))`. Only `me.get` uses `sigePasswordGateExemptProcedure`, which skips the third gate so the web can route to AUTH-03; every other procedure uses `sigeProcedure`. The exemption is a separate builder rather than a path allowlist so it cannot drift when routers are renamed.
+
+### ScopePolicy
+
+`createScopePolicy(subject, resolvers)` returns the per-request row scope. Role grants say what; the policy says which rows.
+
+- `unrestricted` kinds (owner, admin, coordinator, viewer, custom): `studentWhere()` and `offeringWhere()` return `undefined`.
+- Restricted kinds (teacher, student, parent): they return a predicate to AND into the query; with no resolver registered they return `sql\`false\`` (fail closed: empty result).
+- `inTenant(column)` is `organization_id = <caller org>`; every tenant query starts from it (R3.3). `isSelf(personId)` is the self rule that needs no module table.
+- `assertStudent(id)` / `assertOffering(id)` throw `NOT_FOUND`, never `FORBIDDEN` (R1.15). Until a module supplies `studentVisible` / `offeringVisible` they always throw (no such rows exist yet).
+
+Seams for later modules (`ScopeResolvers`, defaults in `DEFAULT_SCOPE_RESOLVERS`, all fail closed): `studentWhere[teacher|student|parent]`, `offeringWhere[teacher|student|parent]` (a `(subject) => SQL` over the module's own table) and `studentVisible` / `offeringVisible` (one tenant-filtered select that also applies the predicate). The enrollment/offering module fills the offering and teacher entries (OD-21); the students module fills the student and parent entries (`student_guardian`). To wire one, replace the entry in `DEFAULT_SCOPE_RESOLVERS` and add a `ScopePolicy` unit test for that kind.
+
+### Test harnesses
+
+Import from `packages/api/src/sige/testing`. Both run against the test database (they skip locally when it is unreachable and fail loudly in CI) and provision institutions through `provisionUser`. One call per router:
+
+- `testPermissionMatrix({ name, procedures })`: one test per SIGE role x procedure. Each procedure declares its `permissions` (or `null` for any member) and a `run(context)`. The expected verdict comes from the sige-core grant table (`grantedActions`): a role holding every permission must pass the gate, any other must get `FORBIDDEN`. Calls go through the real better-auth roles, so drift between the table and the wired statements fails here.
+- `testTenantIsolation({ name, cases })`: provisions tenants Alfa and Beta and runs each `isolationCase` as a tenant Alfa caller. `expectation: "notFound"` requires `NOT_FOUND` for Beta's ids; `"noLeak"` requires that no Beta identifier (org, user, person, username, document, plus `foreignIds(seed)`) appears in the result. Beta's `person` and `member` rows are snapshotted and must not change; `verifyForeignUnchanged` covers module tables. A case can `seed` module rows per tenant.
+- `sigeSuite(name, body)` is the shared fixture (`provisionTenant`, `contextFor`) for module tests that need more than the two harnesses.
+
+`routers/sige/me.integration.test.ts` is the pilot, and `sige/testing/harness.integration.test.ts` proves the harnesses catch a forbidden call and a leaky query.
+
 ## Authorization port
 
 `AuthorizationPort` (`authorization.ts`) is the only thing the procedure builders depend on:

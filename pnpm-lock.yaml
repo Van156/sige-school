@@ -430,6 +430,9 @@ importers:
       '@base-template/db':
         specifier: workspace:*
         version: link:../db
+      '@base-template/sige-core':
+        specifier: workspace:*
+        version: link:../sige-core
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.15.4
