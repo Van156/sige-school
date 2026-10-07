@@ -7,6 +7,7 @@ import { expect, test } from "bun:test";
 import type { Context } from "../../context";
 import {
   isolationCase,
+  racingDb,
   sigeSuite,
   testPermissionMatrix,
   testTenantIsolation,
@@ -152,6 +153,26 @@ await sigeSuite("level router", (fx) => {
     expect(
       (await errorOf(call(levelRouter.delete, { id: "nope" }, { context: owner })))?.code,
     ).toBe("NOT_FOUND");
+  });
+
+  test("update/delete lose a race to a concurrent delete: NOT_FOUND and no audit", async () => {
+    for (const op of ["update", "delete"] as const) {
+      const campus = await seedCampus(fx, tenant);
+      const level = await seedLevel(fx, tenant, campus.id);
+      const racing = {
+        ...owner,
+        db: racingDb(fx.db, async () => {
+          await fx.db.delete(schema.gradeLevel).where(eq(schema.gradeLevel.id, level.id));
+        }),
+      } as Context;
+      audit.reset();
+      const run =
+        op === "update"
+          ? call(levelRouter.update, { id: level.id, name: "X", orderNum: 1 }, { context: racing })
+          : call(levelRouter.delete, { id: level.id }, { context: racing });
+      expect((await errorOf(run))?.code).toBe("NOT_FOUND");
+      expect(audit.events).toHaveLength(0);
+    }
   });
 
   test("delete removes an empty level and snapshots its name", async () => {

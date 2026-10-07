@@ -146,12 +146,14 @@ export const campusRouter = {
       if (!before) throw notFound();
       const values = columnsFrom(input);
       try {
-        await context.db
+        const affected = await context.db
           .update(schema.campus)
           .set(values)
           .where(
             and(eq(schema.campus.organizationId, context.org.id), eq(schema.campus.id, input.id)),
-          );
+          )
+          .returning({ id: schema.campus.id });
+        if (affected.length === 0) throw notFound();
       } catch (error) {
         return rethrowDbError(error, "write");
       }
@@ -171,11 +173,13 @@ export const campusRouter = {
       const before = await findCampus(context.db, context.org.id, input.id);
       if (!before) throw notFound();
       try {
-        await context.db
+        const affected = await context.db
           .delete(schema.campus)
           .where(
             and(eq(schema.campus.organizationId, context.org.id), eq(schema.campus.id, input.id)),
-          );
+          )
+          .returning({ id: schema.campus.id });
+        if (affected.length === 0) throw notFound();
       } catch (error) {
         return rethrowDbError(error, "delete");
       }

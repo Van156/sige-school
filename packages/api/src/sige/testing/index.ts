@@ -9,3 +9,4 @@ export type {
   TenantIsolationCase,
   TenantIsolationConfig,
 } from "./tenant-isolation";
+export { racingDb } from "./racing-db";

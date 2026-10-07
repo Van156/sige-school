@@ -104,7 +104,7 @@ export const levelRouter = {
       const before = await toRow(context.db, context.org.id, input.id);
       const values = { name: input.name, orderNum: input.orderNum };
       try {
-        await context.db
+        const affected = await context.db
           .update(schema.gradeLevel)
           .set(values)
           .where(
@@ -112,7 +112,9 @@ export const levelRouter = {
               eq(schema.gradeLevel.organizationId, context.org.id),
               eq(schema.gradeLevel.id, input.id),
             ),
-          );
+          )
+          .returning({ id: schema.gradeLevel.id });
+        if (affected.length === 0) throw notFound();
       } catch (error) {
         return rethrowDbError(error, "write");
       }
@@ -134,14 +136,16 @@ export const levelRouter = {
     .handler(async ({ context, input }) => {
       const before = await toRow(context.db, context.org.id, input.id);
       try {
-        await context.db
+        const affected = await context.db
           .delete(schema.gradeLevel)
           .where(
             and(
               eq(schema.gradeLevel.organizationId, context.org.id),
               eq(schema.gradeLevel.id, input.id),
             ),
-          );
+          )
+          .returning({ id: schema.gradeLevel.id });
+        if (affected.length === 0) throw notFound();
       } catch (error) {
         return rethrowDbError(error, "delete");
       }

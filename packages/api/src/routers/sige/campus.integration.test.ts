@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import type { Context } from "../../context";
 import {
   isolationCase,
+  racingDb,
   sigeSuite,
   testPermissionMatrix,
   testTenantIsolation,
@@ -157,6 +158,29 @@ await sigeSuite("campus router", (fx) => {
         () => call(campusRouter.delete, { id: "nope" }, { context: owner }),
       ]) {
         expect(((await errorOf(run())) as ORPCError<string, unknown>).code).toBe("NOT_FOUND");
+      }
+    });
+
+    test("update/delete lose a race to a concurrent delete: NOT_FOUND and no audit", async () => {
+      for (const op of ["update", "delete"] as const) {
+        const campus = await seedCampus(fx, tenant);
+        const racing = {
+          ...owner,
+          db: racingDb(fx.db, async () => {
+            await fx.db.delete(schema.campus).where(eq(schema.campus.id, campus.id));
+          }),
+        } as Context;
+        audit.reset();
+        const run =
+          op === "update"
+            ? call(
+                campusRouter.update,
+                { id: campus.id, name: "Tarde", jornada: "completa" },
+                { context: racing },
+              )
+            : call(campusRouter.delete, { id: campus.id }, { context: racing });
+        expect(((await errorOf(run)) as ORPCError<string, unknown>).code).toBe("NOT_FOUND");
+        expect(audit.events).toHaveLength(0);
       }
     });
 
