@@ -2,8 +2,9 @@
 // one login per SIGE kind. Idempotent. Usage: `pnpm db:seed:sige`.
 //
 // The logic lives in `@base-template/api/sige/seed` so it is testable against a real database.
-// Root credentials come from SEED_ROOT_EMAIL / SEED_ROOT_PASSWORD (demo defaults below, local use
-// only). Refuses NODE_ENV=production unless `--force-demo` is passed (R4.6).
+// Root credentials come from SEED_ROOT_EMAIL / SEED_ROOT_PASSWORD; the built-in demo password is
+// allowed only in development/test or with `--force-demo` (see `resolveSeedRoot`). Refuses
+// NODE_ENV=production unless `--force-demo` is passed (R4.6).
 import { resolveSeedRoot, seedSige } from "@base-template/api/sige/seed";
 
 import { ENV } from "../src/env.server";
@@ -30,11 +31,13 @@ async function main(): Promise<void> {
     `[seed-sige] root ${root.email} ${result.rootCreated ? "created" : "already present"}.`,
   );
   console.log("[seed-sige] demo logins (username / initial password = document number):");
-  console.log(
-    passwordSource === "env"
-      ? `  ${"root".padEnd(12)} ${root.email} / (password set from SEED_ROOT_PASSWORD)`
-      : `  ${"root".padEnd(12)} ${root.email} / ${root.password}  (built-in DEMO password)`,
-  );
+  // An existing root keeps its password: the seed never rewrites credentials.
+  const rootPassword = !result.rootCreated
+    ? "(existing account, password unchanged)"
+    : passwordSource === "env"
+      ? "(password set from SEED_ROOT_PASSWORD)"
+      : `${root.password}  (built-in DEMO password)`;
+  console.log(`  ${"root".padEnd(12)} ${root.email} / ${rootPassword}`);
   for (const login of result.logins) {
     console.log(
       `  ${login.kind.padEnd(12)} ${login.username.padEnd(16)} / ${login.password}  (${login.fullName})`,
