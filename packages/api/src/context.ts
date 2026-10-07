@@ -4,6 +4,7 @@ import type { Database } from "@base-template/db";
 
 import type { AuthorizationPort } from "./authorization";
 import type { PlatformAdminPort } from "./platform-admin";
+import type { GradeRecalculationPort } from "./sige/grade-recalculation";
 
 export type Context = {
   session: Session | null;
@@ -21,4 +22,6 @@ export type Context = {
   auditLogger: AuditLogger;
   /** `DEFAULT_MAX_ORGS_PER_USER` (R1.1b), shown as the fallback when a user's override is cleared (R6.6). */
   defaultMaxOrganizationsPerUser: number;
+  /** Module 06 port (sige/02 §3.4); absent means the no-op default until that module ships. */
+  gradeRecalculation?: GradeRecalculationPort;
 };

@@ -5,8 +5,10 @@ import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
 import { campusRouter } from "./sige/campus";
 import { institutionAdminRouter } from "./sige/institution-admin";
+import { criterionRouter } from "./sige/criterion";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
+import { subjectRouter } from "./sige/subject";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
 import { projectRouter } from "./project";
@@ -36,9 +38,11 @@ export const appRouter = {
   me: meRouter,
   // INS-01/02 minimal (sige/02 §3.1): platform-only institution creation and list.
   institutionAdmin: institutionAdminRouter,
-  // Module 02 structure (sige/02 §3.3): campuses and levels.
+  // Module 02 structure (sige/02 §3.3): campuses, levels, subjects, criteria.
   campus: campusRouter,
   level: levelRouter,
+  subject: subjectRouter,
+  criterion: criterionRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

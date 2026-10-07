@@ -29,6 +29,15 @@ export function racingDb(db: Database, beforeWrite: () => Promise<void>): Databa
       if ((prop === "update" || prop === "delete") && typeof value === "function") {
         return (...args: unknown[]) => wrap((value as Function).apply(target, args) as object);
       }
+      if (prop === "transaction" && typeof value === "function") {
+        // The callback's transaction handle is raced too, so writes inside it hit the seam.
+        return (callback: (tx: Database) => unknown, ...rest: unknown[]) =>
+          (value as Function).call(
+            target,
+            (tx: Database) => callback(racingDb(tx, beforeWrite)),
+            ...rest,
+          );
+      }
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
