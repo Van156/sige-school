@@ -8,5 +8,5 @@
     "outDir": "dist"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../db" }, { "path": "../sige-core" }]
+  "references": []
 }

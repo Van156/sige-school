@@ -95,7 +95,16 @@ export function assertCatalogPermissions(values: readonly string[]): void {
 }
 
 /** Code-defined, immutable org roles (R4.4). Custom role names must not collide with these. */
-export const BUILT_IN_ORG_ROLES = ["owner", "admin", "member"] as const;
+export const BUILT_IN_ORG_ROLES = [
+  "owner",
+  "admin",
+  "member",
+  "coordinator",
+  "teacher",
+  "student",
+  "parent",
+  "viewer",
+] as const;
 
 export type BuiltInOrgRole = (typeof BUILT_IN_ORG_ROLES)[number];
 

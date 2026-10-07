@@ -464,6 +464,9 @@ importers:
       '@base-template/db':
         specifier: workspace:*
         version: link:../db
+      '@base-template/sige-core':
+        specifier: workspace:*
+        version: link:../sige-core
       '@better-auth/core':
         specifier: 1.7.5
         version: 1.7.5(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.2)(better-call@1.4.0(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
@@ -547,6 +550,15 @@ importers:
       varlock:
         specifier: 'catalog:'
         version: 1.18.0
+
+  packages/sige-core:
+    devDependencies:
+      '@base-template/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/ui:
     dependencies:

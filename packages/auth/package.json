@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@base-template/db": "workspace:*",
+    "@base-template/sige-core": "workspace:*",
     "@better-auth/core": "1.7.5",
     "@better-auth/drizzle-adapter": "1.7.5",
     "better-auth": "catalog:",

@@ -15,7 +15,7 @@ createDrizzleAuditLogger  ->  audit_log (Postgres)
 
 - `AuditLogger` (`audit/types.ts`) is a port with one method, `record`. It lives in `@base-template/auth` so hooks and oRPC procedures can both depend on it without a cycle between `auth` and `api`.
 - `AuditEvent` is a union on `scope`. An `organization` event always carries `organizationId` and an `OrganizationAuditAction`; a `platform` event never carries `organizationId` and takes a `PlatformAuditAction`; a `user` event never carries one either and takes a `UserAuditAction` (see [User scope](#user-scope)). The `audit_log` check constraint forbids an organization on `platform` rows only.
-- The action catalogue is plain runtime lists in `audit/actions.ts`, so the browser can import it (`@base-template/auth/audit/actions`) and the types derive from the lists.
+- The action catalogue is plain runtime lists in `audit/actions.ts`, so the browser can import it (`@base-template/auth/audit/actions`) and the types derive from the lists. SIGE organization actions (spec sige/00 §6.9) live in `packages/sige-core/src/audit-actions.ts` and are spread into `ORGANIZATION_AUDIT_ACTIONS`.
 - `metadata` holds before/after values plus a readable snapshot (`organizationName`, `actorEmail`, `targetEmail`, ...). It must never hold secrets, tokens or passwords (R7.2).
 
 ### Table rules

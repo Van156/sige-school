@@ -118,7 +118,16 @@ describe("assertCatalogPermissions", () => {
 
 describe("BUILT_IN_ORG_ROLES / isBuiltInOrgRole", () => {
   test("lists owner, admin, member", () => {
-    expect(BUILT_IN_ORG_ROLES).toEqual(["owner", "admin", "member"]);
+    expect(BUILT_IN_ORG_ROLES).toEqual([
+      "owner",
+      "admin",
+      "member",
+      "coordinator",
+      "teacher",
+      "student",
+      "parent",
+      "viewer",
+    ]);
   });
 
   test("identifies built-in role names", () => {

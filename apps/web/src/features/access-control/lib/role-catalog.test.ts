@@ -19,12 +19,22 @@ describe("buildRoleCatalog (R4)", () => {
       "owner",
       "admin",
       "member",
+      "coordinator",
+      "teacher",
+      "student",
+      "parent",
+      "viewer",
       "billing-manager",
     ]);
     expect(catalog.filter((role) => role.builtIn).map((role) => role.name)).toEqual([
       "owner",
       "admin",
       "member",
+      "coordinator",
+      "teacher",
+      "student",
+      "parent",
+      "viewer",
     ]);
     expect(catalog.find((role) => role.name === "billing-manager")?.builtIn).toBe(false);
   });

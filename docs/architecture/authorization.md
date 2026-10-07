@@ -33,6 +33,10 @@ Org checks must honor custom roles stored in `organizationRole` (R4, R5.1). The 
 
 Platform permissions are layer-isolated: an org `owner` holds none merely by owning organizations (R6.5).
 
+## SIGE roles and catalog
+
+`packages/sige-core` owns the SIGE permission features and the role to grant table as pure data (spec sige/00 §4.2). `packages/auth/src/permissions/org.ts` spreads it into `orgStatements` and builds the built-in roles `coordinator`, `teacher`, `student`, `parent`, `viewer` (and extends `owner`/`admin`); `platform.ts` adds `institution` and `qr:simulate` for `superadmin`. Row-level scope is not part of the grants; it belongs to `ScopePolicy`.
+
 ## Authorization port
 
 `AuthorizationPort` (`authorization.ts`) is the only thing the procedure builders depend on:
