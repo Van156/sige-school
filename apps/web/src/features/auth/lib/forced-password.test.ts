@@ -3,10 +3,10 @@ import { describe, expect, test } from "bun:test";
 import {
   CURRENT_PASSWORD_WRONG_MESSAGE,
   FORCED_CHANGE_FALLBACK_MESSAGE,
+  GATE_NOT_CLEARED_MESSAGE,
   PASSWORD_MISMATCH_MESSAGE,
   PASSWORD_TOO_SHORT_MESSAGE,
   PASSWORD_UNCHANGED_MESSAGE,
-  canSubmitForcedPassword,
   forcedPasswordErrorMessage,
   forcedPasswordSchema,
 } from "./forced-password";
@@ -16,6 +16,10 @@ const valid = {
   newPassword: "nueva-clave-26",
   confirmPassword: "nueva-clave-26",
 };
+
+function canSubmitForcedPassword(values: typeof valid) {
+  return forcedPasswordSchema.safeParse(values).success;
+}
 
 function messagesOf(values: typeof valid) {
   const result = forcedPasswordSchema.safeParse(values);
@@ -74,6 +78,12 @@ describe("forcedPasswordErrorMessage", () => {
         message: "Mensaje del servidor",
       }),
     ).toBe("Mensaje del servidor");
+  });
+
+  test("explains that the password changed but the gate was not cleared", () => {
+    expect(
+      forcedPasswordErrorMessage({ status: 500, code: "PASSWORD_CHANGED_GATE_NOT_CLEARED" }),
+    ).toBe(GATE_NOT_CLEARED_MESSAGE);
   });
 
   test("falls back for anything else", () => {

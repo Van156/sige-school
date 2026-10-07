@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_auth/_org")({
     // the user's single institution. Then a pending forced password change (AUTH-03) wins over
     // every org route; `me.get` is exempt from that gate.
     await activateOrganization(context.session.data?.session.activeOrganizationId);
-    await enforcePasswordChangeGate(context.queryClient, orpc.me.get.queryOptions());
+    await enforcePasswordChangeGate(context.queryClient, () => orpc.me.get.call());
   },
   errorComponent: OrgLayoutError,
 });

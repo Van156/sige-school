@@ -7,6 +7,7 @@ import { Button } from "@base-template/ui/components/button";
 
 import { authClient } from "@/app/auth-client";
 import { orpc } from "@/app/orpc";
+import { PASSWORD_GATE_QUERY_KEY } from "@/app/password-gate";
 import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
 
@@ -35,12 +36,23 @@ export default function ForcedPasswordPage() {
       }
     },
     onSuccess: async () => {
-      // The change issues a fresh session without an active organization. Refresh it and drop the
-      // cached gate state (no refetch: `me.get` needs the organization), so the `_org` guard on
-      // `/dashboard` re-activates the institution and re-reads `me`.
-      await authClient.getSession({ query: { disableCookieCache: true } });
+      // The change issues a fresh session without an active organization. Drop the cached gate
+      // state (no refetch: `me.get` needs the organization) so the `_org` guard on `/dashboard`
+      // re-activates the institution and re-reads `me`.
       queryClient.removeQueries({ queryKey: orpc.me.key() });
+      queryClient.removeQueries({ queryKey: PASSWORD_GATE_QUERY_KEY });
       toast.success(FORCED_CHANGE_SUCCESS_MESSAGE);
+      // The password change already succeeded: refreshing the session is best-effort, and a
+      // failure (network blip) falls back to a hard navigation that reloads it.
+      try {
+        const { error } = await authClient.getSession({ query: { disableCookieCache: true } });
+        if (error) {
+          throw error;
+        }
+      } catch {
+        window.location.assign("/dashboard");
+        return;
+      }
       void navigate({ to: "/dashboard" });
     },
   });

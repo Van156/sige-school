@@ -8,7 +8,7 @@ import PasswordInput from "@/shared/components/form/password-input";
 
 import {
   FORCED_CHANGE_FALLBACK_MESSAGE,
-  canSubmitForcedPassword,
+  MIN_PASSWORD_LENGTH,
   forcedPasswordSchema,
 } from "../lib/forced-password";
 import AuthFormError from "./auth-form-error";
@@ -85,7 +85,7 @@ export default function ForcedPasswordForm({
                     {...control}
                     large
                     autoComplete="new-password"
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
                   />
                   <PasswordStrengthMeter password={field.state.value} />
                 </>
@@ -114,10 +114,7 @@ export default function ForcedPasswordForm({
       </FieldGroup>
       {serverError ? <AuthFormError message={serverError} /> : null}
       <form.Subscribe
-        selector={(state) => ({
-          canSubmit: canSubmitForcedPassword(state.values),
-          isSubmitting: state.isSubmitting,
-        })}
+        selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
       >
         {({ canSubmit, isSubmitting }) => (
           <Button type="submit" size="lg" className="w-full" disabled={!canSubmit || isSubmitting}>

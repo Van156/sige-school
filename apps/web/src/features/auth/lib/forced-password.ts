@@ -11,6 +11,8 @@ export const PASSWORD_MISMATCH_MESSAGE = "Las contraseñas nuevas no coinciden."
 export const PASSWORD_UNCHANGED_MESSAGE = "La nueva contraseña debe ser diferente a la actual.";
 export const FORCED_CHANGE_FALLBACK_MESSAGE =
   "No se pudo actualizar la contraseña. Intente nuevamente.";
+export const GATE_NOT_CLEARED_MESSAGE =
+  "Su contraseña se cambió, pero no pudimos completar la activación de su cuenta. Vuelva a cambiarla para continuar.";
 export const FORCED_CHANGE_SUCCESS_MESSAGE =
   "✅ Contraseña actualizada exitosamente. Ahora puede acceder al sistema.";
 
@@ -37,15 +39,6 @@ export const forcedPasswordSchema = z
     }
   });
 
-/** The submit button's enabled rule: all filled, long enough, confirmed and different. */
-export function canSubmitForcedPassword(values: {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}): boolean {
-  return forcedPasswordSchema.safeParse(values).success;
-}
-
 /** Maps a failed `authClient.changePassword` to the AUTH-03 copy; unknown failures use the fallback. */
 export function forcedPasswordErrorMessage(error: unknown): string {
   switch (betterAuthErrorCode(error)) {
@@ -55,6 +48,8 @@ export function forcedPasswordErrorMessage(error: unknown): string {
       return PASSWORD_TOO_SHORT_MESSAGE;
     case "PASSWORD_UNCHANGED":
       return betterAuthErrorBody(error)?.message || PASSWORD_UNCHANGED_MESSAGE;
+    case "PASSWORD_CHANGED_GATE_NOT_CLEARED":
+      return GATE_NOT_CLEARED_MESSAGE;
     default:
       return FORCED_CHANGE_FALLBACK_MESSAGE;
   }
