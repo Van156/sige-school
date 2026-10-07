@@ -27,12 +27,12 @@ export default function LoadError({
         <EmptyMedia variant="icon">
           <CircleAlert />
         </EmptyMedia>
-        <EmptyTitle>Something went wrong</EmptyTitle>
+        <EmptyTitle>Algo salió mal</EmptyTitle>
         <EmptyDescription>{message}</EmptyDescription>
       </EmptyHeader>
       {onRetry ? (
         <EmptyContent>
-          <Button onClick={onRetry}>Retry</Button>
+          <Button onClick={onRetry}>Reintentar</Button>
         </EmptyContent>
       ) : null}
     </Empty>

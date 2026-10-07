@@ -51,7 +51,7 @@ export default function SidebarUserMenuMobile({
               ))}
               <Button variant="destructive" onClick={onSignOut}>
                 <LogOutIcon />
-                Sign out
+                Cerrar Sesión
               </Button>
             </DrawerFooter>
           </DrawerContent>

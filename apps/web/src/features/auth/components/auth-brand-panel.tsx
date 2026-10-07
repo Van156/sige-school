@@ -11,7 +11,12 @@ export default function AuthBrandPanel() {
       <div className="flex items-center gap-3">
         {/* The product name sits next to the logo, so the image is decorative. */}
         <img src={brand.logo.src} alt="" width={32} height={32} className="size-6 md:size-8" />
-        <span className="text-sm font-semibold md:text-base">{brand.name}</span>
+        <span className="grid leading-tight">
+          <span className="text-sm font-semibold md:text-base">{brand.name}</span>
+          <span className="hidden text-xs text-sidebar-foreground/70 md:block">
+            {brand.subtitle}
+          </span>
+        </span>
       </div>
       <p className="mt-auto hidden max-w-xs text-base/relaxed text-sidebar-foreground/80 md:block">
         {brand.tagline}

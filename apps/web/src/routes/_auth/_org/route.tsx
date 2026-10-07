@@ -54,15 +54,13 @@ async function activateOrganization(activeOrganizationId: string | null | undefi
     organizationId: decision.organizationId,
   });
   if (setActiveError) {
-    throw new Error(
-      betterAuthErrorMessage(setActiveError, "Could not switch to your organization."),
-    );
+    throw new Error(betterAuthErrorMessage(setActiveError, "No se pudo activar su institución."));
   }
 }
 
 function OrgLayoutError({ error, reset }: { error: unknown; reset: () => void }) {
   const router = useRouter();
-  const message = error instanceof Error ? error.message : "Something went wrong.";
+  const message = error instanceof Error ? error.message : "Algo salió mal.";
 
   return (
     <div className="mx-auto mt-10 w-full max-w-md p-6">
@@ -71,7 +69,7 @@ function OrgLayoutError({ error, reset }: { error: unknown; reset: () => void })
           <EmptyMedia variant="icon">
             <CircleAlert />
           </EmptyMedia>
-          <EmptyTitle>Could not load your organization</EmptyTitle>
+          <EmptyTitle>No se pudo cargar su institución</EmptyTitle>
           <EmptyDescription>{message}</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -81,7 +79,7 @@ function OrgLayoutError({ error, reset }: { error: unknown; reset: () => void })
               router.invalidate();
             }}
           >
-            Retry
+            Reintentar
           </Button>
         </EmptyContent>
       </Empty>

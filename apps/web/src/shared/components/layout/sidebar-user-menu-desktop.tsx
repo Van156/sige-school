@@ -66,7 +66,7 @@ export default function SidebarUserMenuDesktop({
             ) : null}
             <DropdownMenuItem variant="destructive" onClick={onSignOut}>
               <LogOutIcon />
-              Sign out
+              Cerrar Sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

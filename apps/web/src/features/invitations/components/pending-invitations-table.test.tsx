@@ -97,7 +97,7 @@ describe("PendingInvitationsTable", () => {
   test("shows the load error with its retry", () => {
     const html = render({ invitations: [], errorMessage: "Could not load invitations." });
     expect(html).toContain("Could not load invitations.");
-    expect(html).toMatch(/<button[^>]*>Retry<\/button>/);
+    expect(html).toMatch(/<button[^>]*>Reintentar<\/button>/);
   });
 
   test("shows the skeleton while the first load is pending", () => {

@@ -3,43 +3,53 @@ import { describe, expect, test } from "bun:test";
 import { filterNavGroups, getBreadcrumbs, type NavGroup } from "@/shared/lib/navigation";
 
 import {
+  can,
   deriveSectionItems,
   getSectionItems,
+  holds,
   type NavContext,
   navGroups,
+  resolveDisplayRole,
   resolveHasOrganization,
+  resolveNavPermissions,
 } from "./navigation";
 
-const member: NavContext = { isSuperadmin: false, hasOrganization: true };
-const superadmin: NavContext = { isSuperadmin: true, hasOrganization: true };
-const noOrganization: NavContext = { isSuperadmin: false, hasOrganization: false };
+const member: NavContext = {
+  isSuperadmin: false,
+  hasOrganization: true,
+  kind: "owner",
+  permissions: null,
+};
+const superadmin: NavContext = { ...member, isSuperadmin: true, kind: null };
+const noOrganization: NavContext = { ...member, hasOrganization: false };
+const teacher: NavContext = { ...member, kind: "teacher" };
 
 describe("getSectionItems", () => {
   test("derives the settings tabs from the sidebar config, in order", () => {
     expect(getSectionItems("settings", member)).toEqual([
       { to: "/settings/general", label: "General" },
-      { to: "/settings/members", label: "Members" },
-      { to: "/settings/invitations", label: "Invitations" },
+      { to: "/settings/members", label: "Miembros" },
+      { to: "/settings/invitations", label: "Invitaciones" },
       { to: "/settings/roles", label: "Roles" },
-      { to: "/settings/activity", label: "Activity" },
+      { to: "/settings/activity", label: "Actividad" },
     ]);
   });
 
   test("derives the account tabs from the sidebar config, in order", () => {
     expect(getSectionItems("account", member)).toEqual([
-      { to: "/account/profile", label: "Profile" },
-      { to: "/account/security", label: "Security" },
-      { to: "/account/preferences", label: "Preferences" },
-      { to: "/account/danger", label: "Danger zone" },
+      { to: "/account/profile", label: "Mi Perfil" },
+      { to: "/account/security", label: "Seguridad" },
+      { to: "/account/preferences", label: "Preferencias" },
+      { to: "/account/danger", label: "Zona de peligro" },
     ]);
   });
 
   test("derives the admin tabs from the sidebar config, in order", () => {
     expect(getSectionItems("admin", superadmin)).toEqual([
-      { to: "/admin/users", label: "Users" },
-      { to: "/admin/organizations", label: "Organizations" },
+      { to: "/admin/users", label: "Usuarios" },
+      { to: "/admin/organizations", label: "Organizaciones" },
       { to: "/admin/instituciones", label: "Instituciones" },
-      { to: "/admin/activity", label: "Activity" },
+      { to: "/admin/activity", label: "Actividad" },
     ]);
   });
 
@@ -54,11 +64,37 @@ describe("getSectionItems", () => {
 });
 
 describe("navGroups visibility", () => {
-  test("a member sees dashboard, settings and account but not the platform admin group", () => {
+  test("institution management sees dashboard, configuration and account but not the platform group", () => {
     const labels = filterNavGroups(navGroups, member).flatMap((group) =>
       group.items.map((item) => item.label),
     );
-    expect(labels).toEqual(["Dashboard", "Settings", "Account settings"]);
+    expect(labels).toEqual(["Dashboard", "Configuración", "Mi cuenta"]);
+  });
+
+  test("an admin kind sees the same sections as the owner", () => {
+    const labels = filterNavGroups(navGroups, { ...member, kind: "admin" }).flatMap((group) =>
+      group.items.map((item) => item.label),
+    );
+    expect(labels).toEqual(["Dashboard", "Configuración", "Mi cuenta"]);
+  });
+
+  test.each(["coordinator", "teacher", "student", "parent", "viewer", "custom"] as const)(
+    "a %s sees only dashboard and account (no management settings)",
+    (kind) => {
+      const labels = filterNavGroups(navGroups, { ...member, kind }).flatMap((group) =>
+        group.items.map((item) => item.label),
+      );
+      expect(labels).toEqual(["Dashboard", "Mi cuenta"]);
+    },
+  );
+
+  test("the settings tabs are empty for a non-manager", () => {
+    expect(getSectionItems("settings", teacher)).toEqual([]);
+  });
+
+  test("a user whose kind is still unresolved sees no management settings", () => {
+    const groups = filterNavGroups(navGroups, { ...member, kind: null });
+    expect(groups.map((group) => group.id)).toEqual([undefined, "account"]);
   });
 
   test("a user without an organization sees only the personal account group", () => {
@@ -77,7 +113,7 @@ describe("navGroups visibility", () => {
 
   test("a superadmin additionally sees the admin parent with its children", () => {
     const groups = filterNavGroups(navGroups, superadmin);
-    expect(groups.map((group) => group.id)).toEqual([undefined, "settings", "account", "admin"]);
+    expect(groups.map((group) => group.id)).toEqual([undefined, "account", "admin"]);
     const admin = groups.find((group) => group.id === "admin");
     expect(admin?.items[0]?.children?.map((child) => child.to)).toEqual([
       "/admin/users",
@@ -89,8 +125,8 @@ describe("navGroups visibility", () => {
 
   test("breadcrumbs resolve through the real config", () => {
     expect(getBreadcrumbs(filterNavGroups(navGroups, member), "/settings/roles")).toEqual([
-      { label: "Organization" },
-      { label: "Settings", to: "/settings/general" },
+      { label: "Gestión" },
+      { label: "Configuración", to: "/settings/general" },
       { label: "Roles" },
     ]);
   });
@@ -128,6 +164,66 @@ describe("deriveSectionItems with parents (local fixture)", () => {
       "Secret",
       "Roles",
     ]);
+  });
+});
+
+describe("permission-gated entries", () => {
+  const gated: NavGroup<NavContext>[] = [
+    {
+      label: "Académico",
+      items: [
+        { label: "Boletines", to: "/boletines" as never, visible: can("report_card:deliver") },
+        { label: "Notas", to: "/notas" as never, visible: can("grade:read") },
+      ],
+    },
+  ];
+  const withPermissions = (permissions: NavContext["permissions"]): NavContext => ({
+    ...member,
+    permissions,
+  });
+
+  test("an entry shows only when the caller holds its permission", () => {
+    const labels = (ctx: NavContext) =>
+      filterNavGroups(gated, ctx).flatMap((group) => group.items.map((item) => item.label));
+    expect(labels(withPermissions({ report_card: ["deliver"] }))).toEqual(["Boletines"]);
+    expect(labels(withPermissions({ grade: ["read"], report_card: ["read"] }))).toEqual(["Notas"]);
+    expect(labels(withPermissions({}))).toEqual([]);
+  });
+
+  test("unresolved permissions fail closed", () => {
+    expect(holds(withPermissions(null), "report_card:deliver")).toBe(false);
+  });
+});
+
+describe("resolveNavPermissions", () => {
+  test("built-in roles resolve from the code catalog without a request", () => {
+    expect(resolveNavPermissions({ roleName: "admin" }, undefined)?.report_card).toContain(
+      "deliver",
+    );
+    expect(resolveNavPermissions({ roleName: "teacher" }, undefined)?.report_card).not.toContain(
+      "deliver",
+    );
+  });
+
+  test("a custom role resolves from its organization role row and fails closed until loaded", () => {
+    const rows = [{ role: "secretaria", permission: { report_card: ["deliver"] } }];
+    expect(resolveNavPermissions({ roleName: "secretaria" }, rows)).toEqual({
+      report_card: ["deliver"],
+    });
+    expect(resolveNavPermissions({ roleName: "secretaria" }, undefined)).toBeNull();
+  });
+
+  test("no identity yet means no permissions", () => {
+    expect(resolveNavPermissions(undefined, undefined)).toBeNull();
+    expect(resolveNavPermissions(null, undefined)).toBeNull();
+  });
+});
+
+describe("resolveDisplayRole", () => {
+  test("a platform superadmin shows as root, anyone else as their kind", () => {
+    expect(resolveDisplayRole(superadmin)).toBe("root");
+    expect(resolveDisplayRole(teacher)).toBe("teacher");
+    expect(resolveDisplayRole({ ...member, kind: null })).toBeNull();
   });
 });
 

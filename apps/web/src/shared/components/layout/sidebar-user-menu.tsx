@@ -41,7 +41,7 @@ export default function SidebarUserMenu({
     user,
     onSignOut,
     extraItems,
-    triggerLabel: `Account menu for ${user.name}`,
+    triggerLabel: `Menú de cuenta de ${user.name}`,
     triggerClassName,
     triggerContent: (
       <>

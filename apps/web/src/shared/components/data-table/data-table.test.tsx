@@ -93,20 +93,20 @@ describe("DataTable states", () => {
   test("renders the error panel with a retry button", () => {
     const html = render({ rows: [], errorMessage: "Failed", onRetry: () => {} });
     expect(html).toContain("Failed");
-    expect(html).toContain("Retry");
+    expect(html).toContain("Reintentar");
   });
 
-  test("hides Retry when no handler is given", () => {
+  test("hides Reintentar when no handler is given", () => {
     const html = render({ rows: [], errorMessage: "Failed" });
     expect(html).toContain("Failed");
-    expect(html).not.toContain("Retry");
+    expect(html).not.toContain("Reintentar");
   });
 
   test("keeps cached rows and shows an inline notice when a refetch failed", () => {
     const html = render({ errorMessage: "Refetch failed" });
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain("Refetch failed");
-    expect(html).not.toContain("Something went wrong");
+    expect(html).not.toContain("Algo salió mal");
   });
 
   test("offers a way back from an empty page past the first", () => {
