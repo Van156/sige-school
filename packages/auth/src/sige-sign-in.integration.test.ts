@@ -263,6 +263,31 @@ describe.skipIf(!reachable)("SIGE sign-in hooks", () => {
       expect((await personOf(provisioned.userId)).mustChangePassword).toBe(false);
     });
 
+    test("a failed flag clear still hands the client the new session cookie", async () => {
+      const provisioned = await provision({ email: "juan@example.com" });
+      const { headers } = await signInByUsername(provisioned.username, "1234560001");
+
+      await withFailingPersonUpdate("must_change_password", async () => {
+        const response = await auth.api.changePassword({
+          body: { currentPassword: "1234560001", newPassword: "nueva-clave-2026" },
+          headers,
+          asResponse: true,
+        });
+        expect(response.status).toBe(500);
+        expect(((await response.json()) as { code?: string }).code).toBe(
+          "PASSWORD_CHANGED_GATE_NOT_CLEARED",
+        );
+        // The error response must still carry the replacement session (others are revoked).
+        const setCookie = response.headers.get("set-cookie");
+        expect(setCookie).toContain("session_token=");
+        const fresh = cookieHeaderFromSetCookie(setCookie);
+        const session = await auth.api.getSession({ headers: fresh });
+        expect(session?.user.id).toBe(provisioned.userId);
+      });
+      // The pre-change session was revoked, so the cookie above is the only valid one.
+      expect(await auth.api.getSession({ headers })).toBeNull();
+    });
+
     test("a voluntary change is not audited as forced", async () => {
       const provisioned = await provision();
       await handle.db
