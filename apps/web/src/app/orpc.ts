@@ -2,15 +2,25 @@ import type { AppRouterClient } from "@base-template/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { ENV } from "../env.public";
+import { redirectOnPasswordChangeRequired } from "./password-gate";
 
 export function createQueryClient() {
   return new QueryClient({
+    // A gated SIGE user (`PASSWORD_CHANGE_REQUIRED`) is sent to AUTH-03 instead of seeing a toast.
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        redirectOnPasswordChangeRequired(error);
+      },
+    }),
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (redirectOnPasswordChangeRequired(error)) {
+          return;
+        }
         toast.error(`Error: ${error.message}`, {
           action: {
             label: "retry",

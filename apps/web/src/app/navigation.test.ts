@@ -38,6 +38,7 @@ describe("getSectionItems", () => {
     expect(getSectionItems("admin", superadmin)).toEqual([
       { to: "/admin/users", label: "Users" },
       { to: "/admin/organizations", label: "Organizations" },
+      { to: "/admin/instituciones", label: "Instituciones" },
       { to: "/admin/activity", label: "Activity" },
     ]);
   });
@@ -81,6 +82,7 @@ describe("navGroups visibility", () => {
     expect(admin?.items[0]?.children?.map((child) => child.to)).toEqual([
       "/admin/users",
       "/admin/organizations",
+      "/admin/instituciones",
       "/admin/activity",
     ]);
   });

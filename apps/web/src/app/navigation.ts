@@ -94,6 +94,7 @@ export const navGroups: NavGroup<NavContext>[] = [
         children: [
           { label: "Users", to: "/admin/users" },
           { label: "Organizations", to: "/admin/organizations" },
+          { label: "Instituciones", to: "/admin/instituciones" },
           { label: "Activity", to: "/admin/activity" },
         ],
       },
