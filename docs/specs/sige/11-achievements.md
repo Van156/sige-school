@@ -181,7 +181,7 @@ Header "🏆 Ranking Estudiantil" / "Estudiantes con más logros obtenidos". Pod
 
 ### 9.2 Gaps found in 00-foundation.md and 02
 
-- G-ACH-1 R1.14/R1.16 scope students to self/children for portal callers; the ranking only makes sense institution-wide, so ACH-R7 introduces a documented exception with masking (OQ-ACH-1).
-- G-ACH-2 §5.5 states the seven rules in one line each; this spec fixes the details the prototype engine implements (closed periods only, at least five attendance rows, at least three finals for "Todo Terreno", `≥ 1.00` for "Superador" while the alert rule uses `> 1.0`).
-- G-ACH-3 §6.9 lists `achievement.awarded` and `achievement.engine_run`; no event exists for engine awards per student, by design (counts in the run event).
-- G-ACH-4 Module 02 §2.1 calls `seedInstitutionDefaults`; the list it inserts is `DEFAULT_ACHIEVEMENTS` of §3.1 (module 02 only needs to import it).
+- G-ACH-1 R1.14/R1.16 scope students to self/children for portal callers; the ranking only makes sense institution-wide, so ACH-R7 introduces a documented exception with masking (OQ-ACH-1). **Resolved in 00-foundation (§4.3 R1.16 records the ranking exception).**
+- G-ACH-2 §5.5 states the seven rules in one line each; this spec fixes the details the prototype engine implements (closed periods only, at least five attendance rows, at least three finals for "Todo Terreno", `≥ 1.00` for "Superador" while the alert rule uses `> 1.0`). **Resolved in 00-foundation (§5.5 achievement constants and `MIN_SAMPLE_ROWS`).**
+- G-ACH-3 §6.9 lists `achievement.awarded` and `achievement.engine_run`; no event exists for engine awards per student, by design (counts in the run event). **Noted in 00-foundation: no per-student engine award event, by design.**
+- G-ACH-4 Module 02 §2.1 calls `seedInstitutionDefaults`; the list it inserts is `DEFAULT_ACHIEVEMENTS` of §3.1 (module 02 only needs to import it). **Noted in 00-foundation: module 02 imports `DEFAULT_ACHIEVEMENTS` (R4.2 provisioning copy); no change needed.**

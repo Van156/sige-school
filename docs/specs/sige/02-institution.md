@@ -309,6 +309,6 @@ After a successful create/update the form navigates to its list with the toast o
 
 ### 8.2 Gaps found in 00-foundation.md
 
-- G-INS-1 Platform `institution` statements have no `read`; list/get are gated on `update` here. Consider adding `read` to `platform.ts`.
-- G-INS-2 Foundation §6.4 refuses institution deletion only for students/grade records; the prototype refused on any campus or user. This spec follows the foundation (cascade removes empty structure and staff); confirm with the product owner.
-- G-INS-3 §5.2 `course` does not state that `level_id` needs a composite FK through `campus_id`; this spec adds `unique(organization_id, campus_id, id)` on `grade_level` (§2).
+- G-INS-1 Platform `institution` statements have no `read`; list/get are gated on `update` here. Consider adding `read` to `platform.ts`. **Resolved in 00-foundation (§4.2 platform catalog gains `institution:read`).**
+- G-INS-2 Foundation §6.4 refuses institution deletion only for students/grade records; the prototype refused on any campus or user. This spec follows the foundation (cascade removes empty structure and staff); confirm with the product owner. **Open decision OD-26 in 00-foundation §11 (this spec adopts the recommended default).**
+- G-INS-3 §5.2 `course` does not state that `level_id` needs a composite FK through `campus_id`; this spec adds `unique(organization_id, campus_id, id)` on `grade_level` (§2). **Resolved in 00-foundation (§5.2 `grade_level`/`course` uniques and composite FK).**

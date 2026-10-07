@@ -232,7 +232,7 @@ Header "Notas del Estudiante" / "Calificaciones por periodo, criterio y asignatu
 
 ### 9.2 Gaps found in 00-foundation.md
 
-- G-GRD-1 §4.2 gives teachers `lock` but no unlock semantics and §5.4 says "Unlock is audited" without saying who may; defined in GRD-R6 (OQ-GRD-1).
-- G-GRD-2 §5.4 states half-up rounding on 2 decimals without prescribing the arithmetic; this spec mandates integer hundredths so 2.995 and 4.595 round deterministically (floating point gives 2.99 for `2.995 × 100`).
-- G-GRD-3 R3.8 lists "grade audit" among server lists, but no screen needs one; `grade.lockPanel` (GRD-04) is the only grade list. Audit browsing uses the existing activity pages filtered by `grade.*`.
-- G-GRD-4 §5.2 `final_grade.observation` has no UI in the 94 screens; kept nullable and unused in v1.
+- G-GRD-1 §4.2 gives teachers `lock` but no unlock semantics and §5.4 says "Unlock is audited" without saying who may; defined in GRD-R6 (OQ-GRD-1). **Open decision OD-27 in 00-foundation §11 (see OQ-GRD-1).**
+- G-GRD-2 §5.4 states half-up rounding on 2 decimals without prescribing the arithmetic; this spec mandates integer hundredths so 2.995 and 4.595 round deterministically (floating point gives 2.99 for `2.995 × 100`). **Resolved in 00-foundation (§5.4 integer hundredths half-up).**
+- G-GRD-3 R3.8 lists "grade audit" among server lists, but no screen needs one; `grade.lockPanel` (GRD-04) is the only grade list. Audit browsing uses the existing activity pages filtered by `grade.*`. **Noted in 00-foundation: R3.8 "grade audit" list is satisfied by the activity pages; no new procedure.**
+- G-GRD-4 §5.2 `final_grade.observation` has no UI in the 94 screens; kept nullable and unused in v1. **Noted in 00-foundation: `final_grade.observation` stays nullable and unused in v1.**

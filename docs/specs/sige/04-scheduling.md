@@ -270,8 +270,8 @@ Header "Generar Horario Automático" / "El sistema generará automáticamente lo
 
 ### 8.2 Gaps found in 00-foundation.md
 
-- G-SCH-1 R2.9 says bulk enrollment sets `student.course_id` only; the prototype also sets `campus_id` to the course's campus. It also treats `max_students` as a warning while the prototype form rejects (SCH-02). This spec sets both fields and implements the capacity rule as a confirmable warning (§4.3 SCH-R5).
-- G-SCH-2 R2.14 only forbids classroom double-booking by unique key (identical start time) and teacher overlap by service. Overlapping classroom intervals with different start times and course double-booking are not covered; added as SCH-R9.
-- G-SCH-3 §6.9 has no audit actions for classroom, time block or `offering.updated`; added here for consistency with the other configuration entities.
-- G-SCH-4 §5.2 `schedule_slot` carries no course; the course is derived through the offering. Course-overlap checks join through `offering`; no schema change needed.
-- G-SCH-5 §5.2 `time_block.shift` lacks `Sabatina` while `course.shift` has it (inventory §2.3); see OQ-SCH-3.
+- G-SCH-1 R2.9 says bulk enrollment sets `student.course_id` only; the prototype also sets `campus_id` to the course's campus. It also treats `max_students` as a warning while the prototype form rejects (SCH-02). This spec sets both fields and implements the capacity rule as a confirmable warning (§4.3 SCH-R5). **Resolved in 00-foundation (§5.3 R2.9).**
+- G-SCH-2 R2.14 only forbids classroom double-booking by unique key (identical start time) and teacher overlap by service. Overlapping classroom intervals with different start times and course double-booking are not covered; added as SCH-R9. **Resolved in 00-foundation (§5.3 R2.14).**
+- G-SCH-3 §6.9 has no audit actions for classroom, time block or `offering.updated`; added here for consistency with the other configuration entities. **Resolved in 00-foundation (§6.9 `offering.updated`, `classroom.*`, `time_block.*`).**
+- G-SCH-4 §5.2 `schedule_slot` carries no course; the course is derived through the offering. Course-overlap checks join through `offering`; no schema change needed. **Resolved in 00-foundation (§5.3 R2.14; no schema change).**
+- G-SCH-5 §5.2 `time_block.shift` lacks `Sabatina` while `course.shift` has it (inventory §2.3); see OQ-SCH-3. **Resolved in 00-foundation (§5.2 `time_block.shift` documents the `Sabatina` exclusion, see OQ-SCH-3).**

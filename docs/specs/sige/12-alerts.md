@@ -183,7 +183,7 @@ Header "Ejecutar Motor de Alertas" / "Evalúa las reglas sobre las notas y la as
 
 ### 9.2 Gaps found in 00-foundation.md
 
-- G-ALR-1 §5.2's partial unique `(student_id, alert_type)` cannot hold two simultaneous `grupo_riesgo` alerts anchored on the same student (ALR-R7, OQ-ALR-1).
-- G-ALR-2 §5.5 states the six rules in one line each; this spec adds what the prototype engine implements and the table omits: closed periods only (`current`/`previous`), minimum five rows/finals for attendance and group rules, and the desertion thresholds (`absenceRate > 15` and period mean `< 3.0`). These constants should be added to the §5.5 table.
-- G-ALR-3 §5.5 "absence `> 20%` in last 30 days" leaves the minimum sample open; five rows (prototype) avoid raising an alert from one absence in the first week.
-- G-ALR-4 `alert` has no human-readable number; the UI uses the first 8 characters of the UUID as "#id" (a per-tenant sequence is a possible later addition).
+- G-ALR-1 §5.2's partial unique `(student_id, alert_type)` cannot hold two simultaneous `grupo_riesgo` alerts anchored on the same student (ALR-R7, OQ-ALR-1). **Resolved in 00-foundation (§5.2 `alert` constraint note and §5.3 R2.15); OQ-ALR-1 stays open.**
+- G-ALR-2 §5.5 states the six rules in one line each; this spec adds what the prototype engine implements and the table omits: closed periods only (`current`/`previous`), minimum five rows/finals for attendance and group rules, and the desertion thresholds (`absenceRate > 15` and period mean `< 3.0`). These constants should be added to the §5.5 table. **Resolved in 00-foundation (§5.5 alert constants).**
+- G-ALR-3 §5.5 "absence `> 20%` in last 30 days" leaves the minimum sample open; five rows (prototype) avoid raising an alert from one absence in the first week. **Resolved in 00-foundation (§5.5 `MIN_SAMPLE_ROWS`).**
+- G-ALR-4 `alert` has no human-readable number; the UI uses the first 8 characters of the UUID as "#id" (a per-tenant sequence is a possible later addition). **Noted in 00-foundation: the UI keeps the first 8 characters of the UUID; a sequence is a later addition.**

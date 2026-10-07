@@ -22,7 +22,7 @@ A read-only portal for guardians (`parent` role): one card per linked child with
 | PAR-05 | "Boletines del hijo/a"     | P     | `/portal-padres/boletines?student=`         |
 | PAR-06 | "Logros del hijo/a"        | P     | `/portal-padres/logros?student=`            |
 
-Also in scope: `parentPortal.overview` and `parentPortal.attendanceCalendar`, the `ParentChildPage` frame (tab strip, child switcher, section heading) and the reconciliation of DASH-06 with PAR-01 (foundation §12 #1).
+Also in scope: `parentPortal.overview` (the calendar read is `attendance.calendar` of module 07), the `ParentChildPage` frame (tab strip, child switcher, section heading) and the reconciliation of DASH-06 with PAR-01 (foundation §12 #1).
 
 ### Out of scope
 
@@ -54,7 +54,7 @@ Router `routers/sige/parent-portal.ts` (`parentPortalRouter`), `sigeProcedure.us
 | ------ | ---------------------------------- | -------------------------------------------------------------------- |
 | PAR-01 | child cards                        | `parentPortal.overview` (this module)                                |
 | PAR-02 | grades per period, levels, KPIs    | `grade.studentGrades` (06)                                           |
-| PAR-03 | month calendar, month/year tallies | `parentPortal.attendanceCalendar` (this module)                      |
+| PAR-03 | month calendar, month/year tallies | `attendance.calendar` (07)                                           |
 | PAR-03 | detailed history table             | `attendance.history` with `date` dateRange = the month (07)          |
 | PAR-04 | observations, counters             | `observation.studentHistory` (08)                                    |
 | PAR-05 | cards, comments, PDF               | `reportCard.studentHistory`, `reportCard.get`, `reportCard.pdf` (09) |
@@ -63,10 +63,9 @@ Router `routers/sige/parent-portal.ts` (`parentPortalRouter`), `sigeProcedure.us
 
 ### 4.1 Procedures
 
-| Procedure                         | Permission          | Input                                                                        | Output                                                                                                                                            | Notes                                                                                  |
-| --------------------------------- | ------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `parentPortal.overview`           | `portal:read_child` | –                                                                            | `{ children: PortalChild[] }` (ordered by last name, first name, locale `es`)                                                                     | PAR-01; empty array when nothing is linked                                             |
-| `parentPortal.attendanceCalendar` | `portal:read_child` | `{ studentId, month?: string }` (`YYYY-MM`, default current month in Bogotá) | `{ month, days: { date, status: "presente" \| "ausente" \| "justificado" }[], monthTotals: Tally, yearTotals: Tally, yearMonthly: MonthTally[] }` | PAR-03; invalid month → `BAD_REQUEST` "Mes inválido."; `Tally`/`MonthTally` as 07 §4.1 |
+| Procedure               | Permission          | Input | Output                                                                        | Notes                                      |
+| ----------------------- | ------------------- | ----- | ----------------------------------------------------------------------------- | ------------------------------------------ |
+| `parentPortal.overview` | `portal:read_child` | –     | `{ children: PortalChild[] }` (ordered by last name, first name, locale `es`) | PAR-01; empty array when nothing is linked |
 
 ```ts
 type PortalChild = {
@@ -90,7 +89,7 @@ type PortalChild = {
 };
 ```
 
-`attendanceCalendar` covers **all offerings** of the child (a day is "ausente" if any class was missed, PAR-R4); the year totals and `yearMonthly` span the calendar year of `month`. It exists because 07 exposes no per-day, offering-agnostic read and the parent view must not page through the history table to draw a month (G-PAR-1).
+The calendar read of PAR-03 is `attendance.calendar` in module 07 (G-PAR-1): it covers **all offerings** of the child (a day is "ausente" if any class was missed, PAR-R4); the year totals and `yearMonthly` span the calendar year of `month`.
 
 ### 4.2 Audit
 
@@ -149,7 +148,7 @@ Heading "Logros Obtenidos" (child name in the strip) with "Volver al Dashboard" 
 ### 8.1 Tests
 
 - **Unit** (`sige-core`): `dayStatus` (absent wins, justified wins over present, empty → none), `calendarCells` (months starting on each weekday, February in a leap year), `shiftMonth` rollover both ways, `initials`, `attendanceShare` (empty → null, 2/3 → 66.7).
-- **API integration** (Postgres): a guardian with two children sees both and no other student in `overview`; `overview` figures equal hand-computed values (average over the year, 30-day window edges, up to three flagged observations in date order, latest period and lines); a non-linked `studentId`, another tenant's id and a random UUID return identical `NOT_FOUND` for **every** procedure of the §4 table; a student, teacher, coordinator and viewer calling `parentPortal.*` get `FORBIDDEN`; `attendanceCalendar` (day status across several offerings, month and year totals, `Sáb` and `Dom` days, invalid month, month without rows); retired child still listed with its status; two-guardian child visible to both; guardian unlinked mid-session loses access on the next request; two-tenant isolation; permission matrix per role; no `organizationId` in schemas.
+- **API integration** (Postgres): a guardian with two children sees both and no other student in `overview`; `overview` figures equal hand-computed values (average over the year, 30-day window edges, up to three flagged observations in date order, latest period and lines); a non-linked `studentId`, another tenant's id and a random UUID return identical `NOT_FOUND` for **every** procedure of the §4 table; a student, teacher, coordinator and viewer calling `parentPortal.*` get `FORBIDDEN`; `attendance.calendar` (07) (day status across several offerings, month and year totals, `Sáb` and `Dom` days, invalid month, month without rows); retired child still listed with its status; two-guardian child visible to both; guardian unlinked mid-session loses access on the next request; two-tenant isolation; permission matrix per role; no `organizationId` in schemas.
 - **Web**: frame tab strip and child switcher (preserves `?student=`, defaults to the first child, not-found state), each page's empty copy, PAR-02 trend arrows and status column, PAR-03 navigator limits, calendar colours and legend, PAR-04 tile vs chip semantics, PAR-05 download and parallel loads, PAR-06 dimmed catalog; mobile viewport layout without horizontal page scroll; stories for the frame, the child card and the calendar.
 
 ### 8.2 Acceptance
@@ -170,7 +169,7 @@ Heading "Logros Obtenidos" (child name in the strip) with "Volver al Dashboard" 
 
 ### 9.2 Gaps found in 00-foundation.md and 07
 
-- G-PAR-1 `07-attendance.md` has no per-day, offering-agnostic read for a child (its `studentSummary`/`history` are per row or per month tally); PAR-03's calendar needs one. This spec adds `parentPortal.attendanceCalendar`; the cleaner home is an `attendance.calendar` procedure in module 07 (same permission semantics), after which this procedure can be dropped.
-- G-PAR-2 Guardians and students hold no `period:read`, so a child page cannot list periods that have no finals; PAR-02 shows only periods that already have grades (the prototype showed empty "P3"/"P4" columns).
-- G-PAR-3 R1.16 forbids parallel parent endpoints; the two composite reads of §4.1 are the deliberate exception because they aggregate several procedures (PAR-01) or reshape a month for drawing (PAR-03).
-- G-PAR-4 Foundation §7 lists PAR-01…06 as `P` only, while the child pages also call procedures permitted to staff and students; permission names (`portal:read_child`) are consistent with §4.2 and need no change.
+- G-PAR-1 `07-attendance.md` has no per-day, offering-agnostic read for a child (its `studentSummary`/`history` are per row or per month tally); PAR-03's calendar needs one. This spec adds `parentPortal.attendanceCalendar`; the cleaner home is an `attendance.calendar` procedure in module 07 (same permission semantics), after which this procedure can be dropped. **Resolved: `07-attendance.md` now defines `attendance.calendar`; `parentPortal.attendanceCalendar` was removed from this spec.**
+- G-PAR-2 Guardians and students hold no `period:read`, so a child page cannot list periods that have no finals; PAR-02 shows only periods that already have grades (the prototype showed empty "P3"/"P4" columns). **Resolved in 00-foundation (§4.2: students and parents hold `period:read`); PAR-02 keeps showing only periods with grades in v1.**
+- G-PAR-3 R1.16 forbids parallel parent endpoints; the two composite reads of §4.1 are the deliberate exception because they aggregate several procedures (PAR-01) or reshape a month for drawing (PAR-03). **Resolved in 00-foundation (§4.3 R1.16 lists the deliberate exceptions).**
+- G-PAR-4 Foundation §7 lists PAR-01…06 as `P` only, while the child pages also call procedures permitted to staff and students; permission names (`portal:read_child`) are consistent with §4.2 and need no change. **Noted in 00-foundation: permission names are consistent; no change needed.**

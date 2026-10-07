@@ -248,7 +248,7 @@ Header "Cargar Estudiantes desde Excel" / "Carga masiva de estudiantes desde arc
 
 ### 8.2 Gaps found in 00-foundation.md
 
-- G-STU-1 §6.9 has no `student.created`, `student.updated` or `student.deleted`; added here (status change, import and guardian events exist).
-- G-STU-2 §5.2 `student.course_id` does not bind the course to the student's campus; this spec adds the composite FK and the `unique(organization_id, campus_id, id)` on `course`.
-- G-STU-3 R2.8 delegated "course change vs enrollments" to modules 04/05; defined in STU-R4 and module 04 SCH-R7 (no automatic change, stale flag).
-- G-STU-4 §4.2 gives `student:guardians` to administrators and coordinators but there is no permission to _create_ guardian accounts for coordinators (`user:create` is admin-only); STU-04 shows "Pida al administrador…" in that case.
+- G-STU-1 §6.9 has no `student.created`, `student.updated` or `student.deleted`; added here (status change, import and guardian events exist). **Resolved in 00-foundation (§6.9 `student.{created,updated,deleted}`).**
+- G-STU-2 §5.2 `student.course_id` does not bind the course to the student's campus; this spec adds the composite FK and the `unique(organization_id, campus_id, id)` on `course`. **Resolved in 00-foundation (§5.2 `course` unique and `student` composite FK).**
+- G-STU-3 R2.8 delegated "course change vs enrollments" to modules 04/05; defined in STU-R4 and module 04 SCH-R7 (no automatic change, stale flag). **Noted in 00-foundation (R2.8 defers to STU-R4 / SCH-R7); no change needed.**
+- G-STU-4 §4.2 gives `student:guardians` to administrators and coordinators but there is no permission to _create_ guardian accounts for coordinators (`user:create` is admin-only); STU-04 shows "Pida al administrador…" in that case. **Noted in 00-foundation: coordinators cannot create guardian accounts (`user:create` is admin-only); STU-04 copy stands.**

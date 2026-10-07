@@ -252,7 +252,7 @@ Header "Boletín de Calificaciones" / "Vista de impresión del boletín"; action
 
 ### 9.3 Gaps found in 00-foundation.md and 01
 
-- G-RPT-1 §6.8 R3.25 "same component tree" vs OD-16 "pure-JS PDF library": see RPT-D1.
-- G-RPT-2 `01-auth-and-dashboards.md` §5.2 gates the "Boletines" sidebar entry (RPT-01) by `report_card:generate`, which teachers also hold; RPT-01 is management-only in the prototype (`-nav.ts`: RAC). This spec gates RPT-01 and its reads by `report_card:deliver`; the nav row of module 01 should use it.
-- G-RPT-3 §6.9 lists no event for narrative edits; `report_card.updated` is added (comment and general-observation changes).
-- G-RPT-4 §5.2 `report_card` needs `updated_at` (cache key and narrative edits) and its index set; added in §2. The module index (§7) lists RPT-04 roles as "S, P" but teachers hold `report_card:read`; RPT-04 is open to teachers for their students (as `-screens.ts`).
+- G-RPT-1 §6.8 R3.25 "same component tree" vs OD-16 "pure-JS PDF library": see RPT-D1. **Resolved in 00-foundation (§6.8 R3.25 aligned with RPT-D1 / OD-16).**
+- G-RPT-2 `01-auth-and-dashboards.md` §5.2 gates the "Boletines" sidebar entry (RPT-01) by `report_card:generate`, which teachers also hold; RPT-01 is management-only in the prototype (`-nav.ts`: RAC). This spec gates RPT-01 and its reads by `report_card:deliver`; the nav row of module 01 should use it. **Resolved: `01-auth-and-dashboards.md` nav row "Boletines" now gates on `report_card:deliver`.**
+- G-RPT-3 §6.9 lists no event for narrative edits; `report_card.updated` is added (comment and general-observation changes). **Resolved in 00-foundation (§6.9 `report_card.updated`).**
+- G-RPT-4 §5.2 `report_card` needs `updated_at` (cache key and narrative edits) and its index set; added in §2. The module index (§7) lists RPT-04 roles as "S, P" but teachers hold `report_card:read`; RPT-04 is open to teachers for their students (as `-screens.ts`). **Resolved in 00-foundation (§5.2 `report_card.updated_at`; §7 index lists RPT-04 for T, S, P).**
