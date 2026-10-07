@@ -1,6 +1,6 @@
 # Spec: SIGE — Early alerts (ALR)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query (web), Drizzle + Postgres, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `alert` grants, R1.28, §5.2 `alert`, §5.3 R2.10 and R2.15, §5.5 alert rules, §6.6 R3.18–R3.19, §6.9 audit, OD-7, OD-10), [`06-grades.md`](./06-grades.md) (`final_grade`, score display), [`07-attendance.md`](./07-attendance.md) (`absenceRate`), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (sidebar badge, DASH-03, reference period DASH-R8), [`05-students.md`](./05-students.md) (STU-02 link), [`data-table.md`](../data-table.md).

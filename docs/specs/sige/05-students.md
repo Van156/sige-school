@@ -1,6 +1,6 @@
 # Spec: SIGE — Students and Guardians (STU)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, `exceljs` (`.xlsx`), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.3 scope, §5.2 `student` / `student_guardian`, §5.3 R2.8–R2.10, R2.16, §6.7 imports, OD-18, OD-21), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (`person`, `ScopePolicy`), [`02-institution.md`](./02-institution.md) (campuses, courses), [`03-users.md`](./03-users.md) (`provisionUser`, `import_job`, import helper), [`04-scheduling.md`](./04-scheduling.md) (enrollment routine, `schedule.get`), [`data-table.md`](../data-table.md).

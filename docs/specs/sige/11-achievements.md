@@ -1,6 +1,6 @@
 # Spec: SIGE — Achievements (ACH)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query (web), Drizzle + Postgres, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `achievement` grants, §4.3 scope, §5.2 `achievement` / `student_achievement`, §5.5 achievement rules, R2.10, R3.18–R3.19, OD-10), [`06-grades.md`](./06-grades.md) (`final_grade`), [`07-attendance.md`](./07-attendance.md) (attendance rows), [`08-observations.md`](./08-observations.md) (positive observations), [`02-institution.md`](./02-institution.md) (periods, `seedInstitutionDefaults`), [`05-students.md`](./05-students.md) (`student.pick`, `StudentStrip`, `StudentSwitcher`), [`data-table.md`](../data-table.md).

@@ -1,6 +1,6 @@
 # Spec: SIGE — Metrics (MET)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query (web), Drizzle + Postgres (SQL aggregates), `exceljs` (`.xlsx` export), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `metric` grants, R1.17, §5.4 grading rules, §5.5 constants, R2.10, R2.17, R3.14, R3.22, OD-7, OD-9), [`06-grades.md`](./06-grades.md) (`final_grade`, `performanceLevel`, rounding), [`07-attendance.md`](./07-attendance.md) (absence rules), [`04-scheduling.md`](./04-scheduling.md) (`offering`), [`02-institution.md`](./02-institution.md) (courses, campuses, periods), [`03-users.md`](./03-users.md) (xlsx helper), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (DASH-04 consumer, reference period DASH-R8), [`data-table.md`](../data-table.md).

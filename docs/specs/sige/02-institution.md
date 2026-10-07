@@ -1,6 +1,6 @@
 # Spec: SIGE — Institution Configuration (INS)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, better-auth `1.7.5`, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.1 mapping, §4.4 root, §5.2 tables, §6.4 delete policy, OD-3, OD-4, OD-6, OD-8, OD-12, OD-20), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (`sigeProcedure`, `ScopePolicy`, shared UI kit), [`data-table.md`](../data-table.md), [`auth-multitenant-rbac.md`](../auth-multitenant-rbac.md). User provisioning API: [`03-users.md`](./03-users.md).

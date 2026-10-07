@@ -1,6 +1,6 @@
 # Spec: SIGE — Observations (OBS)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `observation` grants, §4.3 scope, §5.2 `observation`, §5.3 R2.10, §6.4 delete policy, §6.9 audit, §6.10 notifications, OD-11, OD-21), [`05-students.md`](./05-students.md) (`student.pick`, `StudentStrip`, `StudentSwitcher`), [`07-attendance.md`](./07-attendance.md) (G-ATT-1), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (DASH-03 consumer), [`data-table.md`](../data-table.md).

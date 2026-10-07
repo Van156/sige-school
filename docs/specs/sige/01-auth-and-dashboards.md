@@ -1,6 +1,6 @@
 # Spec: SIGE — Authentication, Profile, Errors and Dashboards (AUTH, DASH)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, better-auth `1.7.5` (`username` plugin added), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (platform mapping §4, `person` §5.2, conventions §6, OD-1…OD-24), [`dashboard-shell-and-auth-ui.md`](../dashboard-shell-and-auth-ui.md), [`account-and-org-settings.md`](../account-and-org-settings.md), [`auth-multitenant-rbac.md`](../auth-multitenant-rbac.md), [`data-table.md`](../data-table.md), [`frontend-foundation.md`](../frontend-foundation.md). Widgets read data owned by modules 02–12; those modules are not prerequisites (§6.3).

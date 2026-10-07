@@ -1,6 +1,6 @@
 # Spec: SIGE — Foundation and Implementation Roadmap
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router (web), Drizzle + Postgres, better-auth `1.7.5`
 - **Depends on:** [`auth-multitenant-rbac.md`](../auth-multitenant-rbac.md), [`account-and-org-settings.md`](../account-and-org-settings.md), [`data-table.md`](../data-table.md), [`frontend-foundation.md`](../frontend-foundation.md), [`dashboard-shell-and-auth-ui.md`](../dashboard-shell-and-auth-ui.md); architecture notes in [`docs/architecture/`](../../architecture/)
@@ -464,7 +464,7 @@ Source: inventory §5 and the prototype generators (`-mock/prng.ts`, `base.ts`, 
 
 ## 11. Open decisions
 
-Each has a recommended default; implementation follows the default until the product owner decides otherwise.
+Each has a recommended default. **Resolved 2026-10-07:** the product owner accepted every recommended default (OD-1…OD-29 and all module open questions below); implementation follows them. OD-2 stays flagged for a security revisit before production.
 
 | ID    | Decision                                                      | Recommended default and why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ----- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

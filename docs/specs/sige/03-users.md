@@ -1,6 +1,6 @@
 # Spec: SIGE — User Management and Provisioning (USR)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, better-auth `1.7.5` (`admin` + `username` plugins), `exceljs` (`.xlsx`), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.1 R1.9–R1.24 identity and provisioning, §6.7 imports, OD-1, OD-2, OD-4, OD-17, OD-18, OD-22), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (`person`, `sigeProcedure`, forced-password gate), [`02-institution.md`](./02-institution.md) (INS-04/05 screens, `institutionAdmin.create`), [`data-table.md`](../data-table.md), [`auth-multitenant-rbac.md`](../auth-multitenant-rbac.md).

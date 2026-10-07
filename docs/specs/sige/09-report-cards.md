@@ -1,6 +1,6 @@
 # Spec: SIGE — Report cards (RPT)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, `@react-pdf/renderer` (PDF, RPT-D1), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `report_card` grants, §4.3 scope, §5.2 `report_card` / `report_card_observation`, §5.4 grading rules, §6.8 R3.24–R3.25, §6.9 audit, OD-16), [`06-grades.md`](./06-grades.md) (`final_grade`, `performanceLevel`, score display), [`07-attendance.md`](./07-attendance.md) (`tally`), [`08-observations.md`](./08-observations.md) (observation tone, foundation dependency), [`02-institution.md`](./02-institution.md) (periods, `course.director`, logo port), [`05-students.md`](./05-students.md) (`student.pick`, `StudentSwitcher`, `StudentStrip`), [`data-table.md`](../data-table.md).

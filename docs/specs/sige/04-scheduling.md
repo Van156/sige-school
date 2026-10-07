@@ -1,6 +1,6 @@
 # Spec: SIGE — Scheduling and Enrollment (SCH)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.3 scope, §5.2 tables, §5.3 invariants R2.7–R2.15, §6.6 engines R3.18–R3.20, OD-21, OD-23), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md), [`02-institution.md`](./02-institution.md) (campuses, courses, subjects, periods), [`03-users.md`](./03-users.md) (`user.options`), [`data-table.md`](../data-table.md). SCH-01/02 additionally need module 05 (students).

@@ -1,6 +1,6 @@
 # Spec: SIGE — QR access (QR)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun; plain Hono route for the reader), TanStack Router + Query (web), Drizzle + Postgres, `qrcode` (QR encoding, QR-D1), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `qr` grants and platform `qr: ["simulate"]`, §4.4 root inside an institution, §5.2 `qr_token` / `qr_access_log`, R3.13, R3.27, R3.33–R3.34, §6.9 `qr.regenerated`, OD-13, OD-24), [`04-scheduling.md`](./04-scheduling.md) (`schedule_slot`, `classroom`, `teacher_assignment`, `enrollment`), [`03-users.md`](./03-users.md) (`person`, deactivation), [`02-institution.md`](./02-institution.md) (`institution_profile.current_academic_year`, impersonation), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (sidebar, `me.impersonating`), [`data-table.md`](../data-table.md).

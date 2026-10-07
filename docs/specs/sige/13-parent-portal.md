@@ -1,6 +1,6 @@
 # Spec: SIGE — Parent portal (PAR)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query (web), Drizzle + Postgres, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.2 `portal` grants, §4.3 scope, R1.14–R1.16, §12 #1 and #4, R2.16, R3.13), [`05-students.md`](./05-students.md) (`student_guardian`, `StudentSwitcher`, `StudentStrip`, `NoStudentBlock`), [`06-grades.md`](./06-grades.md) (`grade.studentGrades`, `GradeScaleLegend`), [`07-attendance.md`](./07-attendance.md) (`attendance.history`, `tally`, ATT-R8), [`08-observations.md`](./08-observations.md) (`observation.studentHistory`, `ObservationCard`), [`09-report-cards.md`](./09-report-cards.md) (`reportCard.studentHistory`, `reportCard.get`, `reportCard.pdf`), [`11-achievements.md`](./11-achievements.md) (`achievement.studentAchievements`, `AchievementCard`), [`01-auth-and-dashboards.md`](./01-auth-and-dashboards.md) (DASH-06, sidebar).

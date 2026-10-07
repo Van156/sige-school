@@ -1,6 +1,6 @@
 # Spec: SIGE — Attendance (ATT)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.3 scope, §5.2 `attendance_record`, §5.3 R2.10, §5.5 absence rules, R3.10, R3.13, OD-7), [`04-scheduling.md`](./04-scheduling.md) (`offering`, `offering.options`), [`05-students.md`](./05-students.md) (`student.pick`), [`06-grades.md`](./06-grades.md) (shared `ClassContext` and class header), [`data-table.md`](../data-table.md).

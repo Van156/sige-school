@@ -1,6 +1,6 @@
 # Spec: SIGE — Grades (GRD)
 
-- **Status:** Draft
+- **Status:** Approved (product owner accepted every recommended default on 2026-10-07)
 - **Date:** 2026-10-07
 - **Stack:** Hono + oRPC (server, Bun), TanStack Router + Query + Form (web), Drizzle + Postgres, `exceljs` (`.xlsx`), `bun:test`
 - **Depends on:** [`00-foundation.md`](./00-foundation.md) (§4.3 scope, §5.2 `grade_record` / `period_lock` / `final_grade`, §5.3 R2.10–R2.13, §5.4 grading rules, §5.5 constants, §6.5 R3.15–R3.17, OD-5, OD-8, OD-9), [`02-institution.md`](./02-institution.md) (periods, criteria, courses), [`04-scheduling.md`](./04-scheduling.md) (`offering`, `offering.options`), [`05-students.md`](./05-students.md) (`student.pick`), [`03-users.md`](./03-users.md) (xlsx helper), [`data-table.md`](../data-table.md).
