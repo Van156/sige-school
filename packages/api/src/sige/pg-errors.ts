@@ -1,0 +1,129 @@
+import {
+  CAMPUS_CODE_UNIQUE,
+  CAMPUS_MAIN_UNIQUE,
+  COURSE_CAMPUS_FK,
+  COURSE_DIRECTOR_FK,
+  COURSE_LEVEL_CAMPUS_FK,
+  COURSE_UNIQUE,
+  INSTITUTION_NIT_UNIQUE,
+  LEVEL_CAMPUS_FK,
+  LEVEL_NAME_UNIQUE,
+  PERIOD_ACTIVE_UNIQUE,
+  PERIOD_ORDER_UNIQUE,
+  PERIOD_SHORT_NAME_UNIQUE,
+  SUBJECT_CODE_UNIQUE,
+} from "@base-template/db/schema";
+import { ORPCError } from "@orpc/server";
+
+/**
+ * Postgres error -> oRPC error mapper for SIGE services (sige/02 §4.1, §4.2; foundation R3.5).
+ * Constraints are the arbiter, never a racy pre-check: a service writes, catches the violation and
+ * maps it by SQLSTATE plus constraint name to the Spanish spec message.
+ *
+ * - `23505` unique_violation -> `CONFLICT` (409), message per constraint.
+ * - `23001` restrict_violation / `23503` foreign_key_violation on **delete** -> `HAS_DEPENDENTS`
+ *   (409). `ON DELETE RESTRICT` raises 23001; 23503 covers `NO ACTION` FKs added by later modules.
+ * - `23503` on **insert/update** -> `BAD_REQUEST` or `NOT_FOUND` (a referenced row is missing).
+ * Anything else is left to the caller (rethrown unchanged).
+ */
+
+export type DbOperation = "write" | "delete";
+
+const SQLSTATE_UNIQUE_VIOLATION = "23505";
+const SQLSTATE_RESTRICT_VIOLATION = "23001";
+const SQLSTATE_FOREIGN_KEY_VIOLATION = "23503";
+
+/** Declared next to the other SIGE codes (foundation R3.5); the web maps it to a toast. */
+export const HAS_DEPENDENTS = "HAS_DEPENDENTS";
+const CONFLICT_STATUS = 409;
+
+const UNIQUE_MESSAGES: Record<string, string> = {
+  [CAMPUS_MAIN_UNIQUE]: "Ya existe una sede principal en esta institución.",
+  [CAMPUS_CODE_UNIQUE]: "Ya existe una sede con este código.",
+  [LEVEL_NAME_UNIQUE]: "Ya existe un nivel con este nombre en la sede.",
+  [COURSE_UNIQUE]: "Ya existe un grado con la misma sede, nombre, año y jornada.",
+  [SUBJECT_CODE_UNIQUE]: "Ya existe una asignatura con este código.",
+  [INSTITUTION_NIT_UNIQUE]: "Ya existe una institución con este NIT.",
+  // Not in spec §4.1 (writer-authored).
+  [PERIOD_ACTIVE_UNIQUE]: "Ya existe un periodo activo en esta institución.",
+  [PERIOD_SHORT_NAME_UNIQUE]: "Ya existe un periodo con este nombre corto en el año.",
+  [PERIOD_ORDER_UNIQUE]: "Ya existe un periodo con este orden en el año.",
+};
+
+/** Spec §4.2 messages, keyed by the `restrict` FK that fired. */
+const DEPENDENTS_MESSAGES: Record<string, string> = {
+  [LEVEL_CAMPUS_FK]: "La sede tiene niveles o grados asociados.",
+  [COURSE_CAMPUS_FK]: "La sede tiene niveles o grados asociados.",
+  [COURSE_LEVEL_CAMPUS_FK]: "El nivel tiene cursos asociados.",
+};
+const DEPENDENTS_FALLBACK = "El registro tiene elementos asociados.";
+
+type FkWriteRule = { code: "BAD_REQUEST" | "NOT_FOUND"; message: string };
+
+const FK_WRITE_RULES: Record<string, FkWriteRule> = {
+  [COURSE_LEVEL_CAMPUS_FK]: {
+    code: "BAD_REQUEST",
+    message: "El nivel no pertenece a la sede seleccionada.",
+  },
+  [LEVEL_CAMPUS_FK]: { code: "NOT_FOUND", message: "La sede no existe." },
+  [COURSE_CAMPUS_FK]: { code: "NOT_FOUND", message: "La sede no existe." },
+  [COURSE_DIRECTOR_FK]: {
+    code: "BAD_REQUEST",
+    message: "El director debe ser un profesor activo de la institución.",
+  },
+};
+const FK_WRITE_FALLBACK: FkWriteRule = {
+  code: "BAD_REQUEST",
+  message: "Uno de los registros referenciados no existe.",
+};
+
+type PgErrorInfo = { code: string; constraint: string | undefined };
+
+/** Finds the driver error: drizzle wraps it, so walk the `cause` chain (bounded). */
+function findPgError(error: unknown): PgErrorInfo | null {
+  for (let current = error, depth = 0; current && depth < 6; depth += 1) {
+    if (typeof current !== "object") return null;
+    const { code, constraint } = current as { code?: unknown; constraint?: unknown };
+    if (typeof code === "string" && /^(?=.*\d)[0-9A-Z]{5}$/.test(code)) {
+      return { code, constraint: typeof constraint === "string" ? constraint : undefined };
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/** The mapped error, or `null` when the error is not one this module knows. */
+export function mapDbError(
+  error: unknown,
+  operation: DbOperation,
+): ORPCError<string, unknown> | null {
+  const pg = findPgError(error);
+  if (!pg) return null;
+  const constraint = pg.constraint ?? "";
+
+  if (pg.code === SQLSTATE_UNIQUE_VIOLATION) {
+    const message = UNIQUE_MESSAGES[constraint];
+    return message ? new ORPCError("CONFLICT", { status: CONFLICT_STATUS, message }) : null;
+  }
+
+  if (operation === "delete") {
+    if (pg.code === SQLSTATE_RESTRICT_VIOLATION || pg.code === SQLSTATE_FOREIGN_KEY_VIOLATION) {
+      return new ORPCError(HAS_DEPENDENTS, {
+        status: CONFLICT_STATUS,
+        message: DEPENDENTS_MESSAGES[constraint] ?? DEPENDENTS_FALLBACK,
+      });
+    }
+    return null;
+  }
+
+  if (pg.code === SQLSTATE_FOREIGN_KEY_VIOLATION) {
+    const rule = FK_WRITE_RULES[constraint] ?? FK_WRITE_FALLBACK;
+    return new ORPCError(rule.code, { message: rule.message });
+  }
+  return null;
+}
+
+/** Throws the mapped error, or the original error when it is unknown (never swallows). */
+export function rethrowDbError(error: unknown, operation: DbOperation): never {
+  throw mapDbError(error, operation) ?? error;
+}

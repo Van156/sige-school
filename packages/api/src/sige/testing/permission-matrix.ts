@@ -26,7 +26,7 @@ export type PermissionMatrixConfig = {
  * Domain errors a handler may raise once the gate let the caller through. Anything else (an
  * unexpected error, `INTERNAL_SERVER_ERROR`, a non-oRPC throw) is a failure, never "allowed".
  */
-const EXPECTED_DOMAIN_CODES = new Set(["NOT_FOUND", "BAD_REQUEST", "CONFLICT"]);
+const EXPECTED_DOMAIN_CODES = new Set(["NOT_FOUND", "BAD_REQUEST", "CONFLICT", "HAS_DEPENDENTS"]);
 
 /** Whether an outcome (`null` = success) shows the caller got past the gate (R1.13). */
 export function passedGate(code: string | null): boolean {

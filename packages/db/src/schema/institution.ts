@@ -39,6 +39,9 @@ export const CAMPUS_MAIN_UNIQUE = "campus_organizationId_main_unique";
 export const CAMPUS_CODE_UNIQUE = "campus_organizationId_code_unique";
 export const LEVEL_NAME_UNIQUE = "grade_level_organizationId_campusId_name_unique";
 export const COURSE_UNIQUE = "course_organizationId_campusId_name_year_shift_unique";
+export const LEVEL_CAMPUS_FK = "grade_level_campus_fk";
+export const COURSE_CAMPUS_FK = "course_campus_fk";
+export const COURSE_DIRECTOR_FK = "course_director_fk";
 export const COURSE_LEVEL_CAMPUS_FK = "course_level_campus_fk";
 export const SUBJECT_CODE_UNIQUE = "subject_organizationId_code_unique";
 export const PERIOD_ACTIVE_UNIQUE = "academic_period_organizationId_active_unique";
@@ -129,7 +132,7 @@ export const gradeLevel = pgTable(
   },
   (table) => [
     foreignKey({
-      name: "grade_level_campus_fk",
+      name: LEVEL_CAMPUS_FK,
       columns: [table.organizationId, table.campusId],
       foreignColumns: [campus.organizationId, campus.id],
     }).onDelete("restrict"),
@@ -167,7 +170,7 @@ export const course = pgTable(
   },
   (table) => [
     foreignKey({
-      name: "course_campus_fk",
+      name: COURSE_CAMPUS_FK,
       columns: [table.organizationId, table.campusId],
       foreignColumns: [campus.organizationId, campus.id],
     }).onDelete("restrict"),
@@ -178,7 +181,7 @@ export const course = pgTable(
       foreignColumns: [gradeLevel.organizationId, gradeLevel.campusId, gradeLevel.id],
     }).onDelete("restrict"),
     foreignKey({
-      name: "course_director_fk",
+      name: COURSE_DIRECTOR_FK,
       columns: [table.organizationId, table.directorPersonId],
       foreignColumns: [person.organizationId, person.id],
     }).onDelete("restrict"),
