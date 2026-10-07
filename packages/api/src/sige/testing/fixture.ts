@@ -9,6 +9,7 @@ import {
 } from "@base-template/auth/testing";
 import type { Database } from "@base-template/db";
 import * as schema from "@base-template/db/schema";
+import { SIGE_KINDS } from "@base-template/sige-core";
 import { createTestDatabase, requireTestDatabaseOrSkip } from "@base-template/db/testing";
 import type { TestDatabaseHandle } from "@base-template/db/testing";
 import { afterAll, beforeAll, describe } from "bun:test";
@@ -20,15 +21,7 @@ import type { Context } from "../../context";
 import { createBetterAuthPlatformAdmin } from "../../platform-admin";
 
 /** Every SIGE built-in role a caller can hold inside an institution (sige/00 R1.4). */
-export const SIGE_TEST_ROLES = [
-  "owner",
-  "admin",
-  "coordinator",
-  "teacher",
-  "student",
-  "parent",
-  "viewer",
-] as const satisfies readonly ProvisionableRole[];
+export const SIGE_TEST_ROLES = SIGE_KINDS satisfies readonly ProvisionableRole[];
 export type SigeTestRole = (typeof SIGE_TEST_ROLES)[number];
 
 export type TestPerson = {

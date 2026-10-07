@@ -1,4 +1,5 @@
 import * as schema from "@base-template/db/schema";
+import { SIGE_KINDS } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
 
@@ -25,19 +26,30 @@ export type PersonContext = {
   mustChangePassword: boolean;
 };
 
-const SIGE_KINDS: readonly string[] = [
-  "owner",
-  "admin",
-  "coordinator",
-  "teacher",
-  "student",
-  "parent",
-  "viewer",
-];
+/** Row-scoped kinds, most restrictive first: a multi-role member gets the first one it holds. */
+const RESTRICTED_PRECEDENCE: readonly CallerKind[] = ["student", "parent", "teacher"];
 
-/** `member.role` holds one built-in name (R1.9); anything else is a custom, institution-wide role. */
+/**
+ * `member.role` holds one role name (R1.9) but better-auth stores several comma-separated, so the
+ * value is split. Fail closed (sige/00 §4.3, R1.10): a value naming any row-scoped kind
+ * (teacher, student, parent) resolves to the most restrictive one, so a second role never lifts
+ * the row scope. Otherwise the first built-in name wins, and only a value with no built-in name is
+ * `custom` (institution-wide, R1.10). The permission side is separate: better-auth grants the
+ * union of the listed roles. See docs/architecture/authorization.md#sige-procedures
+ */
 export function resolveCallerKind(role: string): CallerKind {
-  return SIGE_KINDS.includes(role) ? (role as CallerKind) : "custom";
+  const names = role
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+  const builtIn = names.filter((name): name is CallerKind =>
+    (SIGE_KINDS as readonly string[]).includes(name),
+  );
+  const restricted = RESTRICTED_PRECEDENCE.find((kind) => builtIn.includes(kind));
+  if (restricted) {
+    return restricted;
+  }
+  return SIGE_KINDS.find((kind) => builtIn.includes(kind)) ?? "custom";
 }
 
 /** Custom codes with status 403, like `NO_ACTIVE_ORGANIZATION` (409): clients map them (R3.5). */

@@ -22,15 +22,16 @@ export type PermissionMatrixConfig = {
   roles?: readonly SigeTestRole[];
 };
 
-/** Codes that mean "the gate refused", as opposed to a handler outcome such as `NOT_FOUND`. */
-const GATE_CODES = new Set([
-  "FORBIDDEN",
-  "UNAUTHORIZED",
-  "NO_PERSON",
-  "ACCOUNT_DISABLED",
-  "PASSWORD_CHANGE_REQUIRED",
-  "NO_ACTIVE_ORGANIZATION",
-]);
+/**
+ * Domain errors a handler may raise once the gate let the caller through. Anything else (an
+ * unexpected error, `INTERNAL_SERVER_ERROR`, a non-oRPC throw) is a failure, never "allowed".
+ */
+const EXPECTED_DOMAIN_CODES = new Set(["NOT_FOUND", "BAD_REQUEST", "CONFLICT"]);
+
+/** Whether an outcome (`null` = success) shows the caller got past the gate (R1.13). */
+export function passedGate(code: string | null): boolean {
+  return code === null || EXPECTED_DOMAIN_CODES.has(code);
+}
 
 /** Expected verdict from the sige-core grant table (the single source of the role grants). */
 export function isGranted(role: string, permissions: OrgPermissions | null): boolean {
@@ -81,7 +82,7 @@ export async function testPermissionMatrix(config: PermissionMatrixConfig): Prom
           }
           const code = await outcomeCode(procedure.run(context));
           if (allowed) {
-            expect(code === null || !GATE_CODES.has(code), `got ${code}`).toBe(true);
+            expect(passedGate(code), `got ${code}`).toBe(true);
           } else {
             expect(code).toBe("FORBIDDEN");
           }

@@ -45,6 +45,10 @@ export type SigeGrants = {
 export const SIGE_ROLES = ["coordinator", "teacher", "student", "parent", "viewer"] as const;
 export type SigeRole = (typeof SIGE_ROLES)[number];
 
+/** Every SIGE kind a member can hold: the two platform-template roles plus `SIGE_ROLES`. */
+export const SIGE_KINDS = ["owner", "admin", ...SIGE_ROLES] as const;
+export type SigeKind = (typeof SIGE_KINDS)[number];
+
 /** Spec §4.2 column "A": owner and admin share the same SIGE permissions (R1.3). */
 const ADMIN_GRANTS = {
   institution: ["read", "update"],

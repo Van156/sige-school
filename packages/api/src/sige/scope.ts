@@ -1,3 +1,4 @@
+import type { SigeKind } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
 import { eq, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
@@ -10,15 +11,7 @@ import type { AnyColumn, SQL } from "drizzle-orm";
  */
 
 /** Built-in role name, or `custom` for any dynamic role (institution-wide, no row scope, R1.10). */
-export type CallerKind =
-  | "owner"
-  | "admin"
-  | "coordinator"
-  | "teacher"
-  | "student"
-  | "parent"
-  | "viewer"
-  | "custom";
+export type CallerKind = SigeKind | "custom";
 
 /** Kinds whose rows are restricted. Every other kind sees the whole institution. */
 export type RestrictedKind = "teacher" | "student" | "parent";

@@ -10,10 +10,31 @@ describe("resolveCallerKind", () => {
     },
   );
 
-  test.each(["secretaria", "member", "", "teacher,admin", "Teacher"])(
+  test.each(["secretaria", "member", "", "Teacher"])(
     "anything else (%p) is a custom role",
     (role) => {
       expect(resolveCallerKind(role)).toBe("custom");
     },
   );
+
+  // better-auth stores several roles comma-separated; a restricted kind must never be unrestricted.
+  test.each([
+    ["teacher,admin", "teacher"],
+    ["admin,teacher", "teacher"],
+    ["secretaria,teacher", "teacher"],
+    ["owner, student ", "student"],
+    ["teacher,parent", "parent"],
+    ["parent,student", "student"],
+    ["teacher,student,parent", "student"],
+  ])("multi-role %p resolves to the most restrictive kind %p", (role, expected) => {
+    expect(resolveCallerKind(role)).toBe(expected as never);
+  });
+
+  test.each([
+    ["admin,secretaria", "admin"],
+    ["secretaria,viewer", "viewer"],
+    ["secretaria,tesoreria", "custom"],
+  ])("multi-role %p with no restricted kind resolves to %p", (role, expected) => {
+    expect(resolveCallerKind(role)).toBe(expected as never);
+  });
 });
