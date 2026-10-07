@@ -21,6 +21,9 @@
   - [09 Report cards](./specs/sige/09-report-cards.md)
   - [10 Metrics](./specs/sige/10-metrics.md)
   - [11 Achievements](./specs/sige/11-achievements.md)
+  - [12 Early alerts](./specs/sige/12-alerts.md)
+  - [13 Parent portal](./specs/sige/13-parent-portal.md)
+  - [14 QR access](./specs/sige/14-qr-access.md)
 - [Storybook](./specs/storybook.md)
 
 ## Architecture
