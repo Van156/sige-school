@@ -1,0 +1,511 @@
+# Spec: SIGE — Foundation and Implementation Roadmap
+
+- **Status:** Draft
+- **Date:** 2026-10-07
+- **Stack:** Hono + oRPC (server, Bun), TanStack Router (web), Drizzle + Postgres, better-auth `1.7.5`
+- **Depends on:** [`auth-multitenant-rbac.md`](../auth-multitenant-rbac.md), [`account-and-org-settings.md`](../account-and-org-settings.md), [`data-table.md`](../data-table.md), [`frontend-foundation.md`](../frontend-foundation.md), [`dashboard-shell-and-auth-ui.md`](../dashboard-shell-and-auth-ui.md); architecture notes in [`docs/architecture/`](../../architecture/)
+
+**Source of truth.** There is no PRD. The clickable prototype (`apps/web/src/routes/prototype/sige/**`: `-nav.ts`, `-screens.ts`, `-mock/`, `-screens/`) is authoritative. Its description lives in `odd/tasks/sige-prototype-inventory.md` (cited as "inventory §x" / "App. x"). Where the two differ, the prototype wins and the difference is recorded in §12.
+
+## 1. Objective
+
+Turn the SIGE prototype ("Sistema Integral de Gestión Escolar", 94 screens, in-memory mock data) into a real multi-tenant school management system: database, API and web, for Colombian schools.
+
+SIGE covers, per institution: the academic structure (sedes, niveles, cursos, asignaturas, periodos, criterios), people (administradores, coordinadores, profesores, estudiantes, acudientes, consulta), enrollment and weekly scheduling, grade entry on a 1.0–5.0 scale with weighted criteria, attendance, behaviour observations, report cards ("boletines", PDF), metrics, rule-based early alerts, achievements, a parent portal and QR classroom access.
+
+This document is the program-level contract: it fixes the platform mapping, the domain model, the cross-cutting conventions and the delivery order. Fourteen module specs (§7) detail each area and MUST NOT contradict it.
+
+## 2. Scope
+
+### In scope
+
+- Every screen of the prototype (94, App. C), as real routes, with their empty/error states.
+- One database schema for all SIGE entities, tenant-scoped by `organization_id`.
+- Role-based permissions plus row-level scoping (teacher: own courses, student: self, parent: linked children).
+- Server-side rule engines: final/annual grade calculation, alert engine, achievement engine, schedule generation, QR access evaluation.
+- PDF report cards, Excel import (users, students, grades) and export (metrics), CSV exports.
+- A deterministic demo seed derived from the prototype dataset (§9).
+
+### Out of scope (v1)
+
+- Legacy bugs and inconsistencies listed in inventory §5.16 are **not** reproduced (student sidebar 403s, teacher "Métricas" 403, swapped enrollment columns, accent-free copy, `estudiante123` default password, duplicate parent dashboard).
+- Academic-year rollover and student promotion (the model carries `academic_year` everywhere so it can be added; see OD-14).
+- Real messaging to guardians (SMS, WhatsApp, email); observation "notificada" stays a manual flag (OD-11).
+- Photos and logo upload pipeline beyond a storage port (OD-12).
+- Institution-configurable grading scale (SIEE); constants are fixed (OD-9).
+- Native mobile apps, offline mode, real-time push, i18n beyond `es-CO`.
+- Multi-institution membership of one user (OD-22).
+- Payments, billing, canteen/transport, library, admissions funnel.
+
+## 3. Glossary
+
+| Spanish (UI)                  | Code name                              | Meaning                                                                                              |
+| ----------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Institución                   | `organization` + `institution_profile` | Tenant. A better-auth organization with a 1:1 SIGE profile.                                          |
+| Sede                          | `campus`                               | Physical site. One `is_main` per institution.                                                        |
+| Nivel académico               | `grade_level`                          | "Sexto", "Once"; belongs to a campus.                                                                |
+| Grado / Curso / Grupo         | `course`                               | A concrete group such as "6-01" for one year and shift. UI keeps "Grado" in titles, "Cursos" in nav. |
+| Asignatura / Materia          | `subject`                              | Institution-wide subject with optional code.                                                         |
+| Materia por grado             | `offering` (inventory: `SubjectGrade`) | A subject taught in a course by one teacher; hangs grades, attendance, schedule, enrollments.        |
+| Periodo                       | `academic_period`                      | One of four terms (P1–P4) per year; exactly one active.                                              |
+| Criterio de evaluación        | `grade_criterion`                      | Weighted grading component (Seguimiento, Formativo, Cognitivo, Procedimental).                       |
+| Nota                          | `grade_record.score`                   | Score 1.0–5.0 for student × offering × period × criterion.                                           |
+| Nota final / Definitiva (DEF) | `final_grade` / derived annual         | Period final score / mean of period finals.                                                          |
+| Matrícula                     | `enrollment`                           | Student enrolled in one offering for a year.                                                         |
+| Acudiente                     | `student_guardian` + role `parent`     | Guardian linked to one or more students.                                                             |
+| Boletín                       | `report_card`                          | Per student and period; PDF; delivery pendiente/entregado.                                           |
+| Logro / Alerta temprana       | `achievement` / `alert`                | Rule-based badge / warning.                                                                          |
+| Usuario / perfil              | `person`                               | SIGE profile of a better-auth user inside an institution (§5.2).                                     |
+
+Naming rule: code uses `course` for "Grado" and `score`/`grade_record` for "Nota", because the legacy word "grade" means both. UI copy keeps the Spanish vocabulary of inventory App. A verbatim.
+
+## 4. Platform mapping
+
+SIGE is a vertical on the existing platform. It reuses organizations, members, permission statements, custom roles, impersonation, the audit log, the data-table contract and the dashboard shell. Anything not listed here is unchanged.
+
+### 4.1 Concept mapping
+
+| SIGE concept                                                    | Platform concept                                                               | Rule                                                                                                      |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Institución (tenant)                                            | better-auth `organization`                                                     | R1.1 Created only by a platform operator. Its SIGE data lives in `institution_profile` (1:1).             |
+| Root                                                            | Platform `superadmin` (`user.role`)                                            | R1.2 Not an org member. Reaches institutions through platform procedures and impersonation (§4.4).        |
+| Administrador / rector                                          | Org role `owner` (rector) and `admin` (further admins)                         | R1.3 Same SIGE permissions; `owner` additionally keeps org-lifecycle powers (transfer, delete). ≥1 owner. |
+| Coordinador, Profesor, Estudiante, Acudiente, Consulta (viewer) | New built-in org roles `coordinator`, `teacher`, `student`, `parent`, `viewer` | R1.4 Code-defined in `packages/auth/src/permissions/org.ts`, like `owner`/`admin`/`member`.               |
+| Permisos por pantalla (App. C)                                  | Permission catalog `feature:action` (§4.2)                                     | R1.5 Screens gate on permissions, never on role names.                                                    |
+| Alcance por fila (propios/hijos)                                | Scope resolver (§4.3)                                                          | R1.6 Layered on top of `requirePermission`; v1 template RBAC is role-only, so SIGE adds it.               |
+| Bitácora                                                        | `audit_log`, `scope = "organization"`                                          | R1.7 New action names in `audit/actions.ts` (§6.9).                                                       |
+| Sede                                                            | Data dimension, not an authorization boundary                                  | R1.8 v1 staff are institution-wide; campus only filters and groups (OD-6).                                |
+
+Decisions that follow:
+
+- **R1.9 One institution per user.** A SIGE user is a member of exactly one organization with exactly one role. Provisioning enforces it; `member.role` holds a single built-in role name.
+- **R1.10 Custom roles stay.** Dynamic access control (max 25 roles/org) remains available for institution-specific variations (e.g. "secretaría"). A custom role is institution-wide: it has no row scope. Built-in `teacher`/`student`/`parent` carry the scoped behaviour.
+- **R1.11 `project` example feature is removed** from the catalog and `routers/project.ts` when SIGE modules land (it is declared template-only).
+- **R1.12 Self-service org creation and email invitations are disabled in SIGE deployments** (OD-20). New members are provisioned (§4.5). `DEFAULT_MAX_ORGS_PER_USER=0`; institution creation sets `user.maxOrganizations = 1` on the rector before creating the organization (existing superadmin override mechanism; verify against 1.7.5).
+
+### 4.2 Permission catalog
+
+Extends `orgStatements` (`packages/auth/src/permissions/org.ts`); template statements (`organization`, `member`, `invitation`, `ac`, `audit`) stay for owner/admin. Adding a feature = a key here + granting it to roles; no migration.
+
+| Feature                               | Actions                                                                   | Used by                                              |
+| ------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `institution`                         | `read`, `update`                                                          | INS-06, headers, banners                             |
+| `campus`, `level`, `course`, `period` | `read`, `create`, `update`, `delete`                                      | INS-07…12, INS-15/16                                 |
+| `subject`, `criterion`                | `read`, `create`, `update`, `delete`                                      | INS-13/14, INS-17/18                                 |
+| `user`                                | `read`, `create`, `update`, `delete`, `import`, `reset_password`          | USR-01…04                                            |
+| `student`                             | `read`, `create`, `update`, `delete`, `import`, `guardians`               | STU-01…05                                            |
+| `offering`                            | `read`, `create`, `update`, `delete` (subject×course, teacher assignment) | SCH-03…06                                            |
+| `enrollment`                          | `read`, `create`, `update`, `delete`                                      | SCH-01/02                                            |
+| `classroom`, `time_block`             | `read`, `create`, `update`, `delete`                                      | SCH-07…10                                            |
+| `schedule`                            | `read`, `generate`, `update`                                              | SCH-11/12                                            |
+| `grade`                               | `read`, `write`, `lock`, `import`, `recalculate`, `manage_locks`          | GRD-01…07                                            |
+| `attendance`                          | `read`, `record`                                                          | ATT-01…04                                            |
+| `observation`                         | `read`, `create`, `update`, `delete`, `notify`                            | OBS-01…05                                            |
+| `report_card`                         | `read`, `generate`, `update`, `deliver`, `delete`                         | RPT-01…04                                            |
+| `metric`                              | `read`, `read_own`, `export`                                              | MET-01…07                                            |
+| `achievement`                         | `read`, `award`, `run_engine`                                             | ACH-01…03                                            |
+| `alert`                               | `read`, `resolve`, `run_engine`                                           | ALR-01…03                                            |
+| `qr`                                  | `monitor`                                                                 | QR-03 (own QR needs none)                            |
+| `overview`                            | `read`                                                                    | KPI dashboards (DASH-02/03/07)                       |
+| `portal`                              | `read_self` (student), `read_child` (parent)                              | GRD-08, ATT-02, OBS-05, ACH-02, RPT-02…04, PAR-01…06 |
+
+Platform catalog (`platform.ts`) gains `institution: ["create", "update", "delete", "manage_users"]` and `qr: ["simulate"]` for `superadmin` (INS-01…05, QR-02).
+
+**Role grants** (A = owner and admin identically; C coordinator; T teacher; S student; P parent; V viewer). Row scope in §4.3.
+
+| Feature                                             | A            | C            | T                                           | S / P                       | V    |
+| --------------------------------------------------- | ------------ | ------------ | ------------------------------------------- | --------------------------- | ---- |
+| `institution`                                       | read, update | read         | read                                        | –                           | read |
+| `campus/level/course/period`                        | all          | read         | –                                           | –                           | –    |
+| `subject`, `criterion`                              | all          | read         | read                                        | –                           | –    |
+| `user`                                              | all          | –            | –                                           | –                           | –    |
+| `student`                                           | all          | all          | read (own courses)                          | –                           | –    |
+| `offering`, `enrollment`, `classroom`, `time_block` | all          | all          | –                                           | –                           | –    |
+| `schedule`                                          | all          | all          | read (own)                                  | read (S own)                | –    |
+| `grade`                                             | all          | all (OD-5)   | read, write, lock, import (own offerings)   | –                           | –    |
+| `attendance`                                        | read, record | read, record | read, record (own offerings)                | –                           | –    |
+| `observation`                                       | all          | all          | read, create, update (own authored), notify | –                           | –    |
+| `report_card`                                       | all          | all          | read, generate                              | –                           | –    |
+| `metric`                                            | read, export | read, export | read_own                                    | –                           | –    |
+| `achievement`                                       | all          | all          | read                                        | –                           | –    |
+| `alert`                                             | all          | all          | –                                           | –                           | –    |
+| `qr` (monitor)                                      | monitor      | monitor      | –                                           | –                           | –    |
+| `overview`                                          | read         | read         | –                                           | –                           | read |
+| `portal`                                            | –            | –            | –                                           | S: read_self, P: read_child | –    |
+
+R1.13 The table above, plus App. C, is the **executable authorization matrix**: the permission catalog test generates one case per (screen procedure × role) and fails on any deviation not listed in §12/§11.
+
+### 4.3 Row-level scope
+
+R1.14 Role grants say _what_; a scope resolver says _which rows_. Every procedure that reads or writes student-linked data runs through one `ScopePolicy` (in `packages/api/src/sige/scope.ts`) resolved once per request from `context.person`:
+
+| Caller kind (built-in role)                    | Visible students / offerings                                                                                                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| owner, admin, coordinator, viewer, custom role | all students and offerings of the institution                                                                                                                                                                                   |
+| `teacher`                                      | offerings where `offering.teacher_person_id = self` and its assignment is `activo` or `temporal`; students of any course where the teacher has such an offering or is `director` (OD-21; matches prototype `use-student-scope`) |
+| `student`                                      | the student row whose `person_id = self`                                                                                                                                                                                        |
+| `parent`                                       | students linked in `student_guardian` to `self`                                                                                                                                                                                 |
+
+- R1.15 A resource outside the caller's tenant **or** scope returns `NOT_FOUND`, never `FORBIDDEN` (no existence leak). `FORBIDDEN` means "missing permission".
+- R1.16 Student-facing reads (GRD-08, ATT-02, OBS-05, ACH-02, RPT-02…04, PAR-*) are a single procedure per datum taking `studentId`, authorized by `grade:read` **or** `portal:read_self`/`read_child`, then filtered by `ScopePolicy`. There are no parallel "parent copies" of the staff endpoints.
+- R1.17 Metric endpoints for `teacher` (MET-05…07) filter by own offerings; management roles may pass a `teacherId` (prototype `use-teacher-scope`).
+
+### 4.4 Root inside an institution
+
+Prototype root works "inside" a chosen institution (INS-03) and sees what an admin sees. Decision (OD-3): the existing, audited **impersonation of the institution's `owner`** is the mechanism ("Gestionar" button = start impersonation, banner "Vista Root"). Root-only screens (INS-01…05, QR-02) are `platformProcedure`s. Impersonation sessions keep `impersonatorUserId` in every audit row (existing R7.2). Alternative recorded in OD-3.
+
+### 4.5 Account provisioning and identity
+
+The platform requires verified email and invitation links; SIGE users (children, many guardians) often have no email and sign in with a username (inventory F1, USR-02, STU-03). Decisions:
+
+- R1.18 **Provisioning service** `provisionUser` (in `packages/auth`, used by USR-02, INS-05, STU-03, STU-05, USR-04, the seed): creates the better-auth user, a credential account, one `member` row with the SIGE role, and the `person` row. No email is sent. Failure after a partial write compensates by deleting what was created (better-auth adapters are not transactional with Drizzle; same limitation as `organizationLimit`); covered by a fault-injection test.
+- R1.19 **Identifier.** Add better-auth's `username` plugin. Sign-in takes one field "Usuario o Correo": contains `@` → email, else username. Username = first-name initial + last name (lowercase, accents stripped, spaces removed) + last 4 digits of the document; on collision append a counter. Username is globally unique (better-auth), so the preview endpoint `user.previewUsername` checks globally.
+- R1.20 **Email is optional for the person, mandatory for better-auth.** Without an email the service stores `<username>@sin-correo.<org-slug>.invalid` with `emailVerified = true` and `person.has_real_email = false` (OD-1). Such users cannot use email flows (reset, verification); only an admin reset works.
+- R1.21 **Initial password = document number**, `person.must_change_password = true` (OD-2). A new `sigeProcedure` (`orgProcedure` + `requireActivePerson`) loads `context.person` and rejects every call except `account.changePassword`/sign-out with `PASSWORD_CHANGE_REQUIRED` (403) while the flag is set; web redirects to AUTH-03. The flag clears in the `/change-password` after-hook. Admin/root reset re-arms it.
+- R1.22 **Deactivation** (`person.is_active = false`): revokes sessions and fails sign-in with "Su cuenta está desactivada. Contacte al administrador." (before-hook). `user.banned` stays reserved for platform moderation.
+- R1.23 Only a platform operator creates `admin`/`owner` members (INS-02, INS-05). Org admins create `coordinator`, `teacher`, `student`, `parent`, `viewer`.
+- R1.24 New passwords follow the platform's better-auth policy (default minimum 8; verify the configured value), not the prototype's "mínimo 6"; the strength meter of AUTH-03 stays. Only the provisioned initial password (document number, which may be shorter) bypasses the length check, because it is hashed by the provisioning service and must be replaced at first login.
+
+### 4.6 Navigation and dashboards
+
+- R1.25 The real shell reuses `dashboard-shell-and-auth-ui.md`. Sidebar entries come from one table ported from prototype `-nav.ts` (sections "Gestión", "Académico", "Familia", "Acceso"); an entry shows iff the caller holds the permission its screen requires (`useCan`), so custom roles work.
+- R1.26 `/dashboard` renders the dashboard for the caller's built-in role kind (root → DASH-01, admin/owner → DASH-02, coordinator → DASH-03, teacher → DASH-04, student → DASH-05, parent → DASH-06, viewer/custom → DASH-07).
+- R1.27 Student entries ("Mi Horario", "Mis Notas", "Mi Asistencia", "Mis Observaciones", "Mis Logros") and the teacher "Métricas" → MET-05 land as in the prototype.
+- R1.28 Alerts badge on "Alertas Tempranas" = `alert.countActive` (unresolved), cap "99+", refetched on focus and after mutations; no push.
+
+## 5. Domain model
+
+### 5.1 Hierarchy
+
+```
+organization (institution) 1─1 institution_profile
+  ├─< campus ─< grade_level ─< course ─< offering >─ subject        (offering.teacher → person)
+  │                 course ─ director → person(teacher)
+  ├─< academic_period (4/yr)      ├─< grade_criterion (Σ weight = 100)
+  ├─< subject                      ├─< classroom (per campus)    ├─< time_block (per campus/shift/year)
+  ├─< person ─1:1─ user(better-auth) ; member.role = SIGE role
+  │     └─ student ─< student_guardian >─ person(parent)
+  │          └─< enrollment >─ offering
+  ├─ offering ─< schedule_slot >─ classroom
+  ├─ grade_record (student × offering × period × criterion) ; period_lock (offering × period)
+  │     └→ final_grade (student × offering × period) → annual (derived)
+  ├─< attendance_record (student × offering × date)  ├─< observation  ├─< alert
+  ├─< achievement ─< student_achievement      ├─< report_card ─< report_card_observation
+  └─< qr_token (1/person) ─< qr_access_log
+```
+
+### 5.2 Table outline (Drizzle)
+
+Conventions for every table below (R2.1–R2.5):
+
+- R2.1 `id text primary key default crypto.randomUUID()` (as `audit_log`). No serial ids.
+- R2.2 `organization_id text not null references organization(id) on delete cascade`, first column of every index.
+- R2.3 **Tenant-safe FKs.** Each tenant table declares `unique(organization_id, id)`; every FK between tenant tables is the composite `(organization_id, x_id) → x(organization_id, id)`, so a row can never point at another tenant. Plain FKs only to `user(id)`.
+- R2.4 Timestamps are `timestamp with time zone` (`created_at`, `updated_at`); calendar dates are `date`, slot times `time`. This deliberately differs from the template auth tables (plain `timestamp`). Institution timezone: `America/Bogota`.
+- R2.5 Enumerations are `pgEnum`s named after the prototype types (`student_status`, `attendance_status`, …); values stay in Spanish lowercase as in inventory §2.2 (`activo`, `ganada`, `presente`) because they are domain vocabulary shown in the UI.
+- R2.6 FK delete behaviour: `restrict` by default (service maps to `409 HAS_DEPENDENTS`); `cascade` only from `organization` and for pure children (`schedule_slot`, `period_lock`, `student_guardian`, `report_card_observation`, `qr_token`).
+
+| Table                     | Key columns                                                                                                                                                                                                                                                                                                | Constraints                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `institution_profile`     | `organization_id` PK/FK, `nit`, `address`, `phone`, `email`, `municipality`, `department`, `resolution`, `current_academic_year` (default current year), `timezone`                                                                                                                                        | `unique(nit)` where not null. Name/slug/logo stay on `organization`.                                                                                               |
+| `campus`                  | `name`, `code`, `address`, `jornada` (`manana` \| `tarde` \| `completa`, default `completa`), `is_main`, `active`                                                                                                                                                                                          | `unique(org, code)` where code not null; partial `unique(org)` where `is_main`.                                                                                    |
+| `grade_level`             | `campus_id`, `name`, `order_num` (≥ 0)                                                                                                                                                                                                                                                                     | `unique(campus_id, name)`.                                                                                                                                         |
+| `course`                  | `campus_id`, `level_id` null, `director_person_id` null, `name`, `academic_year`, `shift` (`Mañana` \| `Tarde` \| `Nocturna` \| `Única` \| `Sabatina`), `max_students` (1–60, default 40)                                                                                                                  | `unique(campus_id, name, academic_year, shift)`; `level_id` must share the campus (composite FK includes `campus_id`).                                             |
+| `subject`                 | `name`, `code`                                                                                                                                                                                                                                                                                             | `unique(org, code)` where code not null.                                                                                                                           |
+| `academic_period`         | `academic_year`, `order_num` (1–4), `name`, `short_name`, `start_date`, `end_date`, `is_active`                                                                                                                                                                                                            | `unique(org, academic_year, short_name)`; `check(start_date < end_date)`; partial `unique(org)` where `is_active`; no date overlap within a year (service + test). |
+| `grade_criterion`         | `name`, `weight numeric(5,2)`, `description`, `order_num`                                                                                                                                                                                                                                                  | `check(weight > 0 and weight <= 100)`. Σ weights = 100 is validated, not enforced by DB (§5.5).                                                                    |
+| `person`                  | `user_id` unique FK→`user`, `first_name`, `last_name`, `document_type` (`TI` \| `CC` \| `RC` \| `CE` \| `Pasaporte`), `document_number`, `birth_date`, `gender` (`M` \| `F` \| `Otro`), `phone`, `address`, `country`, `department`, `municipality`, `has_real_email`, `is_active`, `must_change_password` | `unique(org, document_number)`. Role lives in `member.role`; `user.name` = "first last".                                                                           |
+| `student`                 | `person_id` unique, `campus_id`, `course_id` null, `neighborhood`, `stratum` (1–6), `blood_type`, `eps`, `guardian_name`, `guardian_phone`, `guardian_email`, `enrolled_year`, `status` (`activo` \| `retirado` \| `graduado`)                                                                             | `check(stratum between 1 and 6)`. Text guardian fields are a contact fallback, independent of `student_guardian`.                                                  |
+| `student_guardian`        | `guardian_person_id`, `student_id`, `relationship` (Acudiente, Padre, Madre, Tío/a, Abuelo/a, Hermano/a, Otro)                                                                                                                                                                                             | `unique(guardian_person_id, student_id)`; guardian must hold role `parent` (service).                                                                              |
+| `offering`                | `subject_id`, `course_id`, `teacher_person_id` null, `hours_per_week` (1–20, default 4)                                                                                                                                                                                                                    | `unique(subject_id, course_id)` (OD-23; inventory allowed `(subject, grade, teacher)`).                                                                            |
+| `teacher_assignment`      | `offering_id` unique, `teacher_person_id`, `academic_year`, `assignment_date`, `status` (`activo` \| `inactivo` \| `temporal`), `notes`                                                                                                                                                                    | Kept in sync with `offering.teacher_person_id`; `inactivo` removes teacher scope (§4.3).                                                                           |
+| `enrollment`              | `student_id`, `offering_id`, `academic_year`, `enrollment_date`, `status` (`activa` \| `cancelada` \| `retirada`), `final_score`, `status_note`                                                                                                                                                            | `unique(student_id, offering_id, academic_year)`.                                                                                                                  |
+| `classroom`               | `campus_id`, `name`, `code`, `capacity` (default 40), `floor` (≥ 1), `building`, `classroom_type` (`aula` \| `laboratorio` \| `auditorio` \| `cancha`), `resources jsonb`                                                                                                                                  | `unique(campus_id, code)`.                                                                                                                                         |
+| `time_block`              | `campus_id`, `name`, `start_time`, `end_time`, `is_break`, `order_num`, `shift` (no `Sabatina`), `academic_year`                                                                                                                                                                                           | `unique(campus_id, name, academic_year, shift)`; `check(start_time < end_time)`.                                                                                   |
+| `schedule_slot`           | `offering_id`, `classroom_id`, `day_of_week` (0=Lunes…4=Viernes), `start_time`, `end_time`, `academic_year`, `is_active`                                                                                                                                                                                   | `unique(classroom_id, day_of_week, start_time, academic_year)`; teacher overlap rejected in the service (teacher is on the offering).                              |
+| `grade_record`            | `student_id`, `offering_id`, `period_id`, `criterion_id`, `score numeric(3,2)`, `observation` (≤ 500), `created_by`, `updated_by`                                                                                                                                                                          | `unique(student_id, offering_id, period_id, criterion_id)`; `check(score between 1 and 5)`. No per-row `locked`: see `period_lock`.                                |
+| `period_lock`             | `offering_id`, `period_id`, `locked`, `locked_by`, `locked_at`                                                                                                                                                                                                                                             | `unique(offering_id, period_id)`; absence of a row = open (prototype `PeriodLock`).                                                                                |
+| `final_grade`             | `student_id`, `offering_id`, `period_id`, `final_score numeric(3,2)`, `status` (`ganada` \| `perdida` \| `no evaluado`), `observation`, `calculated_at`                                                                                                                                                    | `unique(student_id, offering_id, period_id)`. Derived cache, recomputed in the same transaction as any `grade_record`/criterion change (R2.12).                    |
+| `attendance_record`       | `student_id`, `offering_id`, `date`, `status` (`presente` \| `ausente` \| `justificado` \| `excusado`), `observation` (≤ 300), `recorded_by`                                                                                                                                                               | `unique(student_id, offering_id, date)` (save = upsert).                                                                                                           |
+| `observation`             | `student_id`, `author_person_id`, `type` (`positiva` \| `negativa` \| `seguimiento` \| `convivencia`), `category`, `description`, `observed_at`, `commitments`, `notified`, `notified_at`, `notified_by`                                                                                                   | `requires_notification` derived: type in (`negativa`, `convivencia`).                                                                                              |
+| `alert`                   | `student_id`, `offering_id` null, `alert_type` (6 values), `severity` (`alta` \| `media` \| `baja`), `title`, `description`, `triggered_at`, `resolved`, `resolved_at`, `resolved_by`, `notes`                                                                                                             | partial `unique(student_id, alert_type)` where not `resolved` (one open alert per student and type).                                                               |
+| `achievement`             | `name`, `description`, `icon` (emoji), `rule_key`, `category` (`académico` \| `mejora` \| `asistencia` \| `comportamiento`), `is_active`                                                                                                                                                                   | `unique(org, rule_key)`; the 7 default rules are copied per institution at provisioning.                                                                           |
+| `student_achievement`     | `student_id`, `achievement_id`, `earned_at`, `period_id` null, `awarded_by` null (null = engine)                                                                                                                                                                                                           | `unique(student_id, achievement_id, coalesce(period_id, ''))`.                                                                                                     |
+| `report_card`             | `student_id`, `period_id`, `generated_at`, `generated_by`, `general_observation`, `snapshot jsonb`, `delivery_status` (`pendiente` \| `entregado`), `delivered_at`, `delivered_by`                                                                                                                         | `unique(student_id, period_id)`. `snapshot` freezes grades, levels, attendance and names at generation (§6.8).                                                     |
+| `report_card_observation` | `report_card_id`, `offering_id`, `observation` (≤ 500)                                                                                                                                                                                                                                                     | `unique(report_card_id, offering_id)`.                                                                                                                             |
+| `qr_token`                | `person_id` unique, `token` (128-bit random, unique), `is_active`, `last_used_at`                                                                                                                                                                                                                          | Regenerate = replace token.                                                                                                                                        |
+| `qr_access_log`           | `person_id` null, `classroom_id` null, `scanned_at`, `status` (`authorized` \| `denied` \| `invalid_token` \| `wrong_schedule`), `message`, `source` (IP or `SIM-…`)                                                                                                                                       | Index `(organization_id, scanned_at desc)`. Rows for unknown tokens carry no person.                                                                               |
+
+There is no `annual_grade` table in v1: DEF is computed on read as the mean of available `final_grade` rows (prototype behaviour); a year-close snapshot belongs to OD-14.
+
+### 5.3 Invariants
+
+- R2.7 One active `academic_period` per institution; four periods per `academic_year` (warning, not hard limit, when fewer).
+- R2.8 Enrollments are created against offerings of the student's course (SCH-02 enforces it). What happens to existing enrollments when STU-03 changes a student's course is defined in `04-scheduling.md`/`05-students.md`; until then the prototype behaviour (no automatic change) applies.
+- R2.9 Bulk enrollment (SCH-02 create): one `activa` enrollment per selected student × every offering of the chosen course, plus `student.course_id = course`; one transaction; existing rows are skipped, not duplicated; `course.max_students` is a warning, not a block.
+- R2.10 Only `student.status = 'activo'` students appear in grade sheets, attendance sheets, metrics, alert and achievement scans.
+- R2.11 A locked (`period_lock.locked`) offering × period rejects `grade_record` writes with `409 PERIOD_LOCKED`, server-side, regardless of the UI.
+- R2.12 `final_grade` for (student, offering, period) equals the formula of §5.4 over that student's `grade_record`s; it is deleted when the last record is deleted. Criteria weight changes recompute affected finals except in locked offering × periods (OD-8).
+- R2.13 A teacher may write grades/attendance only for offerings in their scope; management roles for all.
+- R2.14 `schedule_slot` never double-books a classroom (unique) nor a teacher (service check over overlapping times on the same day/year).
+- R2.15 One unresolved alert per (student, alert_type); engines are idempotent and never duplicate.
+- R2.16 Every student has exactly one `person` with a login; guardians are `person`s with role `parent` (OD-18).
+
+### 5.4 Grading rules (inventory §2.3, prototype `-mock/helpers.ts`)
+
+| Rule               | Definition                                                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Scale              | 1.0–5.0. UI step 0.1; import accepts ≤ 2 decimals; stored `numeric(3,2)`.                                                                                                                                                                              |
+| Passing            | `score >= 3.0` → `ganada` (period) / `aprobado` (year); otherwise `perdida` / `reprobado`; no score → `no evaluado`.                                                                                                                                   |
+| Period final       | `Σ(score × weight) / Σ(weight of criteria that have a score)`, clamped 1.0–5.0, rounded half-up to 2 decimals. With all criteria graded and Σ weights = 100 this equals `Σ score × weight/100`. Always normalising matches the prototype `finalScore`. |
+| Annual (DEF)       | Mean of the available period finals, 2 decimals.                                                                                                                                                                                                       |
+| Performance level  | `>= 4.6` Superior, `>= 4.0` Alto, `>= 3.0` Básico, else Bajo (contiguous; the legacy 4.5–4.6 gap is closed). Evaluated on the rounded 2-decimal final.                                                                                                 |
+| Score colour class | `>= 4.5` excellent, `>= 4.0` good, `>= 3.0` passing, `>= 2.0` risk, else critical.                                                                                                                                                                     |
+| Lock               | Per offering × period (`period_lock`). Writers (`grade:lock`, own scope) lock from the sheet ("Guardar y Bloquear"); `grade:manage_locks` uses the panel (GRD-04). Unlock is audited.                                                                  |
+| Rounding location  | One implementation in `packages/sige-core` (pure TS), used by the sheet's live totals, the server and the seed, so UI and server cannot diverge. SQL aggregates for metrics round the same way.                                                        |
+
+### 5.5 Derived metrics and rule constants
+
+R2.17 All thresholds are named constants in `packages/sige-core/src/rules.ts` (single `SIGE_RULES` object), imported by API, seed and web. Module specs define the queries; this table fixes the numbers.
+
+| Constant / metric                     | Value / definition                                                                                                                                                                                                                                                                                                          | Module      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `PASSING_GRADE`, `EXCELLENCE`, `GOOD` | 3.0, 4.5, 4.0                                                                                                                                                                                                                                                                                                               | GRD         |
+| Student average (at risk)             | mean of the student's period finals; at risk if `< 3.0` (MET-07 threshold selectable 1.0–3.0); `< 2.0` = "Crítico", else "Alerta"                                                                                                                                                                                           | MET         |
+| Pass rate                             | % of `final_grade` rows with `final_score >= 3.0`                                                                                                                                                                                                                                                                           | MET         |
+| Failing rate (group)                  | % `perdida` of an offering × period                                                                                                                                                                                                                                                                                         | DASH/MET    |
+| Teacher group state                   | failing rate `> 30` → "Riesgo Alto"; else average `< 3.5` → "Atención Necesaria"; else "Óptimo"                                                                                                                                                                                                                             | DASH/MET    |
+| Absence rate                          | % of attendance rows whose status is **not** `presente` (justified counts); bands `> 20` Crítico, `> 10` Atención, else Normal (OD-7)                                                                                                                                                                                       | ATT/ALR/MET |
+| Low attendance                        | `< 80%` attendance (MET-06 quadrants)                                                                                                                                                                                                                                                                                       | MET         |
+| Heatmap bands (failure %)             | 0–10 Excelente, 10–20 Bueno, 20–30 Atención, 30–40 Riesgo, `> 40` Crítico                                                                                                                                                                                                                                                   | MET         |
+| Trend                                 | mean of second half of period averages minus first half: `> 0` mejora, `< 0` deterioro, `= 0` estabilidad                                                                                                                                                                                                                   | MET         |
+| Period status badge                   | `>= 3.5` Aceptable, `>= 3.0` Regular, else Deficiente                                                                                                                                                                                                                                                                       | MET         |
+| Percentile / anonymisation            | teachers ranked by average, labelled "Profesor A, B, C…"; percentile badge green `>= 75`                                                                                                                                                                                                                                    | MET         |
+| Correlation                           | Pearson r of attendance % vs average score per student; labels per inventory MET-06                                                                                                                                                                                                                                         | MET         |
+| Alert rules (6)                       | `riesgo_academico` final `< 3.0` (alta); `tendencia_negativa` drop `> 0.5` between consecutive periods (media); `inasistencia_critica` absence `> 20%` in last 30 days (media); `grupo_riesgo` `> 30%` of an offering fail (alta); `riesgo_desercion` low grades + absences (alta); `mejora_destacable` rise `> 1.0` (baja) | ALR         |
+| Teacher suggestions                   | same subject code across courses with average gap `> 0.7` → warning; failing rate `> 25%` → danger (inventory §2.4)                                                                                                                                                                                                         | DASH        |
+| Achievement rules (7)                 | superador (+1.0 between consecutive periods), excelencia (`>= 4.5`), asistencia perfecta (0 non-`presente` in a period), todo terreno (all offerings `ganada`), resiliente (recovered a `perdida`), constancia (3 consecutive periods average `>= 4.0`), compañero (a positiva observation)                                 | ACH         |
+
+Window rules use `asOf` (default `now()` in the institution timezone); engines accept `asOf` internally so the seed and tests are reproducible (R4.4).
+
+## 6. Cross-cutting conventions
+
+### 6.1 API and tenancy
+
+- R3.1 SIGE routers live in `packages/api/src/routers/sige/<module>.ts`, composed into `routers/index.ts`. Each builds on `sigeProcedure` (`orgProcedure` + `requireActivePerson`, §4.5) and then `requirePermission({...})`. No SIGE procedure uses `publicProcedure`; the QR reader endpoint (§6.12) is the only non-session route.
+- R3.2 `context.org.id` is the only tenant source. No input schema contains `organizationId`; a test walks every SIGE router's zod schemas and fails if it finds one.
+- R3.3 Every query filters by `organization_id` and, when student-linked, by `ScopePolicy` (§4.3). A generated two-tenant integration suite calls every list/get/update/delete with the other tenant's ids and expects `NOT_FOUND`.
+- R3.4 Pure domain rules (grading, usernames, schedule solver, alert and achievement rules, constants) live in a new package `packages/sige-core` with no DB, IO or React. API, web (live totals), seed and tests import it. Routers orchestrate; they hold no business formulas.
+- R3.5 Error codes (oRPC `ORPCError`): `UNAUTHORIZED`, `FORBIDDEN` (permission), `NOT_FOUND` (missing, other tenant or out of scope), `NO_ACTIVE_ORGANIZATION` (409, existing), `PASSWORD_CHANGE_REQUIRED` (403), `HAS_DEPENDENTS` (409), `PERIOD_LOCKED` (409), `CONFLICT` (409: uniqueness, schedule overlap), `BAD_REQUEST` (validation, with per-field issues). The web maps codes to the prototype's inline-error + toast patterns.
+- R3.6 Multi-row writes (bulk enrollment, grade save + final recalculation, schedule generation, bulk report cards, imports) run in one DB transaction; imports are per-row best effort inside a transaction per row batch and return `{ imported, skipped, errors[] }` (§6.7).
+- R3.7 Procedures that mutate return the updated entity; lists return `{ rows, total }` per the data-table contract.
+
+### 6.2 Lists and tables
+
+- R3.8 A list that can exceed ~50 rows per tenant uses the shared server list contract: a `*-list-config.ts` in `packages/api/src/lib/` (sortable and filterable column allowlists, default sort), `createListInput(config)` and the Drizzle list adapter, shared with the web table (like `members-list-config.ts`). Applies to: institutions, users, students, courses, offerings, enrollments, assignments, classrooms, observations, alerts, report cards, QR logs, attendance history, grade audit.
+- R3.9 Bounded configuration lists (campuses, levels, periods, criteria, time blocks, subjects) return all rows and use the data-table client-list mode. The prototype's per-screen filters (Sede, Grado, Estado, Rol…) map to column filters; free-text "Búsqueda" maps to the text filter.
+- R3.10 Server pagination replaces legacy "per_page 20"; export buttons (CSV) re-run the same filtered query without paging.
+
+### 6.3 Language, dates, numbers
+
+- R3.11 All user-facing copy is Spanish (`es-CO`), verbatim from the prototype and inventory App. A, with accents. Platform pages inherited from the template (settings, members, roles, audit) are translated too (OD-19). Code, identifiers, API errors for developers and docs are English.
+- R3.12 Dates `dd/mm/yyyy`, times 24h `HH:MM`, via `Intl` with `es-CO`; decimals shown with `.` as in the prototype (scores `4.5`); percentages one decimal.
+- R3.13 "Today", period membership, "last 30 days" and QR schedule checks use the institution timezone (`America/Bogota`) computed on the server; clients never send "today" as authority. User-chosen dates (ATT-01) are validated server-side; weekend and future-date rules are defined in `07-attendance.md`.
+- R3.14 Academic year is a string (`"2026"`) held in `institution_profile.current_academic_year`; year-scoped rows carry their own `academic_year`. Screens default to the current year.
+
+### 6.4 Delete policy
+
+| Entity                                                                             | Rule                                                                                                                                          |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| campus, level, course, subject, period, criterion, classroom, time block, offering | Hard delete; refused with `HAS_DEPENDENTS` when referenced (matches prototype "No debe tener grados asociados"). Campuses also have `active`. |
+| person / user                                                                      | Never hard-deleted once any academic row references them; deactivate (`is_active`). Hard delete only for a fresh, unreferenced user.          |
+| student                                                                            | Never deleted after enrollments or records exist; use `status` (`retirado`/`graduado`). Delete allowed only for an empty profile.             |
+| grade_record, final_grade, attendance, report_card, alert, achievement awards      | No delete endpoints in v1 except: `report_card` delete (admin/coordinator, audited), grade cell cleared in an unlocked sheet.                 |
+| observation                                                                        | Hard delete by admin/coordinator (prototype), audited with a description snapshot.                                                            |
+| institution                                                                        | Platform delete refused while students or grade records exist; otherwise the existing org-deletion flow applies.                              |
+
+### 6.5 Grade entry and recalculation
+
+- R3.15 `grade.saveSheet` upserts the submitted cells of one offering × period in one transaction, recomputes `final_grade` for the affected students, and writes **one** audit event per save with counts (not per cell); per-record `updated_by`/`updated_at` give row-level history.
+- R3.16 `grade.import` (GRD-03) matches students by `document_number` within the chosen course, rejects out-of-range scores, skips locked offering × periods, and reports per-row errors.
+- R3.17 Concurrent edits: last write wins per cell; the sheet submits only changed cells so two teachers on different cells do not clobber each other.
+
+### 6.6 Engines and scheduled work
+
+- R3.18 Alert engine, achievement engine and schedule generator are pure functions in `sige-core` over plain row inputs, wrapped by services that load inputs (scoped) and persist outputs. They are idempotent and expose `asOf`.
+- R3.19 v1 runs engines on explicit user action (ALR-03, ACH-01/02), as in the prototype (OD-10). The audit retention job pattern (`audit/retention-job.ts`) is the reference if a scheduled run is added.
+- R3.20 Schedule generation takes a per-institution advisory lock so two runs cannot interleave; it never deletes manually placed slots unless the user chose a course/campus to regenerate.
+
+### 6.7 Files, Excel and CSV
+
+- R3.21 Imports (USR-04 users, STU-05 students, GRD-03 grades) accept `.xlsx` only, ≤ 10 MB and ≤ 2,000 rows, parsed server-side (library deferred to the module specs; OD-17). Result shape `{ imported, skipped, errors: { row, message }[] }`; the UI shows the first 10 errors then "… y N errores más". Existing documents are skipped (STU-05) and reported.
+- R3.22 Exports: MET-01 `.xlsx` with the five prototype sheets ("KPIs Generales", "Rendimiento por Sede", "Rendimiento por Grado", "Top 10 Estudiantes", "Estudiantes en Riesgo"); CSV for attendance, observations, alerts. Exports obey the caller's scope.
+- R3.23 File storage sits behind a `FileStoragePort` (institution logo; later photos). v1 ships a local-disk adapter for dev and an S3-compatible adapter for production (OD-12). No other SIGE feature stores files: report-card PDFs are rendered on demand (§6.8).
+
+### 6.8 Report cards (PDF)
+
+- R3.24 Generation stores `report_card.snapshot` (institution header, student data, per-offering final/level/status, teacher comments, general observation, attendance summary, names of director/coordinator/rector). RPT-04 and the PDF render **from the snapshot**, so a delivered card does not change when grades later change; "Regenerar" rebuilds the snapshot.
+- R3.25 The PDF is produced server-side from the same component tree as the on-screen A4 preview (RPT-04), on demand, cached by `(report_card.id, generated_at)`; engine choice is deferred to `09-report-cards.md` (OD-16). Required generation preconditions are the prototype's: student has a course, the course has offerings, the student has grades for the period.
+
+### 6.9 Audit
+
+- R3.26 SIGE audit events extend `OrganizationAuditAction` in `packages/auth/src/audit/actions.ts` (naming `entity.verb`, written through `AuditLogger`, never containing secrets, passwords or full grade matrices):
+
+| Group        | Actions                                                                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Institution  | `institution.profile_updated`, `campus.{created,updated,deleted}`, `course.*`, `level.*`, `subject.*`, `period.*` (incl. `period.activated`), `criterion.*`                                          |
+| People       | `user.created`, `user.updated`, `user.deactivated`, `user.reactivated`, `user.password_reset`, `user.imported`, `student.status_changed`, `student.imported`, `guardian.linked`, `guardian.unlinked` |
+| Academic ops | `offering.{created,deleted}`, `teacher.assigned`, `enrollment.{bulk_created,updated,deleted}`, `schedule.generated`, `schedule.slot_deleted`                                                         |
+| Grades       | `grade.sheet_saved` (counts), `grade.imported`, `grade.locked`, `grade.unlocked`, `grade.recalculated`                                                                                               |
+| Records      | `observation.{deleted,notified}`, `report_card.{generated,regenerated,delivered,deleted}`, `alert.resolved`, `alert.engine_run`, `achievement.awarded`, `achievement.engine_run`                     |
+| Access       | `qr.regenerated`                                                                                                                                                                                     |
+
+- R3.27 `qr_access_log` is its own high-volume operational table, not audit rows; retention follows OD-24.
+- R3.28 The organization activity page (`audit:read`) lists these events with Spanish labels.
+
+### 6.10 Notifications
+
+- R3.29 In-app only in v1: the alert badge (R1.28), the observation `notified` flag (manual, `observation:notify`), and dashboard "alertas activas" blocks. No outbound messages beyond the platform's verification, reset and (hidden) invitation emails through the existing `EmailSender` port. A `NotificationPort` for guardians is the extension point (OD-11).
+
+### 6.11 Web structure
+
+- R3.30 Each module is a feature folder `apps/web/src/features/<module>` (per `frontend-foundation.md`), with thin route files under `routes/_auth/_org/` using the prototype's Spanish slugs (`/sedes`, `/cursos`, `/notas/planilla`, `/portal-padres`…). Page components are ported from `prototype/sige/-screens/*` and wired to oRPC; mock stores are replaced by queries/mutations. The prototype is deleted only after parity (§10).
+- R3.31 Forms keep the prototype's behaviours: inline field errors, required `*`, confirm dialogs, empty states, unsaved-changes warning (grade sheet), live username preview, strength meter.
+- R3.32 Charts reuse the prototype components (`-components/charts.tsx`) and palettes (inventory §3.11).
+
+### 6.12 QR access
+
+- R3.33 Tokens are 128-bit random strings, unique, regenerable (old token dies instantly). The QR image is rendered client-side from the token.
+- R3.34 Readers call a non-session endpoint `POST /api/qr/validate` `{ labID, qr }` authenticated by a per-institution reader key (hashed, revocable) and rate-limited (OD-13). The server resolves the classroom by code or name within the key's institution, evaluates the user's right at the current Bogotá weekday/time (teacher: active assignment for the offering scheduled in that room now; student: active enrollment; owner/admin/coordinator: anywhere), and always writes a `qr_access_log`.
+
+### 6.13 Testing
+
+- R3.35 `sige-core`: unit tests for every rule (grading boundaries 2.995/3.0/4.595/4.6, normalisation with partial criteria, bands, username generation, schedule solver, alert/achievement rules).
+- R3.36 API: integration tests against Postgres per module for every scenario in its spec, plus the generated tenant-isolation and permission-matrix suites (R1.13, R3.3).
+- R3.37 Web: component tests for the behaviours listed in R3.31; no snapshot tests of mock data. The seed is exercised in CI (§9).
+- R3.38 Docs: each module adds a `docs/architecture/<module>.md` page when implemented, per the repository's comment policy (rationale out of code).
+
+## 7. Module index
+
+Roles: R root (platform), A admin/owner, C coordinator, T teacher, S student, P parent, V viewer. Screen counts total 94 (inventory §3.16).
+
+| #   | Module                        | Spec file                                   | Screens                                  | Roles                                                           | Depends on                                                    | Phase                   |
+| --- | ----------------------------- | ------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------- |
+| 00  | Foundation (this)             | `docs/specs/sige/00-foundation.md`          | –                                        | –                                                               | platform specs                                                | P0                      |
+| 01  | AUTH / DASH deltas            | `docs/specs/sige/01-auth-and-dashboards.md` | AUTH-01…05; DASH-01…07                   | all (DASH-01 R; DASH-02 R,A; DASH-03 C; 04 T; 05 S; 06 P; 07 V) | 00, `dashboard-shell-and-auth-ui`, `account-and-org-settings` | P0 + widgets per module |
+| 02  | Institution (INS)             | `docs/specs/sige/02-institution.md`         | INS-01…18                                | R (01–05); R,A (06–18); C read 07/09/11/13/15/17; T read 13/17  | 00, 01                                                        | P1                      |
+| 03  | Users (USR)                   | `docs/specs/sige/03-users.md`               | USR-01…04 (+ INS-04/05 provisioning API) | R, A                                                            | 00, 02                                                        | P2                      |
+| 04  | Scheduling & enrollment (SCH) | `docs/specs/sige/04-scheduling.md`          | SCH-01…12                                | R, A, C; SCH-11 also T, S (own)                                 | 02, 03; SCH-01/02 need 05                                     | P3 (03–12), P4 (01–02)  |
+| 05  | Students (STU)                | `docs/specs/sige/05-students.md`            | STU-01…05                                | R, A, C; T read (STU-01/02)                                     | 02, 03                                                        | P4                      |
+| 06  | Grades (GRD)                  | `docs/specs/sige/06-grades.md`              | GRD-01…08                                | R, A, C, T (own); GRD-08 also S, P                              | 02, 04, 05                                                    | P5                      |
+| 07  | Attendance (ATT)              | `docs/specs/sige/07-attendance.md`          | ATT-01…04                                | R, A, C, T (own); ATT-02 also S, P (§12 #4)                     | 04, 05                                                        | P5                      |
+| 08  | Observations (OBS)            | `docs/specs/sige/08-observations.md`        | OBS-01…05                                | R, A, C, T (own students); OBS-05 also S                        | 05                                                            | P5                      |
+| 09  | Report cards (RPT)            | `docs/specs/sige/09-report-cards.md`        | RPT-01…04                                | R, A, C; RPT-02/03 also T, S (own); RPT-04 also S, P            | 06, 07, 08                                                    | P6                      |
+| 10  | Metrics (MET)                 | `docs/specs/sige/10-metrics.md`             | MET-01…07                                | R, A, C; MET-05…07 also T (own)                                 | 06, 07                                                        | P7                      |
+| 11  | Achievements (ACH)            | `docs/specs/sige/11-achievements.md`        | ACH-01…03                                | R, A, C; T read; S, P via ACH-02/PAR-06                         | 06, 07, 08                                                    | P7                      |
+| 12  | Alerts (ALR)                  | `docs/specs/sige/12-alerts.md`              | ALR-01…03                                | R, A, C                                                         | 06, 07, 08                                                    | P7                      |
+| 13  | Parent portal (PAR)           | `docs/specs/sige/13-parent-portal.md`       | PAR-01…06                                | P                                                               | 05–09, 11                                                     | P8                      |
+| 14  | QR access (QR)                | `docs/specs/sige/14-qr-access.md`           | QR-01…03                                 | QR-01 all; QR-02 R; QR-03 R, A, C                               | 03, 04                                                        | P9                      |
+
+Each module spec follows the format of the platform specs (header, objective, scope, screen-by-screen requirements with ids `<MOD>-R<n>`, data and procedures, edge cases, acceptance, open items) and cites screens by inventory id plus the prototype file that implements them.
+
+## 8. Phased implementation order
+
+Order follows data dependencies; modules inside a phase may be built in parallel by different people, one writer per module.
+
+| Phase | Name                         | Delivers                                                                                                                                                                                                                                                                                                                       | Exit criterion                                                                                                                                                                                                                      |
+| ----- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0    | Foundation                   | `packages/sige-core` skeleton; SIGE roles + catalog (§4.2); `username` plugin; `person` table; `provisionUser`; `sigeProcedure`; `ScopePolicy`; forced-password gate; institution creation (INS-02 minimal) ; Spanish shell with role nav; audit actions; tenant-isolation and permission-matrix test harnesses; seed skeleton | Root creates an institution and its rector; the rector signs in with username + document number, is forced to AUTH-03, then lands on DASH-02 with the correct sidebar; harnesses run green in CI with one pilot router.             |
+| P1    | Institution structure        | INS-01…18 (module 02): profile, campuses, levels, courses, subjects, periods, criteria; root institution switcher via impersonation                                                                                                                                                                                            | Admin builds sede → nivel → curso, subjects, 4 periods (exactly one active) and criteria (Σ warning at ≠ 100); deletes are blocked by dependents; the demo seed loads structure.                                                    |
+| P2    | Users                        | USR-01…04, INS-04/05, Excel user import, password reset, deactivation                                                                                                                                                                                                                                                          | Admin creates one user per role; importing a 100-row file reports row errors; a deactivated user cannot sign in; reset re-arms the forced change; every action is in the activity log.                                              |
+| P3    | Academic offering & schedule | SCH-03…12: offerings ("Materias por Grado"), teacher assignments, classrooms, time blocks, schedule generation and weekly grid (teacher/student views)                                                                                                                                                                         | On the seed (≈ 58 offerings) generation yields 0 conflicts; DB and service tests make classroom and teacher double-booking impossible; teacher sees only own slots.                                                                 |
+| P4    | Students & enrollment        | STU-01…05, SCH-01/02: three admission paths, guardians, bulk enrollment                                                                                                                                                                                                                                                        | Students created via form, "complete profile" and Excel; guardians linked; bulk enrollment creates students × offerings once (idempotent); status changes remove students from active lists.                                        |
+| P5    | Daily academic operations    | GRD-01…08, ATT-01…04, OBS-01…05 plus student/parent-scoped reads (GRD-08, ATT-02, OBS-05)                                                                                                                                                                                                                                      | A teacher enters and locks a sheet; the live total equals the server `final_grade` (parity test); a locked sheet rejects writes server-side; attendance upsert; observation notification flag; matrix tests pass for these modules. |
+| P6    | Report cards                 | RPT-01…04, snapshot + PDF                                                                                                                                                                                                                                                                                                      | Bulk generation for a course reports generated/skipped/errors; the PDF has every RPT-04 section; changing a grade after generation does not alter a delivered card until "Regenerar".                                               |
+| P7    | Analytics & engagement       | MET-01…07, ALR-01…03 + engine, ACH-01…03 + engine                                                                                                                                                                                                                                                                              | Seed + both engines reproduce the §9 storylines (6 active alerts, leaderboard top 3); MET-01 renders in ≤ 1 s on seed size and ≤ 3 s at 10× (target, to verify); teachers see only own metrics.                                     |
+| P8    | Parent portal & dashboards   | PAR-01…06, DASH-01…07 widgets fed by real data                                                                                                                                                                                                                                                                                 | A parent sees exactly the linked children (tests with a non-linked student id → `NOT_FOUND`); all seven dashboards show live data; no screen reads mock data.                                                                       |
+| P9    | QR access                    | QR-01…03, reader endpoint, reader keys                                                                                                                                                                                                                                                                                         | A scan at the right room/time is `authorized`, otherwise `wrong_schedule`/`denied`/`invalid_token`, all logged; regenerate invalidates the old token; simulator (root) works.                                                       |
+| P10   | Release readiness            | Performance pass, accessibility smoke, backup/retention settings, prototype removal, docs pages                                                                                                                                                                                                                                | §10 acceptance criteria all met.                                                                                                                                                                                                    |
+
+Delivery: one PR slice per module or sub-module; tests and docs ship with behaviour. Phases P3/P4 interleave on SCH-01/02 (enrollment needs students).
+
+## 9. Seed and demo data (R4)
+
+Source: inventory §5 and the prototype generators (`-mock/prng.ts`, `base.ts`, `people.ts`, `academics.ts`, `records.ts`, `engagement.ts`).
+
+- R4.1 Location `packages/db/src/seed/sige/`; command `db:seed:sige` (`--reset` rebuilds, `--as-of 2026-10-05` default). The pure generators move to `packages/sige-core/src/seed/` (no React, no router imports) so web tests and the seed share them; the prototype keeps its own copy until removal.
+- R4.2 Dataset: "Colegio San José" (slug `colegio-san-jose`), 2 campuses (+1 inactive), 5 levels, 6 courses, 10 subjects, ≈ 58 offerings, 4 periods (P1–P3 closed and locked, P4 active and partial), 4 criteria (20/20/30/30), 12 teachers, 2 coordinators, 1 rector, 1 viewer, 40 active students (+ 1 retirado, 1 graduado), ≈ 26 guardians, ≈ 15 classrooms, ≈ 14 blocks, generated schedule, ≈ 4,000 grade records, attendance for the last 8 weeks, ≈ 35 observations, ≈ 10 alerts, ≈ 25 achievements, ≈ 120 report cards, QR tokens and ≈ 40 logs (inventory §5.15).
+- R4.3 Users and credentials go through `provisionUser` (§4.5), not raw inserts: username = initial + last name + last 4 document digits, password = document number, `must_change_password = false` except `demo.primer.login` (teacher) and `jlopez0001` (student) to show AUTH-03. The root is the existing `db:seed:admins` superadmin. A printable table of demo logins per role is emitted at the end.
+- R4.4 Time: all "recent" data is generated relative to `--as-of` (default the prototype reference date 2026-10-05) and the engines are run in-process with the same `asOf`, so "last 30 days" rules hold for seeded storylines even when run later.
+- R4.5 Storylines (Valentina Rojas, Santiago Duarte, Mariana López, Samuel Torres, Isabella Gómez, Mateo Ramírez, Sofía Castro, Juan David Pérez, Camila Ruiz and the 6-02 Matemáticas group-risk case) are authored deterministically as overrides on the seeded PRNG output (inventory §5.7). The engines must derive the 6 active alerts and the achievement leaderboard from the data; the 4 historical resolved alerts and 2 manual achievements are inserted directly.
+- R4.6 Guards: refuses `NODE_ENV=production` unless `--force-demo`; idempotent by organization slug; batch inserts; completes in < 60 s locally (target).
+- R4.7 CI runs the seed on an empty database and asserts: counts per §5.15, schedule has 0 conflicts, institutional average ≈ 3.8 and pass rate ≈ 88% within tolerance, exactly 6 active alerts, and that every role's dashboard query returns data.
+
+## 10. Acceptance criteria (program)
+
+- [ ] All 94 screens exist as real, permission-gated routes with their empty/error/loading states; no route or import under `/prototype/sige` is needed at runtime.
+- [ ] The tenant-isolation suite passes for every SIGE router (other tenant's ids → `NOT_FOUND`, no `organizationId` in inputs).
+- [ ] The permission-matrix suite generated from the catalog and App. C passes; every deviation is listed in §11/§12.
+- [ ] Row scope: teacher own offerings/courses, student self, parent linked children verified by tests per student-linked procedure.
+- [ ] Grade parity: for generated score sets, `sige-core` totals, the sheet's live totals and the server `final_grade` match; boundary tests 2.995/3.0/4.595/4.6 pass; locked sheets reject writes server-side.
+- [ ] Forced password change is enforced server-side (`PASSWORD_CHANGE_REQUIRED`); deactivated users cannot sign in.
+- [ ] Alert and achievement engines are idempotent (second run creates nothing) and reproduce the §9 storylines.
+- [ ] Report-card PDF contains every RPT-04 section and is rendered from the snapshot.
+- [ ] QR validation evaluates schedule in `America/Bogota` and logs every attempt.
+- [ ] Every audit action of §6.9 produces exactly one `audit_log` entry visible only to its tenant; no secrets in `metadata`.
+- [ ] All lists use the shared list contract or client-list mode (R3.8/R3.9); no ad-hoc pagination.
+- [ ] UI copy is Spanish and matches inventory App. A vocabulary; no legacy quirk of inventory §5.16 is reproduced.
+- [ ] Migrations apply to an empty database; `db:seed:sige` is idempotent; `pnpm check-types`, lint, format and tests are green.
+- [ ] Each implemented module has its `docs/architecture/<module>.md` page and its spec status updated.
+
+## 11. Open decisions
+
+Each has a recommended default; implementation follows the default until the product owner decides otherwise.
+
+| ID    | Decision                                                 | Recommended default and why                                                                                                                                                                                                                   |
+| ----- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OD-1  | Users without email (better-auth needs a unique email)   | Placeholder `<username>@sin-correo.<org-slug>.invalid`, verified, flagged `has_real_email = false`. Keeps the platform schema untouched; email flows are disabled for those users. Verify the address passes better-auth validation.          |
+| OD-2  | Initial password = document number (prototype) vs random | Follow the prototype (document number + server-enforced first-login change + sign-in rate limits). It is guessable by classmates until changed; revisit before production (alternative: random temporary password printed once by the admin). |
+| OD-3  | How root works inside an institution                     | Impersonate the institution's `owner` (existing, audited, no new auth surface). Alternative: a `platform` "act-as-institution" context header with its own permission; larger change, cleaner identity in audit rows.                         |
+| OD-4  | Owner vs admin for the rector                            | Rector = `owner`, other admins = `admin`, same SIGE grants (R1.3). Satisfies the platform's last-owner rule without inventing a SIGE-only role.                                                                                               |
+| OD-5  | May coordinators write grades?                           | Yes, per prototype (management roles edit; inventory §1.1 says "view/lock" and `can_edit_grades` excludes them). Writes carry `updated_by` and `grade.sheet_saved` audit. Confirm with the product owner.                                     |
+| OD-6  | Campus as an authorization boundary                      | No in v1 (inventory: coordinators are institution-wide). Seed has one coordinator per campus but both see all. Add a `staff_campus` scope later without model changes beyond a join table.                                                    |
+| OD-7  | Absence definition                                       | Any status other than `presente` counts as absence (prototype `absenceRate`), though charts still split ausente vs justificado/excusado. Matches alert and bands thresholds as built.                                                         |
+| OD-8  | Changing criteria weights mid-year                       | Allow; recompute finals only for open (unlocked) offering × periods; show a warning when Σ ≠ 100; block activating grading while criteria are empty. Locked periods keep their finals.                                                        |
+| OD-9  | Institution-configurable grading scale (SIEE)            | Fixed constants (1.0–5.0, 3.0, four levels) in `SIGE_RULES`. Each school defines its own scale in practice, but the prototype fixes it; making it configurable is an additive change.                                                         |
+| OD-10 | Engine execution                                         | Manual (ALR-03, ACH-01/02) as in the prototype; engines are idempotent so a scheduled nightly run can be added later.                                                                                                                         |
+| OD-11 | Automatic guardian notifications                         | None in v1; keep the manual "notificada" flag. A `NotificationPort` (email first) is the extension point; guardians often lack email.                                                                                                         |
+| OD-12 | File storage (logo; later photos)                        | `FileStoragePort` with local-disk (dev) and S3-compatible (prod) adapters; logo only. Photos out of v1 (initials avatars).                                                                                                                    |
+| OD-13 | QR reader authentication and token rotation              | Per-institution reader API key (hashed, revocable), rate-limited; static but regenerable tokens, as in the prototype. Rotating/signed tokens are a later hardening.                                                                           |
+| OD-14 | Year rollover, promotion, annual snapshot                | Out of v1; the schema is multi-year ready (`academic_year` on year-scoped rows). A "close year" action would snapshot annual grades.                                                                                                          |
+| OD-15 | Teacher dashboard label "Sugerencias IA"                 | Rename to "Sugerencias automáticas": the feature is rule-based, not AI. Prototype copy otherwise kept; one-line change, confirm with the product owner.                                                                                       |
+| OD-16 | PDF engine                                               | Server-side render from the snapshot with a pure-JS PDF library (no headless browser, runs in the Bun container); pick in `09-report-cards.md`.                                                                                               |
+| OD-17 | Excel library and legacy `.xls`                          | `.xlsx` only; library chosen in module specs. Drops legacy `.xls` (prototype allows both) to avoid an unmaintained parser.                                                                                                                    |
+| OD-18 | Students without a login (young children)                | Keep prototype: every student has a login (initial password = document). A `person` without `user` would need a nullable `user_id` and is deferred.                                                                                           |
+| OD-19 | Translate template platform pages                        | Yes: members, roles editor, activity log, account and auth pages move to Spanish in module 01 (copy-only change), so the product is consistent.                                                                                               |
+| OD-20 | Invitations and org self-creation in SIGE deployments    | Disabled/hidden (§4.1 R1.12); code stays for the base template. Provisioning is the only way to add members.                                                                                                                                  |
+| OD-21 | Definition of "own courses" for teachers                 | Courses where the teacher has ≥ 1 active offering or is director (prototype `use-student-scope`). Gives directors visibility of their group without teaching it.                                                                              |
+| OD-22 | Guardians with children in several institutions          | One account per institution (single-institution users, R1.9). Rare; avoids cross-tenant identity.                                                                                                                                             |
+| OD-23 | Co-teaching (two teachers on one subject of a course)    | Not supported: `unique(subject_id, course_id)`. The prototype creates one teacher per offering.                                                                                                                                               |
+| OD-24 | QR access-log retention                                  | 12 months, purged by a job modelled on the audit retention job; configurable by env.                                                                                                                                                          |
+
+## 12. Reconciliation: prototype vs inventory
+
+| #   | Topic                        | Inventory                                                                               | Prototype (adopted)                                                                                                                                                                                      |
+| --- | ---------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Parent dashboard             | DASH-06 is a duplicate, "do not build; use PAR-01"                                      | DASH-06 is built as the parent's `/dashboard` landing (children cards) and links to PAR-01. Both exist; module 13 reconciles them.                                                                       |
+| 2   | Grade lock                   | `GradeRecord.locked` flag per record                                                    | `PeriodLock` per offering × period (`period_lock`, §5.2). No per-row flag.                                                                                                                               |
+| 3   | Coordinator grade writes     | §1.1 "view/lock grades"; `can_edit_grades` = root/admin/teacher; App. C ● for GRD-01…03 | Management roles including coordinator can edit (OD-5).                                                                                                                                                  |
+| 4   | Student/parent screen access | App. C: ATT-02, OBS-05, ACH-02 mostly staff; student ○ for some                         | ATT-02 open to S and P (own/children), OBS-05 to S, ACH-02/03 to S and P, RPT-02…04 S own; student gets own sidebar entries (§1.2 recommendation adopted).                                               |
+| 5   | Teacher on offering          | `SubjectGrade.teacher_id` required                                                      | Teacher optional ("Sin asignar" shown in SCH-05/06); `offering.teacher_person_id` nullable.                                                                                                              |
+| 6   | Final and annual grades      | Stored `FinalGrade` / `AnnualGrade`                                                     | Derived from criterion records with the same rules. Real system stores `final_grade` as a recomputed cache, derives DEF on read.                                                                         |
+| 7   | Weight normalisation         | "re-normalised only if some criteria missing"                                           | Always normalised by applied weights (`weightedAverage`); identical when Σ weights = 100 and all graded.                                                                                                 |
+| 8   | Performance vocabulary       | Superior/Alto/Básico/Bajo with a 4.5–4.6 gap                                            | Contiguous levels (`>= 4.6/4.0/3.0`); the "Mis Notas" chart legend uses separate bands "Excelente 4.5–5.0 / Bueno 4.0–4.4 / Aceptable 3.0–3.9 / En riesgo < 3.0". Both are display vocabularies of §5.4. |
+| 9   | Absence counting             | `is_absent` = `ausente`; ATT charts split justified                                     | Rates, bands, alerts and metrics count every non-`presente` (OD-7); tallies still split ausente / justificado.                                                                                           |
+| 10  | Sidebar structure            | Flat list with groups                                                                   | Four labelled sections (Gestión, Académico, Familia, Acceso) and role-specific student/teacher entries (`-nav.ts`).                                                                                      |
+
+## 13. References
+
+- Prototype: `apps/web/src/routes/prototype/sige/` (`-screens.ts` is the single list of the 94 screens and their roles).
+- Inventory: `odd/tasks/sige-prototype-inventory.md` (§2 domain, §3 screens, §4 flows, §5 dataset, App. A vocabulary, App. B contracts, App. C role matrix).
+- Platform: `docs/architecture/authorization.md`, `auth.md`, `audit-log.md`, `data-table.md`, `web-app.md`.

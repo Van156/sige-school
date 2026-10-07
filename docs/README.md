@@ -9,6 +9,7 @@
 - [Dashboard shell and auth UI](./specs/dashboard-shell-and-auth-ui.md)
 - [Data table](./specs/data-table.md)
 - [Frontend foundation](./specs/frontend-foundation.md)
+- [SIGE: foundation and roadmap](./specs/sige/00-foundation.md): school management system built from the prototype; platform mapping, domain model, module index, phases.
 - [Storybook](./specs/storybook.md)
 
 ## Architecture
