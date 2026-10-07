@@ -52,6 +52,60 @@ export type SeedLogin = {
 
 export type SeedResult = { institutionId: string; logins: SeedLogin[]; rootCreated: boolean };
 
+/** Demo root credentials and when they may be used (R1: no default superadmin outside dev/test). */
+export const DEMO_ROOT_EMAIL = "root@sige.local";
+export const DEMO_ROOT_PASSWORD = "Root-Demo-2026!";
+
+export type ResolvedRoot = { root: SeedRoot; passwordSource: "env" | "demo-default" };
+
+/**
+ * Resolves the root account from the environment. The built-in demo password is allowed only when
+ * NODE_ENV is development/test or `forceDemo` is set; otherwise SEED_ROOT_PASSWORD is required.
+ */
+export function resolveSeedRoot(opts: {
+  env: Record<string, string | undefined>;
+  nodeEnv: string | undefined;
+  forceDemo: boolean;
+}): ResolvedRoot {
+  const { env, nodeEnv, forceDemo } = opts;
+  const email = env.SEED_ROOT_EMAIL?.trim() || DEMO_ROOT_EMAIL;
+  const name = "Administrador SIGE";
+  if (env.SEED_ROOT_PASSWORD) {
+    return { root: { email, password: env.SEED_ROOT_PASSWORD, name }, passwordSource: "env" };
+  }
+  if (forceDemo || nodeEnv === "development" || nodeEnv === "test") {
+    return {
+      root: { email, password: DEMO_ROOT_PASSWORD, name },
+      passwordSource: "demo-default",
+    };
+  }
+  throw new Error(
+    "SEED_ROOT_PASSWORD is required outside development/test (pass --force-demo to use the demo password).",
+  );
+}
+
+async function assertProperRoot(
+  database: Database,
+  existing: { id: string; role: string | null },
+  email: string,
+): Promise<void> {
+  if (existing.role !== "superadmin") {
+    throw new Error(
+      `Seed root ${email} already exists but is not a superadmin; resolve it manually (the seed never promotes accounts).`,
+    );
+  }
+  const [credential] = await database
+    .select({ id: schema.account.id })
+    .from(schema.account)
+    .where(and(eq(schema.account.userId, existing.id), eq(schema.account.providerId, "credential")))
+    .limit(1);
+  if (!credential) {
+    throw new Error(
+      `Seed root ${email} is a superadmin but has no credential account; resolve it manually.`,
+    );
+  }
+}
+
 export async function seedSige(
   deps: { database: Database; auditLogger: AuditLogger },
   { root }: { root: SeedRoot },
@@ -61,11 +115,12 @@ export async function seedSige(
 
   // 1. Root platform admin (superadmin), found by email.
   const [existingRoot] = await database
-    .select({ id: schema.user.id })
+    .select({ id: schema.user.id, role: schema.user.role })
     .from(schema.user)
     .where(eq(schema.user.email, rootEmail))
     .limit(1);
   let rootId = existingRoot?.id;
+  if (existingRoot) await assertProperRoot(database, existingRoot, rootEmail);
   const rootCreated = rootId === undefined;
   if (rootId === undefined) {
     rootId = crypto.randomUUID();

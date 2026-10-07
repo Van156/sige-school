@@ -4,29 +4,37 @@
 // The logic lives in `@base-template/api/sige/seed` so it is testable against a real database.
 // Root credentials come from SEED_ROOT_EMAIL / SEED_ROOT_PASSWORD (demo defaults below, local use
 // only). Refuses NODE_ENV=production unless `--force-demo` is passed (R4.6).
-import { seedSige } from "@base-template/api/sige/seed";
+import { resolveSeedRoot, seedSige } from "@base-template/api/sige/seed";
 
 import { ENV } from "../src/env.server";
 import { auditLogger, db } from "../src/services";
 
-const DEMO_ROOT = {
-  email: process.env.SEED_ROOT_EMAIL?.trim() || "root@sige.local",
-  password: process.env.SEED_ROOT_PASSWORD || "Root-Demo-2026!",
-  name: "Administrador SIGE",
-};
-
 async function main(): Promise<void> {
-  if (ENV.NODE_ENV === "production" && !process.argv.includes("--force-demo")) {
+  const forceDemo = process.argv.includes("--force-demo");
+  if (ENV.NODE_ENV === "production" && !forceDemo) {
     console.error("[seed-sige] refusing to seed demo data in production (pass --force-demo).");
     process.exitCode = 1;
     return;
   }
-  const result = await seedSige({ database: db, auditLogger }, { root: DEMO_ROOT });
+  let resolved;
+  try {
+    resolved = resolveSeedRoot({ env: process.env, nodeEnv: ENV.NODE_ENV, forceDemo });
+  } catch (error) {
+    console.error(`[seed-sige] ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+    return;
+  }
+  const { root, passwordSource } = resolved;
+  const result = await seedSige({ database: db, auditLogger }, { root });
   console.log(
-    `[seed-sige] root ${DEMO_ROOT.email} ${result.rootCreated ? "created" : "already present"}.`,
+    `[seed-sige] root ${root.email} ${result.rootCreated ? "created" : "already present"}.`,
   );
   console.log("[seed-sige] demo logins (username / initial password = document number):");
-  console.log(`  ${"root".padEnd(12)} ${DEMO_ROOT.email} / ${DEMO_ROOT.password}`);
+  console.log(
+    passwordSource === "env"
+      ? `  ${"root".padEnd(12)} ${root.email} / (password set from SEED_ROOT_PASSWORD)`
+      : `  ${"root".padEnd(12)} ${root.email} / ${root.password}  (built-in DEMO password)`,
+  );
   for (const login of result.logins) {
     console.log(
       `  ${login.kind.padEnd(12)} ${login.username.padEnd(16)} / ${login.password}  (${login.fullName})`,

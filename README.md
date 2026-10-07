@@ -380,7 +380,7 @@ The command (`apps/server/scripts/seed-admins.ts`, logic in `packages/auth/src/a
 
 `pnpm db:seed:sige` (script `apps/server/scripts/seed-sige.ts`, logic in `packages/api/src/sige/seed.ts`) creates the root platform admin, the demo institution "Colegio San José" (`colegio-san-jose`) and one login per SIGE kind, all through `provisionUser` with the forced password change off (sige/00 §9, R4). It is idempotent (root by email, institution by slug, people by document number) and refuses `NODE_ENV=production` unless `--force-demo` is passed. Later phases extend it with the academic dataset.
 
-Root credentials default to `root@sige.local` / `Root-Demo-2026!` and can be overridden with `SEED_ROOT_EMAIL` / `SEED_ROOT_PASSWORD`. Demo people sign in with their username and the document number as the initial password (OD-2):
+Root credentials are set with `SEED_ROOT_EMAIL` / `SEED_ROOT_PASSWORD`. `SEED_ROOT_PASSWORD` is **required** unless `NODE_ENV` is `development`/`test` or `--force-demo` is passed; only then does the seed fall back to `root@sige.local` / `Root-Demo-2026!` (printed, labelled as the built-in demo password). A password from `SEED_ROOT_PASSWORD` is never printed. If a user with the root email already exists but is not a superadmin with a credential account, the seed fails with an error instead of reporting it as present (it never auto-promotes). Demo people sign in with their username and the document number as the initial password (OD-2):
 
 | Kind           | Username (sign-in) | Password          |
 | -------------- | ------------------ | ----------------- |
