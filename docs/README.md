@@ -10,6 +10,13 @@
 - [Data table](./specs/data-table.md)
 - [Frontend foundation](./specs/frontend-foundation.md)
 - [SIGE: foundation and roadmap](./specs/sige/00-foundation.md): school management system built from the prototype; platform mapping, domain model, module index, phases.
+  - [01 Authentication, profile, errors and dashboards](./specs/sige/01-auth-and-dashboards.md)
+  - [02 Institution configuration](./specs/sige/02-institution.md)
+  - [03 User management and provisioning](./specs/sige/03-users.md)
+  - [04 Scheduling and enrollment](./specs/sige/04-scheduling.md)
+  - [05 Students and guardians](./specs/sige/05-students.md)
+  - [06 Grades](./specs/sige/06-grades.md)
+  - [07 Attendance](./specs/sige/07-attendance.md)
 - [Storybook](./specs/storybook.md)
 
 ## Architecture
