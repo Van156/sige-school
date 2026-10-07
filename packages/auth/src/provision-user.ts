@@ -204,6 +204,9 @@ export async function provisionUser(
   const passwordHash = await hash(data.documentNumber);
   const fullName = `${data.firstName} ${data.lastName}`;
 
+  // Usernames that lost a race; fed back into `generateUsername` so the retry moves on.
+  const lostUsernames = new Set<string>();
+
   for (let attempt = 1; attempt <= MAX_USERNAME_ATTEMPTS; attempt += 1) {
     // Step 2: username, checked globally (usernames are unique across tenants).
     let username: string;
@@ -215,7 +218,7 @@ export async function provisionUser(
         .where(like(user.username, `${base}%`));
       username = generateUsername(
         data,
-        new Set(rows.flatMap((row) => (row.username ? [row.username] : []))),
+        new Set([...rows.flatMap((row) => (row.username ? [row.username] : [])), ...lostUsernames]),
       );
     } catch (error) {
       if (error instanceof UsernameGenerationError) {
@@ -275,9 +278,15 @@ export async function provisionUser(
     } catch (error) {
       const constraint = uniqueViolationConstraint(error);
       if (constraint === null) throw error;
-      if (constraint.includes("username")) continue; // lost a race for the username: pick the next
       if (constraint.includes("documentNumber")) {
         throw new ProvisionUserError("DOCUMENT_TAKEN", "Ya existe un usuario con este documento.");
+      }
+      // The placeholder email derives from the username, so a race for a username can surface as
+      // an email violation instead of a username one: both mean this username is gone.
+      const placeholderTaken = constraint.includes("email") && !hasRealEmail;
+      if (constraint.includes("username") || placeholderTaken) {
+        lostUsernames.add(username);
+        continue;
       }
       if (constraint.includes("email")) {
         throw new ProvisionUserError("EMAIL_TAKEN", "Ya existe un usuario con este correo.");

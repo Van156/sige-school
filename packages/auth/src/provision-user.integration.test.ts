@@ -232,21 +232,20 @@ describe.skipIf(!reachable)("provisionUser integration", () => {
     expect(await counts()).toEqual([0, 0, 0, 0]);
   });
 
-  test("a failure inside the transaction rolls everything back", async () => {
-    // A user already holds the placeholder email, so the transaction's first insert violates the
-    // unique email constraint (no pre-check runs for placeholder emails).
+  test("a placeholder email already taken counts as a username collision", async () => {
+    // Models losing a race: another request already committed the placeholder email of the
+    // username we computed (the email derives from the username), before our username lookup.
     await handle.db.insert(schema.user).values({
       id: "squatter",
       name: "Squatter",
       email: "jlopez0001@sin-correo.colegio-sol.invalid",
       username: "someoneelse",
     });
-    const before = await counts();
 
-    await expect(provisionUser(deps(), input())).rejects.toMatchObject({
-      code: "EMAIL_TAKEN",
-    });
-    expect(await counts()).toEqual(before);
+    const result = await provisionUser(deps(), input());
+
+    expect(result.username).toBe("jlopez0001_2");
+    expect(await counts()).toEqual([2, 1, 1, 1]);
   });
 
   test("concurrent provisioning of one document yields exactly one user", async () => {
