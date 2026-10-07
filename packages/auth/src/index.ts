@@ -7,6 +7,7 @@ import { getOAuthState } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { organization } from "better-auth/plugins/organization";
 import { username } from "better-auth/plugins/username";
+import { MAX_USERNAME_LENGTH } from "@base-template/sige-core";
 import { and, eq, inArray, ne } from "drizzle-orm";
 
 import { createAccountSecurity } from "./account-security";
@@ -537,7 +538,7 @@ export function createAuth(
       }),
       // sige/00 R1.19: username sign-in. Generated usernames are `[a-z0-9_]` and can exceed the
       // 30-char default (whole last name), hence the larger bound.
-      username({ maxUsernameLength: 64 }),
+      username({ maxUsernameLength: MAX_USERNAME_LENGTH }),
       invitationSignUpPlugin(auditLogger),
       accountSecurity.plugin,
       ...extraPlugins,

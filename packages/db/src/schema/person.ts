@@ -17,6 +17,9 @@ import { organization, user } from "./auth";
 export const documentType = pgEnum("document_type", ["TI", "CC", "RC", "CE", "Pasaporte"]);
 export const gender = pgEnum("gender", ["M", "F", "Otro"]);
 
+/** Exact constraint name, matched by `provisionUser` to map a race to `DOCUMENT_TAKEN`. */
+export const PERSON_DOCUMENT_UNIQUE = "person_organizationId_documentNumber_unique";
+
 /**
  * SIGE profile of a better-auth user inside one institution (sige/00 §5.2, sige/01 §2.1).
  * The role lives in `member.role`; `user.name` mirrors "first last". `user_id` restricts deletion:
@@ -59,10 +62,7 @@ export const person = pgTable(
     // R2.3: target of the composite tenant-safe FKs of later tables.
     unique("person_organizationId_id_unique").on(table.organizationId, table.id),
     uniqueIndex("person_userId_unique").on(table.userId),
-    uniqueIndex("person_organizationId_documentNumber_unique").on(
-      table.organizationId,
-      table.documentNumber,
-    ),
+    uniqueIndex(PERSON_DOCUMENT_UNIQUE).on(table.organizationId, table.documentNumber),
     index("person_organizationId_names_idx").on(
       table.organizationId,
       table.lastName,

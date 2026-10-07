@@ -19,6 +19,12 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
+/** Longest username better-auth is configured to accept (`maxUsernameLength` in `packages/auth`). */
+export const MAX_USERNAME_LENGTH = 64;
+/** Room kept for a `_N` collision suffix (underscore plus up to 7 digits). */
+const SUFFIX_RESERVE = 8;
+const DOCUMENT_SUFFIX_LENGTH = 4;
+
 export type UsernameInput = {
   firstName: string;
   lastName: string;
@@ -35,7 +41,10 @@ export function generateUsername(input: UsernameInput, taken: ReadonlySet<string
   if (!initial || !surname) {
     throw new UsernameGenerationError();
   }
-  const base = `${initial}${surname}${slugify(input.documentNumber).slice(-4)}`;
+  // Truncate the surname (never the initial or the digits) so base + `_N` always fits.
+  const maxSurname = MAX_USERNAME_LENGTH - SUFFIX_RESERVE - initial.length - DOCUMENT_SUFFIX_LENGTH;
+  const digits = slugify(input.documentNumber).slice(-DOCUMENT_SUFFIX_LENGTH);
+  const base = `${initial}${surname.slice(0, maxSurname)}${digits}`;
 
   const takenLower = new Set([...taken].map((name) => name.toLowerCase()));
   if (!takenLower.has(base)) {

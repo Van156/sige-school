@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { generateUsername, placeholderEmail, UsernameGenerationError } from "./username";
+import {
+  generateUsername,
+  MAX_USERNAME_LENGTH,
+  placeholderEmail,
+  UsernameGenerationError,
+} from "./username";
 
 const base = {
   firstName: "Juan",
@@ -58,6 +63,36 @@ describe("generateUsername (R1.19, OD-25)", () => {
     expect(() => generateUsername({ ...base, firstName: "--" }, new Set())).toThrow(
       "No se pudo generar el nombre de usuario.",
     );
+  });
+});
+
+describe("generateUsername length bound", () => {
+  const longSurname = "Ñ".repeat(100);
+
+  test("truncates a very long surname so the username fits, keeping initial and digits", () => {
+    const username = generateUsername({ ...base, lastName: longSurname }, new Set());
+
+    expect(username.length).toBeLessThanOrEqual(MAX_USERNAME_LENGTH);
+    expect(username.startsWith("jn")).toBe(true);
+    expect(username.endsWith("0001")).toBe(true);
+  });
+
+  test("a collision suffix still fits and is deterministic", () => {
+    const first = generateUsername({ ...base, lastName: longSurname }, new Set());
+    const second = generateUsername({ ...base, lastName: longSurname }, new Set([first]));
+    const tenth = generateUsername(
+      { ...base, lastName: longSurname },
+      new Set([first, ...Array.from({ length: 8 }, (_, i) => `${first}_${i + 2}`)]),
+    );
+
+    expect(second).toBe(`${first}_2`);
+    expect(second.length).toBeLessThanOrEqual(MAX_USERNAME_LENGTH);
+    expect(tenth).toBe(`${first}_10`);
+    expect(tenth.length).toBeLessThanOrEqual(MAX_USERNAME_LENGTH);
+  });
+
+  test("short usernames are not truncated", () => {
+    expect(generateUsername(base, new Set())).toBe("jlopez0001");
   });
 });
 

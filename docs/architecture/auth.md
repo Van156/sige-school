@@ -24,7 +24,7 @@ Plugins, in order:
 
 1. `organization`: static roles plus dynamic access control (custom roles, max 25 per organization, R4.8), 48h invitation expiry, and `organizationHooks`.
 2. `admin`: platform roles, `defaultRole: "user"`, `adminRoles: ["superadmin"]`, 1h impersonation sessions (R6.4). The duration equals better-auth's default but is set explicitly so it cannot drift upstream.
-3. `username`: `POST /sign-in/username`, `user.username` (unique, lowercase) and `user.displayUsername` (sige/00 R1.19). `maxUsernameLength` is 64 because generated usernames contain the whole last name. Sign-in by username does not check password length, so a short document number works as the initial password; new passwords keep better-auth's default minimum of 8 (R1.24; `minPasswordLength` is not overridden).
+3. `username`: `POST /sign-in/username`, `user.username` (unique, lowercase) and `user.displayUsername` (sige/00 R1.19). `maxUsernameLength` is `MAX_USERNAME_LENGTH` (64, `sige-core`; `generateUsername` truncates long surnames to fit) because generated usernames contain the whole last name. Sign-in by username does not check password length, so a short document number works as the initial password; new passwords keep better-auth's default minimum of 8 (R1.24; `minPasswordLength` is not overridden).
 4. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
 5. `extraPlugins` (tests).
 

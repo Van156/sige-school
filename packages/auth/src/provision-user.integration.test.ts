@@ -201,9 +201,10 @@ describe.skipIf(!reachable)("provisionUser integration", () => {
     const cases: [Partial<ProvisionInput>, string][] = [
       [{ firstName: "  " }, "Los nombres son obligatorios."],
       [{ lastName: "" }, "Los apellidos son obligatorios."],
-      [{ documentNumber: "1234" }, "El documento debe tener al menos 5 dígitos."],
+      [{ documentNumber: "1234" }, "El documento debe tener al menos 5 caracteres."],
       [{ email: "not-an-email" }, "Ingresa un correo válido."],
       [{ birthDate: "2999-01-01" }, "La fecha de nacimiento no puede ser futura."],
+      [{ birthDate: "2020-02-31" }, "Fecha de nacimiento inválida."],
       [{ lastName: "---" }, "No se pudo generar el nombre de usuario."],
     ];
     for (const [overrides, message] of cases) {
@@ -248,18 +249,63 @@ describe.skipIf(!reachable)("provisionUser integration", () => {
     expect(await counts()).toEqual([2, 1, 1, 1]);
   });
 
-  test("a failure after the user insert inside the transaction rolls everything back", async () => {
-    // "2020-02-31" passes input validation but Postgres rejects it at the person insert, the last
-    // statement of the transaction, after user, account and member were already written.
-    const failure = await provisionUser(deps(), input({ birthDate: "2020-02-31" })).catch(
-      (error: unknown) => error,
-    );
+  for (const step of ["user", "account", "member", "person"] as const) {
+    test(`a failure after the ${step} insert rolls everything back`, async () => {
+      const failure = await provisionUser(
+        {
+          ...deps(),
+          faultInjection: {
+            afterInsert: (inserted) => {
+              if (inserted === step) throw new Error(`injected after ${step}`);
+            },
+          },
+        },
+        input(),
+      ).catch((error: unknown) => error);
 
-    expect(failure).toBeInstanceOf(Error);
-    expect(failure).not.toBeInstanceOf(ProvisionUserError);
-    expect((failure as { cause?: { code?: string } }).cause?.code).toBe("22008");
-    expect(await counts()).toEqual([0, 0, 0, 0]);
-    expect(auditLogger.eventsFor("user.created")).toHaveLength(0);
+      expect((failure as Error).message).toBe(`injected after ${step}`);
+      expect(await counts()).toEqual([0, 0, 0, 0]);
+      expect(auditLogger.eventsFor("user.created")).toHaveLength(0);
+    });
+  }
+
+  test("a failed compensation is logged, the original error surfaces and the state is not hidden", async () => {
+    const database = handle.db;
+    let transactions = 0;
+    const flaky = new Proxy(database, {
+      get(target, property, receiver) {
+        if (property === "transaction") {
+          return (...args: Parameters<typeof database.transaction>) => {
+            transactions += 1;
+            if (transactions > 1) return Promise.reject(new Error("db down"));
+            return target.transaction(...args);
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const logged: unknown[][] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => void logged.push(args);
+    try {
+      const failure = await provisionUser(
+        {
+          database: flaky,
+          auth,
+          auditLogger: { record: () => Promise.reject(new Error("audit down")) },
+        },
+        input(),
+      ).catch((error: unknown) => error);
+
+      expect((failure as Error).message).toBe("audit down");
+    } finally {
+      console.error = original;
+    }
+
+    expect(logged).toHaveLength(1);
+    expect(String(logged[0]?.[0])).toContain("compensation failed");
+    // The rows could not be deleted: the failure is loud (logged + thrown), never a success.
+    expect(await counts()).toEqual([1, 1, 1, 1]);
   });
 
   test("concurrent provisioning of one document yields exactly one user", async () => {
