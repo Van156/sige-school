@@ -30,13 +30,32 @@ const optionalText = (max: number) =>
 
 const academicYear = (message: string) => z.string({ error: message }).regex(/^\d{4}$/, message);
 
-const isoDate = (message: string) =>
+/** `YYYY-MM-DD` that exists in the calendar (rejects 2026-02-31, 2025-02-29, month 13). */
+function isCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return false;
+  }
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+const isoDate = (message: string) => z.string({ error: message }).refine(isCalendarDate, message);
+
+/**
+ * Optional field with a format check: "" (after trim) is absent, so a blank form input never
+ * trips the format rule. The outer `.optional()` keeps the key itself optional.
+ */
+const optionalFormatted = (format: z.ZodType<string, string>) =>
   z
-    .string({ error: message })
-    .refine(
-      (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)),
-      message,
-    );
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? undefined : value))
+    .pipe(format.optional())
+    .optional();
 
 const JORNADA_MESSAGE = "Debes seleccionar una jornada";
 export const jornadaSchema = z.enum(["manana", "tarde", "completa"], { error: JORNADA_MESSAGE });
@@ -49,14 +68,14 @@ const NIT_PATTERN = /^[0-9.-]{5,20}$/;
 
 export const profileInput = z.object({
   name: text(150, "El nombre de la institución es obligatorio."),
-  nit: z
-    .string()
-    .trim()
-    .regex(NIT_PATTERN, "El NIT debe tener entre 5 y 20 caracteres (dígitos, puntos o guion).")
-    .optional(),
+  nit: optionalFormatted(
+    z
+      .string()
+      .regex(NIT_PATTERN, "El NIT debe tener entre 5 y 20 caracteres (dígitos, puntos o guion)."),
+  ),
   address: optionalText(200),
   phone: optionalText(20),
-  email: z.email("Ingresa un correo válido.").max(100).optional(),
+  email: optionalFormatted(z.email("Ingresa un correo válido.").max(100)),
   municipality: optionalText(100),
   department: optionalText(100),
   resolution: optionalText(100),

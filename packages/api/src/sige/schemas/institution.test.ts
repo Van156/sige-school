@@ -65,6 +65,14 @@ describe("profileInput", () => {
     expect(profileInput.safeParse({ ...profile, nit: "1234" }).success).toBe(false);
     expect(profileInput.safeParse({ ...profile, nit: "12345abc" }).success).toBe(false);
   });
+  test("empty nit and email count as absent", () => {
+    for (const blank of ["", "   "]) {
+      const parsed = profileInput.safeParse({ ...profile, nit: blank, email: blank });
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.nit).toBeUndefined();
+      expect(parsed.data?.email).toBeUndefined();
+    }
+  });
   test("email must be valid", () => {
     expect(issues(profileInput, { ...profile, email: "nope" }).email).toEqual([
       "Ingresa un correo válido.",
@@ -243,5 +251,31 @@ describe("tenant inputs never carry organizationId", () => {
   ] as const)("%s", (_name, schema) => {
     const shape = (schema as unknown as { shape: Record<string, unknown> }).shape;
     expect(Object.keys(shape)).not.toContain("organizationId");
+  });
+});
+
+describe("calendar-valid ISO dates", () => {
+  const dates = (startDate: string, endDate: string) => ({ ...period, startDate, endDate });
+  test.each([
+    ["2024-02-29", true],
+    ["2025-02-29", false],
+    ["2026-02-31", false],
+    ["2026-13-01", false],
+    ["2026-04-31", false],
+    ["2026-00-10", false],
+    ["2026-12-31", true],
+  ])("startDate %p valid=%p", (value, valid) => {
+    const result = periodInput.safeParse(dates(value, "2030-01-01"));
+    expect(result.success).toBe(valid);
+    if (!valid) {
+      expect(issues(periodInput, dates(value, "2030-01-01")).startDate).toEqual([
+        "La fecha de inicio es obligatoria.",
+      ]);
+    }
+  });
+  test("endDate keeps its own message", () => {
+    expect(issues(periodInput, dates("2026-01-01", "2026-02-31")).endDate).toEqual([
+      "La fecha de fin es obligatoria.",
+    ]);
   });
 });
