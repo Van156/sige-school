@@ -13,7 +13,7 @@ const DEFAULT_REACHABILITY_TIMEOUT_MS = 3000;
  * See docs/architecture/auth.md#test-harness.
  */
 export const DEFAULT_TEST_DATABASE_URL =
-  "postgresql://postgres:password@localhost:5436/base_template_test";
+  "postgresql://postgres:password@localhost:5438/sige_school_test";
 
 /** Only databases whose name ends with this suffix may be created/truncated by test tooling. */
 export const TEST_DATABASE_NAME_SUFFIX = "_test";

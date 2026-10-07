@@ -55,7 +55,7 @@ describe("truncateAllTables", () => {
   });
 
   test("truncates a database whose name ends with _test", async () => {
-    const { db, executed } = fakeDatabase("base_template_test");
+    const { db, executed } = fakeDatabase("sige_school_test");
 
     await truncateAllTables(db);
 

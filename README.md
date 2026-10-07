@@ -346,7 +346,7 @@ Each app owns its own `.env.schema` (see "Environment Configuration" above); the
 
 `apps/web/.env.schema` has no auth-specific variables beyond `VITE_SERVER_URL` (the API base URL, already documented above).
 
-Integration tests use a separate variable, `TEST_DATABASE_URL` (not part of any `.env.schema` — read directly by `packages/db/src/testing.ts`, `DATABASE_URL` is deliberately ignored by tests). It defaults to `postgresql://postgres:password@localhost:5436/base_template_test` if unset; see "Local Development & Testing" below.
+Integration tests use a separate variable, `TEST_DATABASE_URL` (not part of any `.env.schema` — read directly by `packages/db/src/testing.ts`, `DATABASE_URL` is deliberately ignored by tests). It defaults to `postgresql://postgres:password@localhost:5438/sige_school_test` if unset; see "Local Development & Testing" below.
 
 ### Google sign-in (optional)
 
@@ -388,11 +388,11 @@ See `docs/specs/auth-multitenant-rbac.md` §8 for the full write-up. In short:
 ## Local Development & Testing
 
 - **Node version**: this repo pins Node 26 in `.nvmrc` — run `nvm use` before any `node`/`pnpm`/`bun` command.
-- **Postgres for tests**: integration tests use a _dedicated_ database, never the app's dev database. Start Postgres on port 5436 (matching `TEST_DATABASE_URL`'s default) and prepare the test database once:
+- **Postgres for tests**: integration tests use a _dedicated_ database, never the app's dev database. Start Postgres on port 5438 (matching `TEST_DATABASE_URL`'s default) and prepare the test database once:
 
   ```bash
-  POSTGRES_PORT=5436 pnpm db:start   # docker compose up -d postgres, mapped to :5436
-  pnpm db:test:prepare               # creates base_template_test (if missing) and runs migrations
+  POSTGRES_PORT=5438 pnpm db:start   # docker compose up -d postgres, mapped to :5438
+  pnpm db:test:prepare               # creates sige_school_test (if missing) and runs migrations
   ```
 
   `pnpm db:test:prepare` (`packages/db/scripts/prepare-test-db.ts`) refuses to run against any database whose name doesn't end in `_test`, so it can never target a real database by mistake.
