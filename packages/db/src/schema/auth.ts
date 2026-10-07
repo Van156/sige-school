@@ -21,6 +21,9 @@ export const user = pgTable("user", {
   // Per-user override of DEFAULT_MAX_ORGS_PER_USER, set only by a superadmin.
   // null/unset means "use the env default".
   maxOrganizations: integer("max_organizations"),
+  // --- username plugin (sige/00 R1.19): globally unique, stored lowercase ---
+  username: text("username").unique(),
+  displayUsername: text("display_username"),
 });
 
 export const session = pgTable(

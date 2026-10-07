@@ -24,8 +24,9 @@ Plugins, in order:
 
 1. `organization`: static roles plus dynamic access control (custom roles, max 25 per organization, R4.8), 48h invitation expiry, and `organizationHooks`.
 2. `admin`: platform roles, `defaultRole: "user"`, `adminRoles: ["superadmin"]`, 1h impersonation sessions (R6.4). The duration equals better-auth's default but is set explicitly so it cannot drift upstream.
-3. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
-4. `extraPlugins` (tests).
+3. `username`: `POST /sign-in/username`, `user.username` (unique, lowercase) and `user.displayUsername` (sige/00 R1.19). `maxUsernameLength` is 64 because generated usernames contain the whole last name. Sign-in by username does not check password length, so a short document number works as the initial password; new passwords keep better-auth's default minimum of 8 (R1.24; `minPasswordLength` is not overridden).
+4. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
+5. `extraPlugins` (tests).
 
 Other hooks:
 
@@ -37,6 +38,10 @@ Organization rules enforced in `organizationHooks` and options:
 - Only verified users can create organizations (R1.1a).
 - `organizationLimit` counts only organizations where the user is `owner`, and returns `true` when the limit is reached (R1.1b). It is best-effort under concurrency: the read-then-decide check can race (spec §8).
 - `beforeCreateInvitation` (R2.2): an inviter cannot assign a role whose permissions exceed their own. Custom roles are resolved from `organizationRole`, the same way `hasOrgPermission` does. better-auth's invite route only special-cases the owner role.
+
+## SIGE provisioning
+
+`provisionUser(deps, input)` in `provision-user.ts` is the only code path that writes `user`, credential `account`, `member` and `person` rows (sige/00 R1.18, sige/03 §3.1). It writes them in one Drizzle transaction, bypassing better-auth's create hooks on purpose (the adapter is not transactional with Drizzle). Rules: username from `generateUsername` in `@base-template/sige-core` (R1.19, OD-25) checked globally with a retry when it loses a race; placeholder email `<username>@sin-correo.<org-slug>.invalid` with `emailVerified = true` and `has_real_email = false` when no email is given (OD-1); initial password is the document number hashed with better-auth's hasher (OD-2); `must_change_password = true` unless the seed overrides it. The `user.created` audit event is written after commit; if that write fails the rows are deleted. Caller rules (who may create `owner`/`admin`) belong to the calling procedure.
 
 ## Invitation email match
 

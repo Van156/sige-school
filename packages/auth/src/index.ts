@@ -6,6 +6,7 @@ import type { BetterAuthPlugin } from "better-auth";
 import { getOAuthState } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { organization } from "better-auth/plugins/organization";
+import { username } from "better-auth/plugins/username";
 import { and, eq, inArray, ne } from "drizzle-orm";
 
 import { createAccountSecurity } from "./account-security";
@@ -488,7 +489,10 @@ export function createAuth(
               action: "invitation.cancelled",
               targetType: "invitation",
               targetId: invitation.id,
-              metadata: { organizationName: organization.name, invitedEmail: invitation.email },
+              metadata: {
+                organizationName: organization.name,
+                invitedEmail: invitation.email,
+              },
             });
           },
           // Also recorded directly by `invitation-sign-up.ts`, which has no native hook (R2.4).
@@ -515,7 +519,10 @@ export function createAuth(
               action: "invitation.rejected",
               targetType: "invitation",
               targetId: invitation.id,
-              metadata: { organizationName: organization.name, actorEmail: user.email },
+              metadata: {
+                organizationName: organization.name,
+                actorEmail: user.email,
+              },
             });
           },
         },
@@ -528,6 +535,9 @@ export function createAuth(
         // R6.4: 1h, matching better-auth's default but pinned against upstream drift.
         impersonationSessionDuration: 60 * 60,
       }),
+      // sige/00 R1.19: username sign-in. Generated usernames are `[a-z0-9_]` and can exceed the
+      // 30-char default (whole last name), hence the larger bound.
+      username({ maxUsernameLength: 64 }),
       invitationSignUpPlugin(auditLogger),
       accountSecurity.plugin,
       ...extraPlugins,
