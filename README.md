@@ -376,6 +376,25 @@ Behaviour worth knowing:
 
 The command (`apps/server/scripts/seed-admins.ts`, logic in `packages/auth/src/admin-seed.ts`) is idempotent: re-running it skips anyone already `superadmin` and reports (without failing) any email with no matching account yet, so it's safe to run again after new admins sign up. There is no endpoint for this — promoting to `superadmin` is only ever done through this command (R6.1).
 
+### Seeding the SIGE demo institution
+
+`pnpm db:seed:sige` (script `apps/server/scripts/seed-sige.ts`, logic in `packages/api/src/sige/seed.ts`) creates the root platform admin, the demo institution "Colegio San José" (`colegio-san-jose`) and one login per SIGE kind, all through `provisionUser` with the forced password change off (sige/00 §9, R4). It is idempotent (root by email, institution by slug, people by document number) and refuses `NODE_ENV=production` unless `--force-demo` is passed. Later phases extend it with the academic dataset.
+
+Root credentials default to `root@sige.local` / `Root-Demo-2026!` and can be overridden with `SEED_ROOT_EMAIL` / `SEED_ROOT_PASSWORD`. Demo people sign in with their username and the document number as the initial password (OD-2):
+
+| Kind           | Username (sign-in) | Password          |
+| -------------- | ------------------ | ----------------- |
+| root           | `root@sige.local`  | `Root-Demo-2026!` |
+| owner (rector) | `cmendoza0001`     | `1000000001`      |
+| admin          | `lpardo0002`       | `1000000002`      |
+| coordinator    | `acastillo0003`    | `1000000003`      |
+| teacher        | `mortiz0004`       | `1000000004`      |
+| student        | `jlopez0005`       | `1000000005`      |
+| parent         | `pgomez0006`       | `1000000006`      |
+| viewer         | `drojas0007`       | `1000000007`      |
+
+These are demo credentials for local development only. The seed prints the actual usernames when it runs.
+
 ### Known limitations
 
 See `docs/specs/auth-multitenant-rbac.md` §8 for the full write-up. In short:

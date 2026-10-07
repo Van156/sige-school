@@ -10,7 +10,8 @@
     "start": "bun run dist/index.mjs",
     "env:generate": "varlock codegen",
     "auth:generate": "varlock run -- pnpm dlx auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes",
-    "db:seed:admins": "bun scripts/seed-admins.ts"
+    "db:seed:admins": "bun scripts/seed-admins.ts",
+    "db:seed:sige": "bun scripts/seed-sige.ts"
   },
   "dependencies": {
     "@base-template/api": "workspace:*",

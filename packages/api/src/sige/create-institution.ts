@@ -18,7 +18,7 @@ import { eq, like } from "drizzle-orm";
 
 export type CreateInstitutionInput = {
   name: string;
-  rector: Omit<ProvisionInput, "organizationId" | "role" | "actor" | "mustChangePassword">;
+  rector: Omit<ProvisionInput, "organizationId" | "role" | "actor">;
   actor: { userId: string; impersonatorUserId?: string };
 };
 

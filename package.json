@@ -25,6 +25,7 @@
     "db:migrate": "vp run --filter @base-template/db db:migrate",
     "db:test:prepare": "vp run --filter @base-template/db db:test:prepare",
     "db:seed:admins": "vp run --filter server db:seed:admins",
+    "db:seed:sige": "vp run --filter server db:seed:sige",
     "db:start": "docker compose up -d postgres",
     "db:watch": "docker compose up postgres",
     "db:stop": "docker compose stop postgres",
