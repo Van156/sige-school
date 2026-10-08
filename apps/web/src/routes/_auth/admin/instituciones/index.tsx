@@ -1,7 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 
-import { InstitutionsPage } from "@/features/institutions";
+import {
+  InstitutionsPage,
+  institutionSearchDefaults,
+  institutionSearchSchema,
+} from "@/features/institutions";
 
 export const Route = createFileRoute("/_auth/admin/instituciones/")({
-  component: InstitutionsPage,
+  validateSearch: institutionSearchSchema,
+  search: { middlewares: [stripSearchParams(institutionSearchDefaults)] },
+  component: RouteComponent,
 });
+
+function RouteComponent() {
+  return <InstitutionsPage search={Route.useSearch()} />;
+}

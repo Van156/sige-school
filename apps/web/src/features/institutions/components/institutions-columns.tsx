@@ -1,57 +1,147 @@
+import { Badge } from "@base-template/ui/components/badge";
+import { Button } from "@base-template/ui/components/button";
+import { Building2, Eye, Trash2 } from "lucide-react";
+
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 
 import { DataTableColumnHeader } from "@/shared/components/data-table/data-table-column-header";
 
+import { locationOrDash } from "../lib/institution-format";
 import type { InstitutionRow } from "../types";
 
-type InstitutionsColumn = DataTableColumnDef<InstitutionRow, string>;
+type InstitutionColumn = DataTableColumnDef<InstitutionRow, string>;
 
-/** INS-01 columns (P0 slice): name, slug, rector (name + username) and creation date. */
-export function getInstitutionsColumns(): InstitutionsColumn[] {
+/** Columns that carry no cell of their own: `createdAt` only backs the default sort. */
+export const HIDDEN_COLUMNS = { createdAt: false } as const;
+
+export type InstitutionRowActions = {
+  onView: (institution: InstitutionRow) => void;
+  onDelete: (institution: InstitutionRow) => void;
+};
+
+/**
+ * INS-01 columns (sige/02 §5.2). Ids are the server's list ids. The name column hosts the
+ * toolbar search; NIT and municipality are column filters. "Ubicación" is the `municipality`
+ * column: it sorts and filters by municipality and shows "municipio, departamento".
+ */
+export function getInstitutionColumns({
+  onView,
+  onDelete,
+}: InstitutionRowActions): InstitutionColumn[] {
   return [
+    {
+      id: "logo",
+      header: () => <span className="sr-only">Logo</span>,
+      cell: ({ row }) =>
+        row.original.logo ? (
+          <img src={row.original.logo} alt="" className="size-8 rounded-md object-contain" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground"
+          >
+            <Building2 className="size-4" />
+          </span>
+        ),
+      meta: { label: "Logo" },
+      enableSorting: false,
+      enableHiding: false,
+    },
     {
       id: "name",
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Nombre" />,
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-      meta: { label: "Nombre", placeholder: "Buscar por nombre...", variant: "text" },
+      cell: ({ row }) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{row.original.name}</span>
+          {row.original.email ? (
+            <span className="text-xs text-muted-foreground">{row.original.email}</span>
+          ) : null}
+        </div>
+      ),
+      meta: {
+        label: "Nombre",
+        placeholder: "Buscar por nombre, NIT o ubicación",
+        variant: "text",
+      },
       enableColumnFilter: true,
     },
     {
-      id: "slug",
-      accessorKey: "slug",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Identificador" />,
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.slug}</span>,
-      meta: { label: "Identificador", placeholder: "Buscar identificador...", variant: "text" },
-      enableColumnFilter: true,
-    },
-    {
-      id: "rector",
-      accessorFn: (row) => row.rector?.name ?? "",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Rector" />,
+      id: "nit",
+      accessorKey: "nit",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="NIT" />,
       cell: ({ row }) =>
-        row.original.rector ? (
-          <div className="flex flex-col">
-            <span>{row.original.rector.name}</span>
-            {row.original.rector.username ? (
-              <span className="text-xs text-muted-foreground">{row.original.rector.username}</span>
-            ) : null}
-          </div>
+        row.original.nit ? (
+          <Badge variant="outline">{row.original.nit}</Badge>
         ) : (
           <span className="text-muted-foreground">-</span>
         ),
-      meta: { label: "Rector" },
+      meta: { label: "NIT", placeholder: "Buscar NIT...", variant: "text" },
+      enableColumnFilter: true,
+    },
+    {
+      id: "municipality",
+      accessorKey: "municipality",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Ubicación" />,
+      cell: ({ row }) => locationOrDash(row.original),
+      meta: { label: "Ubicación", placeholder: "Buscar municipio...", variant: "text" },
+      enableColumnFilter: true,
+    },
+    {
+      id: "academicYear",
+      accessorKey: "academicYear",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Año Lectivo" />,
+      cell: ({ row }) => <Badge variant="secondary">{row.original.academicYear}</Badge>,
+      meta: { label: "Año Lectivo" },
+    },
+    {
+      id: "campuses",
+      accessorFn: (row) => String(row.counts.campuses),
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Sedes" />,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.counts.campuses}</span>,
+      meta: { label: "Sedes" },
+    },
+    {
+      id: "students",
+      accessorFn: (row) => String(row.counts.students),
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Estudiantes" />,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.counts.students}</span>,
+      meta: { label: "Estudiantes" },
     },
     {
       id: "createdAt",
-      accessorFn: (row) => new Date(row.createdAt).toISOString(),
+      accessorKey: "createdAt",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Creada" />,
+      cell: () => null,
+      meta: { label: "Creada" },
+      enableHiding: false,
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Acciones</span>,
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-muted-foreground">
-          {new Date(row.original.createdAt).toLocaleDateString("es-CO")}
-        </span>
+        <div className="flex justify-end gap-1 whitespace-nowrap">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Ver datos completos de ${row.original.name}`}
+            onClick={() => onView(row.original)}
+          >
+            <Eye />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Eliminar institución ${row.original.name}`}
+            onClick={() => onDelete(row.original)}
+          >
+            <Trash2 />
+          </Button>
+        </div>
       ),
-      meta: { label: "Creada", variant: "date" },
+      meta: { label: "Acciones" },
+      enableSorting: false,
+      enableHiding: false,
     },
   ];
 }
