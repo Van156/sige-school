@@ -4,6 +4,7 @@ import { createAuth } from "@base-template/auth";
 import type { AuditRetentionJobHandle } from "@base-template/auth/audit";
 import { createDrizzleAuditLogger, startAuditRetentionJob } from "@base-template/auth/audit";
 import { createEmailSender } from "@base-template/auth/email";
+import { createLocalFileStorage } from "@base-template/api/storage/local";
 import { createDb } from "@base-template/db";
 
 import { ENV } from "./env.server";
@@ -14,6 +15,11 @@ export const auditLogger = createDrizzleAuditLogger(db);
 export const auth = createAuth(ENV, db, emailSender, auditLogger);
 export const authorization = createBetterAuthAuthorization(auth);
 export const platformAdmin = createBetterAuthPlatformAdmin(auth);
+/** Dev/test file storage (sige/02 §2.2); `index.ts` serves it under `/files`. */
+export const fileStorage = createLocalFileStorage({
+  directory: ENV.FILE_STORAGE_DIR ?? "./storage",
+  publicBaseUrl: ENV.FILE_STORAGE_PUBLIC_URL ?? `${ENV.BETTER_AUTH_URL.replace(/\/+$/, "")}/files`,
+});
 
 /**
  * Starts the background jobs (the R7.6 audit retention job) and returns a handle to stop them.

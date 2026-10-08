@@ -5,6 +5,7 @@ import type { Database } from "@base-template/db";
 import type { AuthorizationPort } from "./authorization";
 import type { PlatformAdminPort } from "./platform-admin";
 import type { GradeRecalculationPort } from "./sige/grade-recalculation";
+import type { FileStoragePort } from "./storage/port";
 
 export type Context = {
   session: Session | null;
@@ -24,4 +25,6 @@ export type Context = {
   defaultMaxOrganizationsPerUser: number;
   /** Module 06 port (sige/02 §3.4); absent means the no-op default until that module ships. */
   gradeRecalculation?: GradeRecalculationPort;
+  /** Logo storage (sige/02 §2.2); absent means uploads fail with a configuration error. */
+  fileStorage?: FileStoragePort;
 };

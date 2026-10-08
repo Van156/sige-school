@@ -4,6 +4,7 @@ import { protectedProcedure, publicProcedure } from "../index";
 import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
 import { campusRouter } from "./sige/campus";
+import { institutionRouter } from "./sige/institution";
 import { institutionAdminRouter } from "./sige/institution-admin";
 import { courseRouter } from "./sige/course";
 import { criterionRouter } from "./sige/criterion";
@@ -41,6 +42,7 @@ export const appRouter = {
   // INS-01/02 minimal (sige/02 §3.1): platform-only institution creation and list.
   institutionAdmin: institutionAdminRouter,
   // Module 02 structure (sige/02 §3.3): campuses, levels, subjects, criteria, periods.
+  institution: institutionRouter,
   campus: campusRouter,
   level: levelRouter,
   course: courseRouter,
