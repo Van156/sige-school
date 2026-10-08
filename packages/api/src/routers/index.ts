@@ -12,6 +12,7 @@ import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
 import { periodRouter } from "./sige/period";
 import { subjectRouter } from "./sige/subject";
+import { userRouter } from "./sige/user";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
 import { projectRouter } from "./project";
@@ -49,6 +50,8 @@ export const appRouter = {
   subject: subjectRouter,
   criterion: criterionRouter,
   period: periodRouter,
+  // Module 03 users (sige/03 §3.3): read side in P2 T3.
+  user: userRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

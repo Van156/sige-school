@@ -73,6 +73,27 @@ export function requirePermission(permissions: OrgPermissions) {
 }
 
 /**
+ * Like `requirePermission`, but passes when the caller holds **any one** of the permission sets
+ * (e.g. `user.options`: `user:read`, `course:update` or `offering:update`).
+ */
+export function requireAnyPermission(...alternatives: OrgPermissions[]) {
+  return o.middleware(async ({ context, next }) => {
+    for (const permissions of alternatives) {
+      const allowed = await context.authorization.hasOrgPermission(
+        context.headers,
+        permissions as Record<string, string[]>,
+      );
+      if (allowed) {
+        return next();
+      }
+    }
+    throw new ORPCError("FORBIDDEN", {
+      message: "Missing required organization permission.",
+    });
+  });
+}
+
+/**
  * Protected + requires a platform permission; org roles grant none (R6.5).
  * See docs/architecture/authorization.md#platform-procedures
  */

@@ -11,6 +11,8 @@ export type PermissionMatrixProcedure = {
   name: string;
   /** What the procedure's `requirePermission` demands; `null` = any member (no permission check). */
   permissions: OrgPermissions | null;
+  /** Any-of gate (`requireAnyPermission`): allowed when the role holds one of these sets. Overrides `permissions`. */
+  anyOf?: readonly OrgPermissions[];
   /** Calls the procedure as the caller of `context`, with valid input for an allowed caller. */
   run: (context: Context) => Promise<unknown>;
 };
@@ -74,7 +76,9 @@ export async function testPermissionMatrix(config: PermissionMatrixConfig): Prom
 
     for (const procedure of config.procedures) {
       for (const role of roles) {
-        const allowed = isGranted(role, procedure.permissions);
+        const allowed = procedure.anyOf
+          ? procedure.anyOf.some((set) => isGranted(role, set))
+          : isGranted(role, procedure.permissions);
         test(`${procedure.name} as ${role}: ${allowed ? "allowed" : "FORBIDDEN"}`, async () => {
           const context = contexts.get(role);
           if (!context) {
