@@ -83,6 +83,12 @@ export async function storeLogo(
   const { bytes, sniffed } = await readUpload(file);
   const storage = requireStorage(deps.storage);
   const key = `logos/${organizationId}/${await sha256Hex(bytes)}.${sniffed.extension}`;
+  // Identical bytes map to the same key: that object is the live logo, never an orphan to clean up.
+  const [current] = await deps.db
+    .select({ logo: schema.organization.logo })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, organizationId));
+  const alreadyLive = logoKeyFromUrl(current?.logo ?? null, organizationId) === key;
   const { url } = await storage.put(key, bytes, sniffed.contentType);
 
   let previous: string | null = null;
@@ -101,8 +107,8 @@ export async function storeLogo(
       return row.logo;
     });
   } catch (error) {
-    // The column still points elsewhere: the new object is unreferenced unless it is the old one.
-    await deleteLogoObject(storage, key);
+    // The column still points elsewhere: the new object is unreferenced unless it was already live.
+    if (!alreadyLive) await deleteLogoObject(storage, key);
     throw error;
   }
   const supersededKey = logoKeyFromUrl(previous, organizationId);

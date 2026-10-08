@@ -218,9 +218,6 @@ export const institutionAdminRouter = {
     .input(idInput)
     .handler(async ({ context, input }) => {
       const organization = await requireDetail(context, input.id);
-      // Written before the delete, like the better-auth hook: the audit row's organization is
-      // nulled once the organization is gone, and a failed write blocks the deletion.
-      await recordOrganizationEvent(context, "organization.deleted", organization);
       try {
         const removed = await context.db
           .delete(schema.organization)
@@ -231,6 +228,18 @@ export const institutionAdminRouter = {
         if (error instanceof ORPCError) throw error;
         return rethrowDbError(error, "delete");
       }
+      // Written only once the delete succeeded, so a lost race or a restrict FK leaves no stale
+      // event. The organization reference is omitted: the FK would null it anyway, and the
+      // name/slug snapshot plus targetId keep the row readable.
+      await context.auditLogger.record({
+        scope: "organization",
+        organizationId: null,
+        ...actorOf(context),
+        action: "organization.deleted",
+        targetType: "organization",
+        targetId: organization.id,
+        metadata: { organizationName: organization.name, slug: organization.slug },
+      });
       await deleteLogoObject(context.fileStorage, logoKeyFromUrl(organization.logo, input.id));
       return { deleted: true as const };
     }),

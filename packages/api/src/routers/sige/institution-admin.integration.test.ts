@@ -19,6 +19,7 @@ import { createBetterAuthAuthorization } from "../../authorization";
 import type { Context } from "../../context";
 import { createBetterAuthPlatformAdmin } from "../../platform-admin";
 import { sigeProcedure } from "../../sige/procedure";
+import { racingDb } from "../../sige/testing/racing-db";
 import type { FileStoragePort } from "../../storage/port";
 import { institutionAdminRouter } from "./institution-admin";
 import { meRouter } from "./me";
@@ -674,6 +675,36 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
   });
 
   describe("platform logo", () => {
+    test("a failed replacement with identical bytes keeps the live logo object and column", async () => {
+      const storage = new FakeStorage();
+      const { context: base } = await rootContext();
+      const context: Context = { ...base, fileStorage: storage };
+      const one = await createFull(context, "Colegio Uno");
+      const first = await call(
+        institutionAdminRouter.setLogo,
+        { id: one.institution.id, logo: fileOf(PNG, "image/png") },
+        { context },
+      );
+      const failing: Context = {
+        ...context,
+        db: racingDb(handle.db, () => Promise.reject(new Error("injected update failure"))),
+      };
+      await expect(
+        call(
+          institutionAdminRouter.setLogo,
+          { id: one.institution.id, logo: fileOf(PNG, "image/png") },
+          { context: failing },
+        ),
+      ).rejects.toThrow();
+      const [row] = await handle.db
+        .select({ logo: schema.organization.logo })
+        .from(schema.organization)
+        .where(eq(schema.organization.id, one.institution.id));
+      expect(row?.logo).toBe(first.logo);
+      expect(storage.objects.size).toBe(1);
+      expect(first.logo).toContain([...storage.objects][0] as string);
+    });
+
     test("setLogo stores under the target institution and replaces the previous object; removeLogo clears it", async () => {
       const storage = new FakeStorage();
       const { context: base } = await rootContext();
@@ -765,6 +796,26 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
       expect(
         await codeOf(call(institutionAdminRouter.delete, { id: one.institution.id }, { context })),
       ).toBe("NOT_FOUND");
+    });
+
+    test("a delete that loses the race records no organization.deleted event", async () => {
+      const { context: base } = await rootContext();
+      const one = await createFull(base, "Colegio Uno");
+      auditLogger.reset();
+      const racing: Context = {
+        ...base,
+        db: racingDb(handle.db, async () => {
+          await handle.db
+            .delete(schema.organization)
+            .where(eq(schema.organization.id, one.institution.id));
+        }),
+      };
+      expect(
+        await codeOf(
+          call(institutionAdminRouter.delete, { id: one.institution.id }, { context: racing }),
+        ),
+      ).toBe("NOT_FOUND");
+      expect(auditLogger.eventsFor("organization.deleted")).toHaveLength(0);
     });
 
     test("a failing logo deletion does not fail the delete", async () => {

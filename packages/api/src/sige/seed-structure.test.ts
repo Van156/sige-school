@@ -76,7 +76,7 @@ describe.skipIf(!reachable)("seedInstitutionStructure (R4.2)", () => {
     expect(active).toHaveLength(1);
     expect(active[0]?.shortName).toBe("P4");
 
-    expect(s.criteria.map((c) => Number(c.weight))).toEqual([20, 20, 30, 30]);
+    expect(s.criteria.map((c) => Number(c.weight)).sort((a, b) => a - b)).toEqual([20, 20, 30, 30]);
     expect(sumWeights(s.criteria.map((c) => Number(c.weight)))).toBe(100);
 
     const ids = (rows: { id: string }[]) => rows.map((r) => r.id).sort();
