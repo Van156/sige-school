@@ -15,6 +15,41 @@ export type InstitutionListItem = {
   rector: { userId: string; name: string; username: string | null } | null;
 };
 
+/** The rector of each organization in `organizationIds`: the oldest `owner` member. */
+export async function rectorsFor(
+  database: Pick<Database, "select">,
+  organizationIds: readonly string[],
+): Promise<Map<string, NonNullable<InstitutionListItem["rector"]>>> {
+  const rectorByOrganization = new Map<string, NonNullable<InstitutionListItem["rector"]>>();
+  if (organizationIds.length === 0) return rectorByOrganization;
+  const owners = await database
+    .select({
+      organizationId: schema.member.organizationId,
+      userId: schema.user.id,
+      name: schema.user.name,
+      username: schema.user.username,
+    })
+    .from(schema.member)
+    .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+    .where(
+      and(
+        eq(schema.member.role, "owner"),
+        inArray(schema.member.organizationId, [...organizationIds]),
+      ),
+    )
+    .orderBy(asc(schema.member.createdAt), asc(schema.member.id));
+  for (const owner of owners) {
+    if (!rectorByOrganization.has(owner.organizationId)) {
+      rectorByOrganization.set(owner.organizationId, {
+        userId: owner.userId,
+        name: owner.name ?? "",
+        username: owner.username ?? null,
+      });
+    }
+  }
+  return rectorByOrganization;
+}
+
 /**
  * Newest institutions first, at most `limit` of them, each with its rector. The institutions are
  * limited before owners are joined in, so several owners per institution never shrink the page.
@@ -39,36 +74,10 @@ export async function listInstitutions(
     return [];
   }
 
-  const owners = await database
-    .select({
-      organizationId: schema.member.organizationId,
-      userId: schema.user.id,
-      name: schema.user.name,
-      username: schema.user.username,
-    })
-    .from(schema.member)
-    .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-    .where(
-      and(
-        eq(schema.member.role, "owner"),
-        inArray(
-          schema.member.organizationId,
-          institutions.map((institution) => institution.id),
-        ),
-      ),
-    )
-    .orderBy(asc(schema.member.createdAt), asc(schema.member.id));
-
-  const rectorByOrganization = new Map<string, InstitutionListItem["rector"]>();
-  for (const owner of owners) {
-    if (!rectorByOrganization.has(owner.organizationId)) {
-      rectorByOrganization.set(owner.organizationId, {
-        userId: owner.userId,
-        name: owner.name ?? "",
-        username: owner.username ?? null,
-      });
-    }
-  }
+  const rectorByOrganization = await rectorsFor(
+    database,
+    institutions.map((institution) => institution.id),
+  );
   return institutions.map((institution) => ({
     ...institution,
     rector: rectorByOrganization.get(institution.id) ?? null,

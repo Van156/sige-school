@@ -7,17 +7,31 @@ import { hashPassword } from "better-auth/crypto";
 import { eq, like } from "drizzle-orm";
 
 /**
- * Minimal institution creation (sige/02 §3.1.1, P0 slice of INS-02): one organization plus its
- * rector. The rector is provisioned through `provisionUser` (role `owner`, initial password =
- * document number, forced change armed). `institution_profile` and `seedInstitutionDefaults`
- * belong to module 02 (P1) and are not created here.
+ * Institution creation (sige/02 §3.1.1, INS-02): one organization, its rector and its
+ * `institution_profile`. The rector is provisioned through `provisionUser` (role `owner`, initial
+ * password = document number, forced change armed). `seedInstitutionDefaults` owns rows of later
+ * modules and is a no-op until those tables exist.
  *
- * Better-auth adapters and `provisionUser` do not share one transaction, so failures compensate
- * in reverse order (sige/00 R1.18). See docs/architecture/authorization.md#institution-creation
+ * Better-auth adapters and `provisionUser` do not share one transaction, so the steps (organization,
+ * rector, profile, audit) cannot be one database transaction; failures compensate in reverse order
+ * (sige/00 R1.18). See docs/architecture/authorization.md#institution-creation
  */
+
+/** `institution_profile` fields; all optional, the academic year defaults to the current year. */
+export type InstitutionProfileFields = {
+  nit?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  municipality?: string;
+  department?: string;
+  resolution?: string;
+  academicYear?: string;
+};
 
 export type CreateInstitutionInput = {
   name: string;
+  profile?: InstitutionProfileFields;
   rector: Omit<ProvisionInput, "organizationId" | "role" | "actor">;
   actor: { userId: string; impersonatorUserId?: string };
 };
@@ -114,10 +128,24 @@ export class InstitutionCreationError extends Error {
   }
 }
 
+const NIT_TAKEN_MESSAGE = "Ya existe una institución con este NIT.";
+
 export async function createInstitution(
   { database, auditLogger }: CreateInstitutionDeps,
   input: CreateInstitutionInput,
 ): Promise<CreatedInstitution> {
+  // Spec 3.1.1 step 1: reject a taken NIT before any write. The partial unique index stays the
+  // arbiter for a concurrent create (see the profile insert below).
+  const nit = input.profile?.nit;
+  if (nit) {
+    const [taken] = await database
+      .select({ id: schema.institutionProfile.organizationId })
+      .from(schema.institutionProfile)
+      .where(eq(schema.institutionProfile.nit, nit))
+      .limit(1);
+    if (taken) throw new InstitutionCreationError("CONFLICT", NIT_TAKEN_MESSAGE);
+  }
+
   const organizationId = crypto.randomUUID();
   const institution = await insertOrganization(database, organizationId, input.name);
 
@@ -155,6 +183,41 @@ export async function createInstitution(
     throw error;
   }
 
+  // Everything after the rector: organization delete cascades member, person and profile; person
+  // restricts user deletion, so the organization goes first, then the rector's user.
+  const compensate = async () => {
+    await deleteOrganization();
+    try {
+      await database.delete(schema.user).where(eq(schema.user.id, rector.userId));
+    } catch (compensationError) {
+      console.error(
+        `[create-institution] compensation failed; orphan rector user ${rector.userId} remains`,
+        compensationError,
+      );
+    }
+  };
+
+  try {
+    const profile = input.profile ?? {};
+    await database.insert(schema.institutionProfile).values({
+      organizationId,
+      nit: profile.nit ?? null,
+      phone: profile.phone ?? null,
+      email: profile.email ?? null,
+      address: profile.address ?? null,
+      municipality: profile.municipality ?? null,
+      department: profile.department ?? null,
+      resolution: profile.resolution ?? null,
+      currentAcademicYear: profile.academicYear ?? String(new Date().getFullYear()),
+    });
+  } catch (error) {
+    await compensate();
+    if (isUniqueViolation(error)) {
+      throw new InstitutionCreationError("CONFLICT", NIT_TAKEN_MESSAGE);
+    }
+    throw error;
+  }
+
   try {
     // sige/00 R1.12: the rector owns exactly this institution.
     await database
@@ -172,17 +235,7 @@ export async function createInstitution(
       metadata: { organizationName: institution.name, slug: institution.slug },
     });
   } catch (error) {
-    // Organization delete cascades member and person; person restricts user deletion, so the
-    // organization goes first.
-    await deleteOrganization();
-    try {
-      await database.delete(schema.user).where(eq(schema.user.id, rector.userId));
-    } catch (compensationError) {
-      console.error(
-        `[create-institution] compensation failed; orphan rector user ${rector.userId} remains`,
-        compensationError,
-      );
-    }
+    await compensate();
     throw error;
   }
 

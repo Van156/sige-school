@@ -1,9 +1,34 @@
+import * as schema from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { platformProcedure } from "../../index";
+import { institutionListConfig } from "../../lib/institution-list-config";
+import { createListInput } from "../../lib/list-input";
+import type { Context } from "../../context";
+import { changedFields } from "../../sige/audit";
 import { createInstitution, InstitutionCreationError } from "../../sige/create-institution";
-import { listInstitutions } from "../../sige/list-institutions";
+import {
+  findInstitutionDetail,
+  institutionStats,
+  listInstitutionRows,
+} from "../../sige/institution-queries";
+import {
+  clearLogo,
+  deleteLogoObject,
+  INSTITUTION_NOT_FOUND,
+  logoKeyFromUrl,
+  storeLogo,
+} from "../../sige/logo";
+import { rethrowDbError } from "../../sige/pg-errors";
+import { profileInput } from "../../sige/schemas/institution";
+
+/**
+ * Platform (root) institution procedures (sige/02 §3.1, INS-01/02/03). They have no tenant
+ * context, so each takes the explicit institution `id`; permissions are platform statements
+ * (`institution`), which no institution role holds (INS-R12).
+ */
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -17,20 +42,65 @@ const rectorInput = z.object({
   phone: text(30).optional(),
 });
 
+const idInput = z.object({ id: z.string().min(1) });
+const listInput = createListInput(institutionListConfig);
+
+/** `institutionFieldsInput`; on create the academic year may be left out (defaults to this year). */
 const createInput = z.object({
-  // `institution_profile` fields (NIT, address, academic year, ...) arrive with module 02.
-  institution: z.object({ name: text(100).min(1, "El nombre de la institución es obligatorio.") }),
+  institution: profileInput.extend({ academicYear: profileInput.shape.academicYear.optional() }),
   admin: rectorInput,
 });
+const updateInput = profileInput.extend({ id: z.string().min(1) });
+const logoInput = z.object({ id: z.string().min(1), logo: z.instanceof(File) });
 
-/** Platform (root) institution procedures; INS-01/02 minimal slice (sige/02 §3.1). */
+const notFound = () => new ORPCError("NOT_FOUND", { message: INSTITUTION_NOT_FOUND });
+
+type PlatformContext = Context & { session: NonNullable<Context["session"]> };
+
+const actorOf = (context: PlatformContext) => ({
+  actorUserId: context.session.user.id,
+  impersonatorUserId: context.session.session.impersonatedBy ?? null,
+});
+
+/** Org-scoped audit event of a platform operation; the operator is `actorUserId`. */
+const recordOrganizationEvent = (
+  context: PlatformContext,
+  action: "organization.updated" | "organization.deleted",
+  organization: { id: string; name: string; slug: string },
+  metadata: Record<string, unknown> = {},
+) =>
+  context.auditLogger.record({
+    scope: "organization",
+    organizationId: organization.id,
+    ...actorOf(context),
+    action,
+    targetType: "organization",
+    targetId: organization.id,
+    metadata: { organizationName: organization.name, slug: organization.slug, ...metadata },
+  });
+
+async function requireDetail(context: Context, id: string) {
+  const detail = await findInstitutionDetail(context.db, id);
+  if (!detail) throw notFound();
+  return detail;
+}
+
 export const institutionAdminRouter = {
-  /** INS-01 list. Bounded (no paging in P0); the full list contract lands with module 02. */
-  list: platformProcedure({ institution: ["update"] }).handler(({ context }) =>
-    listInstitutions(context.db),
+  /** INS-01 list: shared list contract; `institution:read` (D7, G-INS-1 resolved in foundation §4.2). */
+  list: platformProcedure({ institution: ["read"] })
+    .input(listInput)
+    .handler(({ context, input }) => listInstitutionRows(context.db, input)),
+
+  /** KPI tiles of INS-01. */
+  stats: platformProcedure({ institution: ["update"] }).handler(({ context }) =>
+    institutionStats(context.db),
   ),
 
-  /** INS-02: creates the institution and its rector (role `owner`) as one audited operation. */
+  get: platformProcedure({ institution: ["update"] })
+    .input(idInput)
+    .handler(({ context, input }) => requireDetail(context, input.id)),
+
+  /** INS-02: creates the institution, its profile and its rector (role `owner`) as one audited operation. */
   create: platformProcedure({ institution: ["create"] })
     .input(createInput)
     .handler(async ({ context, input }) => {
@@ -38,10 +108,12 @@ export const institutionAdminRouter = {
         userId: context.session.user.id,
         impersonatorUserId: context.session.session.impersonatedBy ?? undefined,
       };
+      const { name, ...profile } = input.institution;
+      let created: Awaited<ReturnType<typeof createInstitution>>;
       try {
-        return await createInstitution(
+        created = await createInstitution(
           { database: context.db, auditLogger: context.auditLogger },
-          { name: input.institution.name, rector: input.admin, actor },
+          { name, profile, rector: input.admin, actor },
         );
       } catch (error) {
         if (error instanceof InstitutionCreationError) {
@@ -51,5 +123,126 @@ export const institutionAdminRouter = {
         }
         throw error;
       }
+      return {
+        institution: await requireDetail(context, created.institution.id),
+        rector: created.rector,
+      };
+    }),
+
+  /** INS-02 edit: name and profile in one transaction; the slug never changes. */
+  update: platformProcedure({ institution: ["update"] })
+    .input(updateInput)
+    .handler(async ({ context, input }) => {
+      const before = await requireDetail(context, input.id);
+      const values = {
+        nit: input.nit ?? null,
+        phone: input.phone ?? null,
+        email: input.email ?? null,
+        address: input.address ?? null,
+        municipality: input.municipality ?? null,
+        department: input.department ?? null,
+        resolution: input.resolution ?? null,
+        currentAcademicYear: input.academicYear,
+      };
+      try {
+        await context.db.transaction(async (tx) => {
+          const renamed = await tx
+            .update(schema.organization)
+            .set({ name: input.name })
+            .where(eq(schema.organization.id, input.id))
+            .returning({ id: schema.organization.id });
+          // A concurrent delete won the race: nothing to update, nothing to audit.
+          if (renamed.length === 0) throw notFound();
+          await tx
+            .insert(schema.institutionProfile)
+            .values({ organizationId: input.id, ...values })
+            .onConflictDoUpdate({
+              target: schema.institutionProfile.organizationId,
+              set: { ...values, updatedAt: new Date() },
+            });
+        });
+      } catch (error) {
+        if (error instanceof ORPCError) throw error;
+        return rethrowDbError(error, "write");
+      }
+      const changed = Object.keys(
+        changedFields(
+          { ...before, currentAcademicYear: before.academicYear },
+          { name: input.name, ...values },
+        ),
+      );
+      if (changed.length > 0) {
+        await recordOrganizationEvent(context, "organization.updated", before, {
+          organizationName: input.name,
+          changed,
+        });
+      }
+      return requireDetail(context, input.id);
+    }),
+
+  setLogo: platformProcedure({ institution: ["update"] })
+    .input(logoInput)
+    .handler(async ({ context, input }) => {
+      const organization = await requireDetail(context, input.id);
+      const { url, supersededKey } = await storeLogo(
+        { db: context.db, storage: context.fileStorage },
+        input.id,
+        input.logo,
+      );
+      await recordOrganizationEvent(context, "organization.updated", organization, {
+        changed: ["logo"],
+      });
+      await deleteLogoObject(context.fileStorage, supersededKey);
+      return { logo: url };
+    }),
+
+  removeLogo: platformProcedure({ institution: ["update"] })
+    .input(idInput)
+    .handler(async ({ context, input }) => {
+      const organization = await requireDetail(context, input.id);
+      const { removed, supersededKey } = await clearLogo(context.db, input.id);
+      if (!removed) return { logo: null };
+      await recordOrganizationEvent(context, "organization.updated", organization, {
+        changed: ["logo"],
+      });
+      await deleteLogoObject(context.fileStorage, supersededKey);
+      return { logo: null };
+    }),
+
+  /**
+   * Refused while students or grade records exist (foundation §6.4): those tables will hold
+   * `restrict` FKs to `organization`, which the shared mapper turns into `HAS_DEPENDENTS`; until
+   * then nothing blocks. The cascade removes the profile; the logo object goes best-effort (INS-R4).
+   */
+  delete: platformProcedure({ institution: ["delete"] })
+    .input(idInput)
+    .handler(async ({ context, input }) => {
+      const organization = await requireDetail(context, input.id);
+      // Written before the delete, like the better-auth hook: the audit row's organization is
+      // nulled once the organization is gone, and a failed write blocks the deletion.
+      await recordOrganizationEvent(context, "organization.deleted", organization);
+      try {
+        const removed = await context.db
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, input.id))
+          .returning({ id: schema.organization.id });
+        if (removed.length === 0) throw notFound();
+      } catch (error) {
+        if (error instanceof ORPCError) throw error;
+        return rethrowDbError(error, "delete");
+      }
+      await deleteLogoObject(context.fileStorage, logoKeyFromUrl(organization.logo, input.id));
+      return { deleted: true as const };
+    }),
+
+  /** INS-03: the rector (oldest owner) the web impersonates through the existing auth surface (OD-3). */
+  manage: platformProcedure({ institution: ["update"] })
+    .input(idInput)
+    .handler(async ({ context, input }) => {
+      const detail = await requireDetail(context, input.id);
+      if (!detail.rector) {
+        throw new ORPCError("NOT_FOUND", { message: "La institución no tiene un administrador." });
+      }
+      return { userId: detail.rector.userId };
     }),
 };

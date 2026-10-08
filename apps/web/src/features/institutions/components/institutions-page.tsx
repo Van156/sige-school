@@ -10,6 +10,7 @@ import PageHeader from "@/shared/components/layout/page-header";
 
 import InstitutionsTable from "./institutions-table";
 
+const MAX_PAGE_SIZE = 100;
 const LOAD_ERROR_MESSAGE = "No se pudieron cargar las instituciones.";
 
 /**
@@ -18,8 +19,12 @@ const LOAD_ERROR_MESSAGE = "No se pudieron cargar las instituciones.";
  * superadmin guard; the procedure re-checks.
  */
 export default function InstitutionsPage() {
-  const institutionsQuery = useQuery(orpc.institutionAdmin.list.queryOptions());
-  const institutions = institutionsQuery.data;
+  // The list is server-driven now (sige/02 §3.1); this P0 table still pages locally, so it asks
+  // for the largest page until INS-01 moves to the URL-driven table.
+  const institutionsQuery = useQuery(
+    orpc.institutionAdmin.list.queryOptions({ input: { perPage: MAX_PAGE_SIZE } }),
+  );
+  const institutions = institutionsQuery.data?.rows;
 
   return (
     <div className="space-y-4">
