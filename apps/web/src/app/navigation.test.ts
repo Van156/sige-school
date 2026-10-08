@@ -123,6 +123,21 @@ describe("navGroups visibility", () => {
     ]);
   });
 
+  test("the institution group lists the profile for managers and campuses for any reader", () => {
+    const withPermissions = (kind: NavContext["kind"], permissions: Record<string, string[]>) =>
+      filterNavGroups(navGroups, { ...member, kind, permissions }).find(
+        (group) => group.id === "institution",
+      );
+    const owner = withPermissions("owner", { institution: ["read"], campus: ["read"] });
+    expect(owner?.items.map((item) => item.to)).toEqual(["/configuracion-institucion", "/sedes"]);
+    const coordinator = withPermissions("coordinator", {
+      institution: ["read"],
+      campus: ["read"],
+    });
+    expect(coordinator?.items.map((item) => item.to)).toEqual(["/sedes"]);
+    expect(withPermissions("teacher", {})).toBeUndefined();
+  });
+
   test("breadcrumbs resolve through the real config", () => {
     expect(getBreadcrumbs(filterNavGroups(navGroups, member), "/settings/roles")).toEqual([
       { label: "Gestión" },

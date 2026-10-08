@@ -1,5 +1,5 @@
 import { parsePermissionString } from "@base-template/auth/permissions";
-import { LayoutDashboard, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Building2, LayoutDashboard, MapPin, Settings, ShieldCheck, UserRound } from "lucide-react";
 
 import {
   buildRoleCatalog,
@@ -96,6 +96,21 @@ export const navGroups: NavGroup<NavContext>[] = [
     label: "Dashboard",
     visible: hasOrganization,
     items: [{ label: "Dashboard", to: "/dashboard", icon: LayoutDashboard }],
+  },
+  {
+    id: "institution",
+    label: "Institución",
+    visible: hasOrganization,
+    items: [
+      {
+        // sige/02 §5.2: the profile screen is only in the admin nav; other roles see it in banners.
+        label: "Configuración de Institución",
+        to: "/configuracion-institucion",
+        icon: Building2,
+        visible: (ctx) => isInstitutionManager(ctx) && holds(ctx, "institution:read"),
+      },
+      { label: "Sedes", to: "/sedes", icon: MapPin, visible: can("campus:read") },
+    ],
   },
   {
     id: "settings",
