@@ -15,12 +15,15 @@ export default function InstitutionSelector({
   onSelect,
   onSubmit,
   isSubmitting = false,
+  notice,
 }: {
   institutions: InstitutionRow[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  /** Shown above the list, e.g. that only part of the matches is listed. */
+  notice?: string | null;
 }) {
   return (
     <form
@@ -33,6 +36,11 @@ export default function InstitutionSelector({
       }}
       className="flex flex-col gap-4"
     >
+      {notice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
       <RadioGroup
         aria-label="Instituciones disponibles"
         value={selectedId ?? ""}

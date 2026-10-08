@@ -87,8 +87,13 @@ export function planPeriodSave(input: PeriodInput, wasActive: boolean): PeriodSa
   return { input: activateAfter ? { ...input, isActive: false } : input, activateAfter };
 }
 
-/** Result of a save whose write succeeded: `activated` is false when only the activation failed. */
-export type PeriodSaveOutcome = { id: string; activated: boolean };
+/**
+ * Result of a save whose write succeeded. `activation` says what happened to the follow-up
+ * `period.activate`: not asked for, done, or failed (with the server's reason when it gave one).
+ */
+export type PeriodSaveOutcome =
+  | { id: string; activation: "not_requested" | "done" }
+  | { id: string; activation: "failed"; message: string | null };
 
 /**
  * Runs the write and then, when the plan asks for it, the activation. A failing write rejects
@@ -104,13 +109,18 @@ export async function runPeriodSave(
 ): Promise<PeriodSaveOutcome> {
   const { id } = await steps.write(plan.input);
   if (!plan.activateAfter) {
-    return { id, activated: true };
+    return { id, activation: "not_requested" };
   }
   try {
     await steps.activate(id);
-    return { id, activated: true };
-  } catch {
-    return { id, activated: false };
+    return { id, activation: "done" };
+  } catch (error) {
+    const message = (error as { message?: unknown } | null)?.message;
+    return {
+      id,
+      activation: "failed",
+      message: typeof message === "string" && message !== "" ? message : null,
+    };
   }
 }
 

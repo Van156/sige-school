@@ -135,7 +135,7 @@ describe("runPeriodSave", () => {
       { input, activateAfter: true },
       { write: async () => ({ id: "p1" }), activate: async () => undefined },
     );
-    expect(outcome).toEqual({ id: "p1", activated: true });
+    expect(outcome).toEqual({ id: "p1", activation: "done" });
   });
 
   test("keeps the saved id when only the activation fails", async () => {
@@ -148,7 +148,28 @@ describe("runPeriodSave", () => {
         },
       },
     );
-    expect(outcome).toEqual({ id: "p1", activated: false });
+    expect(outcome).toEqual({ id: "p1", activation: "failed", message: "conflict" });
+  });
+
+  test("falls back to no message when the activation error has none", async () => {
+    const outcome = await runPeriodSave(
+      { input, activateAfter: true },
+      {
+        write: async () => ({ id: "p1" }),
+        activate: async () => {
+          throw "boom";
+        },
+      },
+    );
+    expect(outcome).toEqual({ id: "p1", activation: "failed", message: null });
+  });
+
+  test("reports that no activation was requested", async () => {
+    const outcome = await runPeriodSave(
+      { input, activateAfter: false },
+      { write: async () => ({ id: "p1" }), activate: async () => undefined },
+    );
+    expect(outcome).toEqual({ id: "p1", activation: "not_requested" });
   });
 
   test("does not activate when the plan does not ask for it", async () => {

@@ -56,3 +56,8 @@ export const Empty: Story = {};
 export const Selected: Story = { args: { selectedId: "i1" } };
 
 export const Submitting: Story = { args: { selectedId: "i1", isSubmitting: true } };
+
+/** More institutions match than the screen lists: a notice points to the search. */
+export const Truncated: Story = {
+  args: { notice: "Mostrando 2 de 130 instituciones. Usa la búsqueda para encontrar otras." },
+};

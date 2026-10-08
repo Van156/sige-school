@@ -28,3 +28,15 @@ export function impersonationBannerMessage({
     ? `Vista Root: estás gestionando la sesión de ${account}.`
     : "Vista Root: estás gestionando otra sesión.";
 }
+
+/**
+ * Query key of the banner's institution lookup, scoped by the active organization: the server
+ * answers `institution.get` for whichever organization is active, so a key without it would serve
+ * the previous institution's cached name right after switching.
+ */
+export function institutionQueryKeyFor<TKey extends readonly unknown[]>(
+  baseKey: TKey,
+  activeOrganizationId: string | null | undefined,
+) {
+  return [...baseKey, { activeOrganizationId: activeOrganizationId ?? null }] as const;
+}

@@ -61,3 +61,24 @@ export function toInstitutionListInput(search: InstitutionSearch) {
 export function hasNoInstitutions(stats: Pick<InstitutionStats, "institutions"> | undefined) {
   return stats !== undefined && stats.institutions === 0;
 }
+
+/** Largest page of the API; the INS-03 selector lists institutions on one screen. */
+export const SELECTOR_PAGE_SIZE = 100;
+
+/** `institutionAdmin.list` input of the INS-03 selector: by name, optionally filtered by `term`. */
+export function toSelectorListInput(term: string) {
+  return toListInput(institutionListInput, {
+    page: 1,
+    perPage: SELECTOR_PAGE_SIZE,
+    sort: [{ id: "name", desc: false }],
+    filters: simpleSearchToFilters({ name: term.trim() }, INSTITUTION_FILTER_VARIANTS),
+    joinOperator: "and",
+  });
+}
+
+/** Notice shown when the selector holds fewer rows than match; null when everything is listed. */
+export function selectorTruncationNotice(shown: number, total: number): string | null {
+  return total > shown
+    ? `Mostrando ${shown} de ${total} instituciones. Usa la búsqueda para encontrar otras.`
+    : null;
+}

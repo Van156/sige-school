@@ -68,7 +68,7 @@ export function getInstitutionColumns({
       ),
       meta: {
         label: "Nombre",
-        placeholder: "Buscar por nombre, NIT o ubicación",
+        placeholder: "Buscar por nombre...",
         variant: "text",
       },
       enableColumnFilter: true,

@@ -6,7 +6,9 @@ import {
   institutionSearchConfig,
   institutionSearchDefaults,
   institutionSearchSchema,
+  selectorTruncationNotice,
   toInstitutionListInput,
+  toSelectorListInput,
 } from "./institution-list";
 
 describe("institution search config", () => {
@@ -78,5 +80,35 @@ describe("hasNoInstitutions", () => {
     expect(hasNoInstitutions(undefined)).toBe(false);
     expect(hasNoInstitutions({ institutions: 0 })).toBe(true);
     expect(hasNoInstitutions({ institutions: 2 })).toBe(false);
+  });
+});
+
+describe("toSelectorListInput", () => {
+  test("a blank term lists by name with no filter", () => {
+    expect(toSelectorListInput("  ")).toMatchObject({
+      page: 1,
+      perPage: 100,
+      sort: [{ id: "name", desc: false }],
+      filters: [],
+    });
+  });
+
+  test("a term becomes the INS-01 name text filter", () => {
+    const input = toSelectorListInput(" san ");
+    expect(input.filters?.map((filter) => [filter.id, filter.value, filter.operator])).toEqual([
+      ["name", "san", "iLike"],
+    ]);
+  });
+});
+
+describe("selectorTruncationNotice", () => {
+  test("is silent when every match is listed", () => {
+    expect(selectorTruncationNotice(5, 5)).toBeNull();
+  });
+
+  test("tells how many of the total are shown", () => {
+    expect(selectorTruncationNotice(100, 130)).toBe(
+      "Mostrando 100 de 130 instituciones. Usa la búsqueda para encontrar otras.",
+    );
   });
 });

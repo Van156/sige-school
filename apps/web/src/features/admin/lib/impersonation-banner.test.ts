@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { impersonationBannerMessage, shouldShowImpersonationBanner } from "./impersonation-banner";
+import {
+  impersonationBannerMessage,
+  institutionQueryKeyFor,
+  shouldShowImpersonationBanner,
+} from "./impersonation-banner";
 
 describe("shouldShowImpersonationBanner (R6.4)", () => {
   test("no impersonatedBy: hidden", () => {
@@ -31,5 +35,23 @@ describe("impersonationBannerMessage", () => {
 
   test("still reads when nothing is known", () => {
     expect(impersonationBannerMessage({})).toBe("Vista Root: estás gestionando otra sesión.");
+  });
+});
+
+describe("institutionQueryKeyFor", () => {
+  const base = ["institution", "get"] as const;
+
+  test("keeps the base key as a prefix so invalidating it still reaches the entry", () => {
+    expect(institutionQueryKeyFor(base, "org-1").slice(0, 2)).toEqual(["institution", "get"]);
+  });
+
+  test("differs per active organization", () => {
+    expect(institutionQueryKeyFor(base, "org-1")).not.toEqual(
+      institutionQueryKeyFor(base, "org-2"),
+    );
+  });
+
+  test("treats a missing organization as null", () => {
+    expect(institutionQueryKeyFor(base, undefined)).toEqual(institutionQueryKeyFor(base, null));
   });
 });

@@ -9,6 +9,7 @@ import { INSTITUTION_SELECTOR_PATH } from "@/features/institution";
 
 import {
   impersonationBannerMessage,
+  institutionQueryKeyFor,
   shouldShowImpersonationBanner,
 } from "../lib/impersonation-banner";
 import ImpersonationBannerView from "./impersonation-banner-view";
@@ -27,9 +28,12 @@ export default function ImpersonationBanner() {
   const queryClient = useQueryClient();
   const visible = shouldShowImpersonationBanner(session?.session.impersonatedBy);
 
+  const activeOrganizationId = session?.session.activeOrganizationId;
+  const institutionOptions = orpc.institution.get.queryOptions();
   const institutionQuery = useQuery({
-    ...orpc.institution.get.queryOptions(),
-    enabled: visible && Boolean(session?.session.activeOrganizationId),
+    ...institutionOptions,
+    queryKey: institutionQueryKeyFor(institutionOptions.queryKey, activeOrganizationId),
+    enabled: visible && Boolean(activeOrganizationId),
   });
 
   const mutation = useMutation({

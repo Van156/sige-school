@@ -151,15 +151,15 @@ function useSavePeriod(successMessage: string) {
   const navigate = useNavigate();
   return async (run: () => Promise<PeriodSaveOutcome>) => {
     const outcome = await run();
-    if (outcome.activated) {
-      toast.success(successMessage);
+    if (outcome.activation === "failed") {
+      toast.warning(outcome.message ?? PERIOD_ACTIVATION_FAILED_MESSAGE);
     } else {
-      toast.warning(PERIOD_ACTIVATION_FAILED_MESSAGE);
+      toast.success(successMessage);
     }
     await queryClient.invalidateQueries({ queryKey: orpc.period.key() });
-    await (outcome.activated
-      ? navigate({ to: "/periodos" })
-      : navigate({ to: "/periodos/$id/editar", params: { id: outcome.id } }));
+    await (outcome.activation === "failed"
+      ? navigate({ to: "/periodos/$id/editar", params: { id: outcome.id } })
+      : navigate({ to: "/periodos" }));
   };
 }
 
