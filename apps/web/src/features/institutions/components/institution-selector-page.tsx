@@ -36,6 +36,9 @@ export default function InstitutionSelectorPage() {
   });
   const manage = useManageInstitution("/dashboard");
   const institutions = listQuery.data?.rows;
+  // A choice hidden by the current search is not submittable: only a listed row stays selected.
+  const visibleSelectedId =
+    selectedId !== null && institutions?.some((row) => row.id === selectedId) ? selectedId : null;
   const isSearching = search.trim() !== "";
 
   return (
@@ -98,9 +101,9 @@ export default function InstitutionSelectorPage() {
           ) : (
             <InstitutionSelector
               institutions={institutions}
-              selectedId={selectedId}
+              selectedId={visibleSelectedId}
               onSelect={setSelectedId}
-              onSubmit={() => selectedId && manage.manage(selectedId)}
+              onSubmit={() => visibleSelectedId && manage.manage(visibleSelectedId)}
               isSubmitting={manage.isPending}
               notice={selectorTruncationNotice(institutions.length, listQuery.data?.total ?? 0)}
             />
