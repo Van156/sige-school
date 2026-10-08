@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  INSTITUTION_SELECTOR_PATH,
   decideInstitutionScope,
   formatInstitutionLocation,
   institutionBannerBadge,
@@ -64,5 +65,11 @@ describe("formatInstitutionLocation", () => {
   test("keeps a lone part and falls back when both are blank", () => {
     expect(formatInstitutionLocation("Medellín", null)).toBe("Medellín");
     expect(formatInstitutionLocation(" ", undefined)).toBe("Ubicación no especificada");
+  });
+});
+
+describe("INSTITUTION_SELECTOR_PATH", () => {
+  test("is the INS-03 route", () => {
+    expect(INSTITUTION_SELECTOR_PATH).toBe("/admin/instituciones/seleccionar");
   });
 });

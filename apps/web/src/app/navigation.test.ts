@@ -49,6 +49,7 @@ describe("getSectionItems", () => {
       { to: "/admin/users", label: "Usuarios" },
       { to: "/admin/organizations", label: "Organizaciones" },
       { to: "/admin/instituciones", label: "Instituciones" },
+      { to: "/admin/instituciones/seleccionar", label: "Seleccionar Institución" },
       { to: "/admin/activity", label: "Actividad" },
     ]);
   });
@@ -119,6 +120,7 @@ describe("navGroups visibility", () => {
       "/admin/users",
       "/admin/organizations",
       "/admin/instituciones",
+      "/admin/instituciones/seleccionar",
       "/admin/activity",
     ]);
   });

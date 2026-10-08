@@ -35,8 +35,11 @@ export default function InstitutionsTable({
     onRetry: () => void;
   };
 }) {
-  const { onView, onDelete } = actions;
-  const columns = useMemo(() => getInstitutionColumns({ onView, onDelete }), [onView, onDelete]);
+  const { onView, onManage, isManaging, onDelete } = actions;
+  const columns = useMemo(
+    () => getInstitutionColumns({ onView, onManage, isManaging, onDelete }),
+    [onView, onManage, isManaging, onDelete],
+  );
   return (
     <SimpleListTable
       search={search}

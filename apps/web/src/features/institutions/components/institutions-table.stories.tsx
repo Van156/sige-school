@@ -47,6 +47,7 @@ const meta = {
     search: institutionSearchDefaults,
     onSearchChange: () => {},
     onView: () => {},
+    onManage: () => {},
     onDelete: () => {},
     list: {
       rows: INSTITUTIONS,
@@ -64,6 +65,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+/** An institution is being opened: the manage buttons wait. */
+export const Managing: Story = { args: { isManaging: true } };
 
 export const Loading: Story = {
   args: { list: { ...meta.args.list, rows: undefined, total: undefined, isPending: true } },

@@ -183,6 +183,7 @@ export const navGroups: NavGroup<NavContext>[] = [
           { label: "Usuarios", to: "/admin/users" },
           { label: "Organizaciones", to: "/admin/organizations" },
           { label: "Instituciones", to: "/admin/instituciones" },
+          { label: "Seleccionar Institución", to: "/admin/instituciones/seleccionar" },
           { label: "Actividad", to: "/admin/activity" },
         ],
       },

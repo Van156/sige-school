@@ -1,5 +1,5 @@
 /** Where a superadmin picks the institution to work in (INS-03). */
-export const INSTITUTION_SELECTOR_PATH = "/admin/instituciones" as const;
+export const INSTITUTION_SELECTOR_PATH = "/admin/instituciones/seleccionar" as const;
 
 export type InstitutionScopeDecision = "pending" | "allow" | "select-institution";
 

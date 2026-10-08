@@ -13,6 +13,7 @@ import ListPageShell from "@/shared/components/layout/list-page-shell";
 import { StatGrid, StatTile } from "@/shared/components/layout/stat-tile";
 import { mergeTableSearch } from "@/shared/lib/data-table/search";
 
+import { useManageInstitution } from "../hooks/use-manage-institution";
 import {
   hasNoInstitutions,
   institutionSearchConfig,
@@ -56,6 +57,11 @@ export default function InstitutionsPage({ search }: { search: InstitutionSearch
       });
     },
     [navigate],
+  );
+  const { manage, isPending: isManaging } = useManageInstitution("/sedes");
+  const manageInstitution = useCallback(
+    (institution: InstitutionRow) => manage(institution.id),
+    [manage],
   );
   const closeDetail = useCallback(() => setViewedId(null), []);
   const viewDetail = useCallback((institution: InstitutionRow) => setViewedId(institution.id), []);
@@ -104,6 +110,8 @@ export default function InstitutionsPage({ search }: { search: InstitutionSearch
             search={search}
             onSearchChange={onSearchChange}
             onView={viewDetail}
+            onManage={manageInstitution}
+            isManaging={isManaging}
             onDelete={deletion.requestDelete}
             list={{
               rows: listQuery.data?.rows,

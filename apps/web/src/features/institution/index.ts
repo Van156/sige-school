@@ -32,3 +32,4 @@ export {
   type ProfileFormValues,
   type ProfileInput,
 } from "./lib/profile-form";
+export { INSTITUTION_SELECTOR_PATH } from "./lib/institution-scope";

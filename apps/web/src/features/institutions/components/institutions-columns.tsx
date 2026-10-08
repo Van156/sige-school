@@ -1,7 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
 import { Button, buttonVariants } from "@base-template/ui/components/button";
 import { Link } from "@tanstack/react-router";
-import { Building2, Eye, Pencil, Trash2 } from "lucide-react";
+import { Building2, Eye, LogIn, Pencil, Trash2 } from "lucide-react";
 
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 
@@ -17,6 +17,10 @@ export const HIDDEN_COLUMNS = { createdAt: false } as const;
 
 export type InstitutionRowActions = {
   onView: (institution: InstitutionRow) => void;
+  /** "Gestionar sedes": start working inside the institution (INS-03 flow). */
+  onManage: (institution: InstitutionRow) => void;
+  /** Set while an institution is being opened: every "Gestionar sedes" waits for it. */
+  isManaging?: boolean;
   onDelete: (institution: InstitutionRow) => void;
 };
 
@@ -27,6 +31,8 @@ export type InstitutionRowActions = {
  */
 export function getInstitutionColumns({
   onView,
+  onManage,
+  isManaging = false,
   onDelete,
 }: InstitutionRowActions): InstitutionColumn[] {
   return [
@@ -129,6 +135,15 @@ export function getInstitutionColumns({
             onClick={() => onView(row.original)}
           >
             <Eye />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Gestionar sedes de ${row.original.name}`}
+            disabled={isManaging}
+            onClick={() => onManage(row.original)}
+          >
+            <LogIn />
           </Button>
           <Link
             to="/admin/instituciones/$institutionId/editar"
