@@ -13,13 +13,13 @@ type ErrorShape = { code?: unknown; message?: unknown; data?: unknown };
 type Issues = {
   /** Messages keyed by the rendered field they belong to. */
   fields: Record<string, string>;
-  /** First issue message overall, for issues whose path matches no rendered field. */
-  firstMessage: string | null;
+  /** First issue message whose path matches no rendered field (or whose field already has one). */
+  firstUnmatched: string | null;
 };
 
 function readIssues(data: unknown, knownFields: ReadonlySet<string>): Issues {
   const issues = (data as { issues?: unknown } | null | undefined)?.issues;
-  const result: Issues = { fields: {}, firstMessage: null };
+  const result: Issues = { fields: {}, firstUnmatched: null };
   if (!Array.isArray(issues)) {
     return result;
   }
@@ -27,11 +27,12 @@ function readIssues(data: unknown, knownFields: ReadonlySet<string>): Issues {
     if (typeof issue?.message !== "string" || !issue.message.trim()) {
       continue;
     }
-    result.firstMessage ??= issue.message;
     const head = Array.isArray(issue.path) ? issue.path[0] : undefined;
     const key = typeof head === "object" && head !== null ? (head as { key?: unknown }).key : head;
-    if (typeof key === "string" && knownFields.has(key) && !(key in result.fields)) {
-      result.fields[key] = issue.message;
+    if (typeof key === "string" && knownFields.has(key)) {
+      result.fields[key] ??= issue.message;
+    } else {
+      result.firstUnmatched ??= issue.message;
     }
   }
   return result;
@@ -43,7 +44,8 @@ function readIssues(data: unknown, knownFields: ReadonlySet<string>): Issues {
  * a conflict or domain message lands under the field `fieldByMessage` assigns it (e.g. the
  * one-main-campus rule under `isMain`), else on the form; anything else, including a network
  * failure, gets `fallback`. `fields` lists the form's rendered field names: an issue whose path
- * matches none of them is shown on the form instead of being dropped silently.
+ * matches none of them is shown on the form (`formError`, first one) instead of being dropped, also
+ * when other issues do match fields.
  */
 export function mapSubmitError(
   error: unknown,
@@ -61,10 +63,10 @@ export function mapSubmitError(
   }
   const issues = readIssues(data, new Set(options.fields));
   if (Object.keys(issues.fields).length > 0) {
-    return { fieldErrors: issues.fields, formError: null };
+    return { fieldErrors: issues.fields, formError: issues.firstUnmatched };
   }
-  if (issues.firstMessage) {
-    return { fieldErrors: {}, formError: issues.firstMessage };
+  if (issues.firstUnmatched) {
+    return { fieldErrors: {}, formError: issues.firstUnmatched };
   }
   if (typeof message !== "string" || !message.trim()) {
     return { fieldErrors: {}, formError: options.fallback };

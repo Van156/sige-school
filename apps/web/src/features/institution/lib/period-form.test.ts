@@ -7,7 +7,9 @@ import {
   periodFormSchema,
   periodToFormValues,
   planPeriodSave,
+  runPeriodSave,
   toPeriodInput,
+  type PeriodInput,
 } from "./period-form";
 
 const valid = {
@@ -122,5 +124,61 @@ describe("mapPeriodSubmitError", () => {
     expect(mapPeriodSubmitError(new Error("offline")).formError).toBe(
       "No se pudo guardar el periodo. Intente nuevamente.",
     );
+  });
+});
+
+describe("runPeriodSave", () => {
+  const input = { isActive: false } as PeriodInput;
+
+  test("reports a fully saved period", async () => {
+    const outcome = await runPeriodSave(
+      { input, activateAfter: true },
+      { write: async () => ({ id: "p1" }), activate: async () => undefined },
+    );
+    expect(outcome).toEqual({ id: "p1", activated: true });
+  });
+
+  test("keeps the saved id when only the activation fails", async () => {
+    const outcome = await runPeriodSave(
+      { input, activateAfter: true },
+      {
+        write: async () => ({ id: "p1" }),
+        activate: async () => {
+          throw new Error("conflict");
+        },
+      },
+    );
+    expect(outcome).toEqual({ id: "p1", activated: false });
+  });
+
+  test("does not activate when the plan does not ask for it", async () => {
+    let activated = false;
+    await runPeriodSave(
+      { input, activateAfter: false },
+      {
+        write: async () => ({ id: "p1" }),
+        activate: async () => {
+          activated = true;
+        },
+      },
+    );
+    expect(activated).toBe(false);
+  });
+
+  test("rejects when the write fails, without activating", async () => {
+    let activated = false;
+    const run = runPeriodSave(
+      { input, activateAfter: true },
+      {
+        write: async () => {
+          throw new Error("boom");
+        },
+        activate: async () => {
+          activated = true;
+        },
+      },
+    );
+    await expect(run).rejects.toThrow("boom");
+    expect(activated).toBe(false);
   });
 });

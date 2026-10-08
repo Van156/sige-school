@@ -86,7 +86,7 @@ function LevelsContent() {
       <ConfirmDelete
         {...deletion.dialog}
         title={`¿Eliminar el nivel ${deletion.target?.name ?? ""}?`}
-        description="Esta acción no se puede deshacer si tiene cursos asociados."
+        description="Esta acción no se puede deshacer."
       />
     </>
   );

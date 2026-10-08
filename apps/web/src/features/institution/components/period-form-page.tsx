@@ -16,7 +16,10 @@ import { INVALID_FORM_MESSAGE } from "../lib/form-messages";
 import {
   emptyPeriodForm,
   periodToFormValues,
+  PERIOD_ACTIVATION_FAILED_MESSAGE,
   planPeriodSave,
+  runPeriodSave,
+  type PeriodSaveOutcome,
   type PeriodFormValues,
   type PeriodInput,
 } from "../lib/period-form";
@@ -77,13 +80,12 @@ function CreatePeriod() {
         mode="create"
         initialValues={emptyPeriodForm(profileQuery.data.currentAcademicYear, isFirstPeriod)}
         onSubmit={(input) =>
-          save(async () => {
-            const plan = planPeriodSave(input, false);
-            const created = await createMutation.mutateAsync(plan.input);
-            if (plan.activateAfter) {
-              await activateMutation.mutateAsync({ id: created.id });
-            }
-          })
+          save(() =>
+            runPeriodSave(planPeriodSave(input, false), {
+              write: (data) => createMutation.mutateAsync(data),
+              activate: (id) => activateMutation.mutateAsync({ id }),
+            }),
+          )
         }
       />
     </PeriodFormFrame>
@@ -125,28 +127,39 @@ function EditPeriod({ periodId }: { periodId: string }) {
         mode="edit"
         initialValues={periodToFormValues(periodQuery.data)}
         onSubmit={(input) =>
-          save(async () => {
-            const plan = planPeriodSave(input, wasActive);
-            await updateMutation.mutateAsync({ id: periodId, ...plan.input });
-            if (plan.activateAfter) {
-              await activateMutation.mutateAsync({ id: periodId });
-            }
-          })
+          save(() =>
+            runPeriodSave(planPeriodSave(input, wasActive), {
+              write: async (data) => {
+                await updateMutation.mutateAsync({ id: periodId, ...data });
+                return { id: periodId };
+              },
+              activate: (id) => activateMutation.mutateAsync({ id }),
+            }),
+          )
         }
       />
     </PeriodFormFrame>
   );
 }
 
-/** Runs a save, then toasts, refreshes the period queries and returns to the list. */
+/**
+ * Runs a save, then toasts and refreshes the period queries. A full save returns to the list; a
+ * save whose activation failed moves to the saved period's edit page so a retry cannot duplicate it.
+ */
 function useSavePeriod(successMessage: string) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  return async (run: () => Promise<unknown>) => {
-    await run();
-    toast.success(successMessage);
+  return async (run: () => Promise<PeriodSaveOutcome>) => {
+    const outcome = await run();
+    if (outcome.activated) {
+      toast.success(successMessage);
+    } else {
+      toast.warning(PERIOD_ACTIVATION_FAILED_MESSAGE);
+    }
     await queryClient.invalidateQueries({ queryKey: orpc.period.key() });
-    await navigate({ to: "/periodos" });
+    await (outcome.activated
+      ? navigate({ to: "/periodos" })
+      : navigate({ to: "/periodos/$id/editar", params: { id: outcome.id } }));
   };
 }
 

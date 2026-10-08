@@ -101,7 +101,15 @@ function PeriodsContent() {
         }
       >
         {warning ? <PeriodCountWarning message={warning} /> : null}
-        {yearPending || (year !== null && periodsQuery.isPending) ? (
+        {profileQuery.isError || summaryQuery.isError ? (
+          <LoadError
+            message={LOAD_ERROR_MESSAGE}
+            onRetry={() => {
+              void profileQuery.refetch();
+              void summaryQuery.refetch();
+            }}
+          />
+        ) : yearPending || (year !== null && periodsQuery.isPending) ? (
           <Loader />
         ) : periodsQuery.isError ? (
           <LoadError message={LOAD_ERROR_MESSAGE} onRetry={() => void periodsQuery.refetch()} />

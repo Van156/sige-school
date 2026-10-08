@@ -58,7 +58,7 @@ describe("mapSubmitError", () => {
     });
   });
 
-  test("keeps matched fields and drops only the unmatched issue", () => {
+  test("keeps matched fields and reports the first unmatched issue on the form", () => {
     const error = {
       code: "BAD_REQUEST",
       data: {
@@ -68,7 +68,10 @@ describe("mapSubmitError", () => {
         ],
       },
     };
-    expect(mapSubmitError(error, options).fieldErrors).toEqual({ name: "Nombre obligatorio." });
+    expect(mapSubmitError(error, options)).toEqual({
+      fieldErrors: { name: "Nombre obligatorio." },
+      formError: "Otro",
+    });
   });
 
   test("falls back for unknown codes, blank messages and non-errors", () => {

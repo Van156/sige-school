@@ -87,6 +87,36 @@ export function planPeriodSave(input: PeriodInput, wasActive: boolean): PeriodSa
   return { input: activateAfter ? { ...input, isActive: false } : input, activateAfter };
 }
 
+/** Result of a save whose write succeeded: `activated` is false when only the activation failed. */
+export type PeriodSaveOutcome = { id: string; activated: boolean };
+
+/**
+ * Runs the write and then, when the plan asks for it, the activation. A failing write rejects
+ * (nothing was saved); a failing activation does not, because the period already exists and a
+ * resubmit from the create form would duplicate it — the outcome reports it instead.
+ */
+export async function runPeriodSave(
+  plan: PeriodSavePlan,
+  steps: {
+    write: (input: PeriodInput) => Promise<{ id: string }>;
+    activate: (id: string) => Promise<unknown>;
+  },
+): Promise<PeriodSaveOutcome> {
+  const { id } = await steps.write(plan.input);
+  if (!plan.activateAfter) {
+    return { id, activated: true };
+  }
+  try {
+    await steps.activate(id);
+    return { id, activated: true };
+  } catch {
+    return { id, activated: false };
+  }
+}
+
+export const PERIOD_ACTIVATION_FAILED_MESSAGE =
+  "El periodo se guardó, pero no se pudo activar. Intenta activarlo de nuevo.";
+
 export const PERIOD_SAVE_FALLBACK = "No se pudo guardar el periodo. Intente nuevamente.";
 
 /** Server messages that belong under a specific period field (sige/02 §4.1, INS-R5). */
