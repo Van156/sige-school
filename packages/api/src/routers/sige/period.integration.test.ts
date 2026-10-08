@@ -446,6 +446,58 @@ await sigeSuite("period router", (fx) => {
     });
   });
 
+  test("delete rejects the active period: BAD_REQUEST, row kept, no audit", async () => {
+    const t = await newTenant(fx, "BorrarActivo");
+    const active = await seedPeriod(fx, t.tenant, { isActive: true });
+    t.audit.reset();
+    const error = await errorOf(
+      call(periodRouter.delete, { id: active.id }, { context: t.context }),
+    );
+    expect(error?.code).toBe("BAD_REQUEST");
+    expect(error?.message).toBe(
+      "No se puede eliminar el periodo activo. Active otro periodo primero.",
+    );
+    expect(await activeIds(fx, t.tenant)).toEqual([active.id]);
+    expect(t.audit.events).toHaveLength(0);
+  });
+
+  test("delete of the previously active period works once another is activated", async () => {
+    const t = await newTenant(fx, "BorrarTrasActivar");
+    const a = await seedPeriod(fx, t.tenant, { isActive: true });
+    const b = await seedPeriod(fx, t.tenant, {
+      orderNum: 2,
+      shortName: "B",
+      startDate: "2026-04-01",
+      endDate: "2026-06-30",
+    });
+    await call(periodRouter.activate, { id: b.id }, { context: t.context });
+    expect(await call(periodRouter.delete, { id: a.id }, { context: t.context })).toEqual({
+      deleted: true,
+    });
+    expect(await activeIds(fx, t.tenant)).toEqual([b.id]);
+  });
+
+  test("concurrent delete and activate never leave zero active periods", async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const t = await newTenant(fx, `DelAct${round}`);
+      const a = await seedPeriod(fx, t.tenant, { isActive: true });
+      const b = await seedPeriod(fx, t.tenant, {
+        orderNum: 2,
+        shortName: "B",
+        startDate: "2026-04-01",
+        endDate: "2026-06-30",
+      });
+      const [removed] = await Promise.allSettled([
+        call(periodRouter.delete, { id: a.id }, { context: t.context }),
+        call(periodRouter.activate, { id: b.id }, { context: t.context }),
+      ]);
+      expect(await activeIds(fx, t.tenant)).toEqual([b.id]);
+      if (removed.status === "rejected") {
+        expect((removed.reason as ORPCError<string, any>).code).toBe("BAD_REQUEST");
+      }
+    }
+  });
+
   test("update/delete/activate lose a race to a concurrent delete: NOT_FOUND and no audit", async () => {
     const t = await newTenant(fx, "Carrera2");
     for (const op of ["update", "delete", "activate"] as const) {
@@ -455,7 +507,7 @@ await sigeSuite("period router", (fx) => {
       };
       const racing = {
         ...t.context,
-        db: racingDb(fx.db, remove, op === "delete" ? "write" : "transaction"),
+        db: racingDb(fx.db, remove, "transaction"),
       } as Context;
       t.audit.reset();
       const run =
@@ -540,9 +592,10 @@ await testPermissionMatrix({
 });
 
 type Seed = { periodId: string; periodName: string };
+let foreignYearCounter = 0;
 const seed = async (tenant: TestTenant, fx: SigeTestFixture): Promise<Seed> => {
   // The foreign tenant is shared across cases and each seed activates a period: use a fresh year.
-  const academicYear = String(3000 + Math.floor(Math.random() * 6000));
+  const academicYear = String(3000 + foreignYearCounter++);
   const period = await seedPeriod(fx, tenant, { academicYear });
   await fx.db
     .update(schema.academicPeriod)

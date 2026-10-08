@@ -26,6 +26,8 @@ const updateInput = periodInput.and(z.object({ id: z.string().min(1) }));
 const notFound = () => new ORPCError("NOT_FOUND", { message: "El periodo no existe." });
 const conflict = (message: string) => new ORPCError("CONFLICT", { status: 409, message });
 
+// Writer-authored (spec §4 has no message for this rule).
+const CANNOT_DELETE_ACTIVE = "No se puede eliminar el periodo activo. Active otro periodo primero.";
 const MUST_KEEP_ACTIVE = "Debe haber un periodo activo. Active otro periodo para cambiar.";
 
 const rowColumns = {
@@ -252,13 +254,22 @@ export const periodRouter = {
     .use(requirePermission({ period: ["delete"] }))
     .input(idInput)
     .handler(async ({ context, input }) => {
-      const before = await toRow(context.db, context.org.id, input.id);
+      let before: PeriodRow;
       try {
-        const affected = await context.db
-          .delete(schema.academicPeriod)
-          .where(byId(context.org.id, input.id))
-          .returning({ id: schema.academicPeriod.id });
-        if (affected.length === 0) throw notFound();
+        before = await context.db.transaction(async (tx) => {
+          const periods = await lockPeriods(tx, context.org.id);
+          const target = periods.find((period) => period.id === input.id);
+          if (!target) throw notFound();
+          // INS-R5: exactly one active period; the only way to move it is `activate`.
+          if (target.isActive)
+            throw new ORPCError("BAD_REQUEST", { message: CANNOT_DELETE_ACTIVE });
+          const affected = await tx
+            .delete(schema.academicPeriod)
+            .where(byId(context.org.id, input.id))
+            .returning({ id: schema.academicPeriod.id });
+          if (affected.length === 0) throw notFound();
+          return target;
+        });
       } catch (error) {
         return rethrowDbError(error, "delete");
       }
