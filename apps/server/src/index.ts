@@ -13,6 +13,7 @@ import { cors } from "hono/cors";
 
 import { createContext } from "./context";
 import { ENV } from "./env.server";
+import { createFileRoutes } from "./file-routes";
 import { createPublicRoutes } from "./public-routes";
 import { auth, fileStorage, startBackgroundJobs } from "./services";
 
@@ -45,17 +46,7 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
 app.route("/api/public", createPublicRoutes(ENV));
-// Local file storage (sige/02 §2.2): logos are public like any institution branding asset.
-// Keys are validated by the adapter, so a path can never leave the storage directory.
-app.get("/files/*", async (c) => {
-  const object = await fileStorage.read(c.req.path.slice("/files/".length));
-  if (!object) return c.notFound();
-  return c.body(new Uint8Array(object.bytes).buffer, 200, {
-    "Content-Type": object.contentType,
-    "Cache-Control": "public, max-age=31536000, immutable",
-    "X-Content-Type-Options": "nosniff",
-  });
-});
+app.route("/", createFileRoutes(fileStorage));
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [

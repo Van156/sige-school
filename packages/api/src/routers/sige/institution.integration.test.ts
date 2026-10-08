@@ -344,6 +344,56 @@ await sigeSuite("institution router", (fx) => {
       expect(audit.events).toHaveLength(0);
     });
   });
+
+  describe("concurrent logo changes", () => {
+    test("two simultaneous uploads leave exactly one object, the one the column points to", async () => {
+      await call(institutionRouter.removeLogo, undefined, { context: owner });
+      // Both uploads store their object before either commits, so each would see the same old key.
+      const gated = new FakeStorage();
+      let arrived = 0;
+      let release!: () => void;
+      const bothArrived = new Promise<void>((resolve) => (release = resolve));
+      const put = gated.put.bind(gated);
+      gated.put = async (key, bytes, contentType) => {
+        const result = await put(key, bytes, contentType);
+        arrived += 1;
+        if (arrived === 2) release();
+        await bothArrived;
+        return result;
+      };
+      const racing: Context = { ...owner, fileStorage: gated };
+      const [first, second] = await Promise.all([
+        call(institutionRouter.setLogo, { logo: fileOf(PNG, "image/png") }, { context: racing }),
+        call(institutionRouter.setLogo, { logo: fileOf(JPG, "image/jpeg") }, { context: racing }),
+      ]);
+      const column = (await orgRow(fx, tenant)).logo!;
+      expect([first.logo, second.logo]).toContain(column);
+      expect([...gated.objects.keys()]).toHaveLength(1);
+      expect(column.endsWith([...gated.objects.keys()][0]!)).toBe(true);
+    });
+
+    test("removeLogo racing a replacement never leaves an unreferenced object", async () => {
+      await call(institutionRouter.removeLogo, undefined, { context: owner });
+      const racing: Context = { ...owner, fileStorage: storage };
+      storage.objects.clear();
+      await call(
+        institutionRouter.setLogo,
+        { logo: fileOf(PNG, "image/png") },
+        { context: racing },
+      );
+      await Promise.all([
+        call(institutionRouter.removeLogo, undefined, { context: racing }),
+        call(institutionRouter.setLogo, { logo: fileOf(JPG, "image/jpeg") }, { context: racing }),
+      ]);
+      const column = (await orgRow(fx, tenant)).logo;
+      const keys = [...storage.objects.keys()];
+      if (column === null) expect(keys).toHaveLength(0);
+      else {
+        expect(keys).toHaveLength(1);
+        expect(column.endsWith(keys[0]!)).toBe(true);
+      }
+    });
+  });
 });
 
 const matrixStorage = new FakeStorage();
