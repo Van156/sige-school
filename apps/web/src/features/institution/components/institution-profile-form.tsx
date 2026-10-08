@@ -10,6 +10,7 @@ import SubmitButton from "@/shared/components/form/submit-button";
 
 import {
   PROFILE_FIELD_BY_MESSAGE,
+  PROFILE_FIELDS,
   PROFILE_SAVE_FALLBACK,
   profileFormSchema,
   toProfileInput,
@@ -49,6 +50,7 @@ export default function InstitutionProfileForm({
         await onSubmit(toProfileInput(value));
       } catch (error) {
         const failure = mapSubmitError(error, {
+          fields: PROFILE_FIELDS,
           fieldByMessage: PROFILE_FIELD_BY_MESSAGE,
           fallback: PROFILE_SAVE_FALLBACK,
         });

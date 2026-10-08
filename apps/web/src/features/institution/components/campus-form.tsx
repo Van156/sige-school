@@ -14,6 +14,7 @@ import SwitchField from "@/shared/components/form/switch-field";
 
 import {
   CAMPUS_FIELD_BY_MESSAGE,
+  CAMPUS_FIELDS,
   CAMPUS_SAVE_FALLBACK,
   campusFormSchema,
   emptyCampusForm,
@@ -53,6 +54,7 @@ export default function CampusForm({
         await onSubmit(toCampusInput(value));
       } catch (error) {
         const failure = mapSubmitError(error, {
+          fields: CAMPUS_FIELDS,
           fieldByMessage: CAMPUS_FIELD_BY_MESSAGE,
           fallback: CAMPUS_SAVE_FALLBACK,
         });

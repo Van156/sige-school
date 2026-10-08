@@ -8,6 +8,19 @@ import {
 } from "./institution-scope";
 
 describe("decideInstitutionScope", () => {
+  test("waits while the session is loading, whatever the other inputs say", () => {
+    expect(
+      decideInstitutionScope({
+        isPending: true,
+        isSuperadmin: false,
+        activeOrganizationId: undefined,
+      }),
+    ).toBe("pending");
+    expect(
+      decideInstitutionScope({ isPending: true, isSuperadmin: true, activeOrganizationId: null }),
+    ).toBe("pending");
+  });
+
   test("sends a superadmin without an active organization to the selector", () => {
     expect(decideInstitutionScope({ isSuperadmin: true, activeOrganizationId: null })).toBe(
       "select-institution",

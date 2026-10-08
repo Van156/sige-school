@@ -30,6 +30,19 @@ export function toProfileInput(values: ProfileFormValues): ProfileInput {
   return profileFormSchema.parse(values);
 }
 
+/** Names of the fields the profile form renders. */
+export const PROFILE_FIELDS = [
+  "name",
+  "nit",
+  "phone",
+  "email",
+  "address",
+  "municipality",
+  "department",
+  "academicYear",
+  "resolution",
+] as const satisfies readonly (keyof ProfileFormValues)[];
+
 export const PROFILE_SAVE_FALLBACK = "No se pudo guardar la configuración. Intente nuevamente.";
 
 /** Server messages that belong under a specific profile field (sige/02 §4.1). */

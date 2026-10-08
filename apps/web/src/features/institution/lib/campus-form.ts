@@ -51,6 +51,9 @@ export function toCampusInput(values: CampusFormValues): CampusInput {
   return campusFormSchema.parse(values);
 }
 
+/** Names of the fields the campus form renders. */
+export const CAMPUS_FIELDS = Object.keys(emptyCampusForm);
+
 export const CAMPUS_SAVE_FALLBACK = "No se pudo guardar la sede. Intente nuevamente.";
 
 /** Server messages that belong under a specific campus field (sige/02 §4.1, INS-R2). */

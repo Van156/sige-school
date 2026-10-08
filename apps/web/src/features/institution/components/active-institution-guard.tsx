@@ -25,12 +25,16 @@ export default function ActiveInstitutionGuard({
   pageName: string;
   children: ReactNode;
 }) {
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const decision = decideInstitutionScope({
+    isPending,
     isSuperadmin: isSuperadminRole(session?.user.role),
     activeOrganizationId: session?.session.activeOrganizationId,
   });
 
+  if (decision === "pending") {
+    return null;
+  }
   if (decision === "allow") {
     return <>{children}</>;
   }

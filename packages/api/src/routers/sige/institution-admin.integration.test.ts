@@ -818,6 +818,33 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
       expect(auditLogger.eventsFor("organization.deleted")).toHaveLength(0);
     });
 
+    test("a failing audit write still removes the logo object and surfaces the error", async () => {
+      const storage = new FakeStorage();
+      const { context: base } = await rootContext();
+      const setup: Context = { ...base, fileStorage: storage };
+      const one = await createFull(setup, "Colegio Uno");
+      await call(
+        institutionAdminRouter.setLogo,
+        { id: one.institution.id, logo: fileOf(PNG, "image/png") },
+        { context: setup },
+      );
+      expect(storage.objects.size).toBe(1);
+      const context: Context = {
+        ...setup,
+        auditLogger: {
+          record: (event) =>
+            event.action === "organization.deleted"
+              ? Promise.reject(new Error("audit down"))
+              : auditLogger.record(event),
+        },
+      };
+      expect(
+        await codeOf(call(institutionAdminRouter.delete, { id: one.institution.id }, { context })),
+      ).toBe("NOT_AN_ORPC_ERROR");
+      expect(await handle.db.select().from(schema.organization)).toHaveLength(0);
+      expect(storage.objects.size).toBe(0);
+    });
+
     test("a failing logo deletion does not fail the delete", async () => {
       const storage = new FakeStorage();
       storage.delete = () => Promise.reject(new Error("storage down"));

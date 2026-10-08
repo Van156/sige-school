@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { mapSubmitError } from "./server-form-error";
 
 const options = {
+  fields: ["name", "code", "jornada"],
   fieldByMessage: { "Ya existe una sede con este código.": "code" },
   fallback: "No se pudo guardar.",
 };
@@ -43,6 +44,31 @@ describe("mapSubmitError", () => {
       },
       formError: null,
     });
+  });
+
+  test("shows issues that match no rendered field on the form", () => {
+    const error = {
+      code: "BAD_REQUEST",
+      message: "Input validation failed",
+      data: { issues: [{ message: "Campo desconocido.", path: ["unknown"] }] },
+    };
+    expect(mapSubmitError(error, options)).toEqual({
+      fieldErrors: {},
+      formError: "Campo desconocido.",
+    });
+  });
+
+  test("keeps matched fields and drops only the unmatched issue", () => {
+    const error = {
+      code: "BAD_REQUEST",
+      data: {
+        issues: [
+          { message: "Otro", path: ["unknown"] },
+          { message: "Nombre obligatorio.", path: ["name"] },
+        ],
+      },
+    };
+    expect(mapSubmitError(error, options).fieldErrors).toEqual({ name: "Nombre obligatorio." });
   });
 
   test("falls back for unknown codes, blank messages and non-errors", () => {

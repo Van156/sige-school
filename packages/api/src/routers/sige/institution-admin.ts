@@ -228,19 +228,24 @@ export const institutionAdminRouter = {
         if (error instanceof ORPCError) throw error;
         return rethrowDbError(error, "delete");
       }
-      // Written only once the delete succeeded, so a lost race or a restrict FK leaves no stale
-      // event. The organization reference is omitted: the FK would null it anyway, and the
-      // name/slug snapshot plus targetId keep the row readable.
-      await context.auditLogger.record({
-        scope: "organization",
-        organizationId: null,
-        ...actorOf(context),
-        action: "organization.deleted",
-        targetType: "organization",
-        targetId: organization.id,
-        metadata: { organizationName: organization.name, slug: organization.slug },
-      });
-      await deleteLogoObject(context.fileStorage, logoKeyFromUrl(organization.logo, input.id));
+      // The delete is committed, so the logo object goes whether or not the audit write succeeds;
+      // an audit failure still surfaces to the caller. The event is written only after a
+      // successful delete, so a lost race or a restrict FK leaves no stale event. The
+      // organization reference is omitted: the FK would null it anyway, and the name/slug
+      // snapshot plus targetId keep the row readable.
+      try {
+        await context.auditLogger.record({
+          scope: "organization",
+          organizationId: null,
+          ...actorOf(context),
+          action: "organization.deleted",
+          targetType: "organization",
+          targetId: organization.id,
+          metadata: { organizationName: organization.name, slug: organization.slug },
+        });
+      } finally {
+        await deleteLogoObject(context.fileStorage, logoKeyFromUrl(organization.logo, input.id));
+      }
       return { deleted: true as const };
     }),
 

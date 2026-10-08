@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { confirmFor } from "@/shared/lib/confirm";
 
-import { describeDeleteFailure } from "../lib/delete-failure";
+import { runDelete } from "../lib/delete-flow";
 
 /**
  * Container logic of a row "Eliminar" action: remembers the row awaiting confirmation, runs the
@@ -26,20 +26,15 @@ export function useDeleteEntity<TRow extends { id: string; name: string }>({
   const queryClient = useQueryClient();
   const [target, setTarget] = useState<TRow | null>(null);
 
-  const confirm = confirmFor(target, async (row) => {
-    try {
-      await remove(row);
-    } catch (error) {
-      const failure = describeDeleteFailure(row.name, error);
-      toast.error(failure.title, { description: failure.description });
-      if (failure.blockedByDependents) {
-        return;
-      }
-      throw error;
-    }
-    toast.success(successMessage(row));
-    await queryClient.invalidateQueries({ queryKey: invalidate });
-  });
+  const confirm = confirmFor(target, (row) =>
+    runDelete(row, {
+      remove,
+      successMessage,
+      notifyError: (title, description) => toast.error(title, { description }),
+      notifySuccess: (message) => toast.success(message),
+      refresh: () => queryClient.invalidateQueries({ queryKey: invalidate }),
+    }),
+  );
 
   return {
     target,
