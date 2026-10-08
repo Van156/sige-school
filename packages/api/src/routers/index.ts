@@ -5,6 +5,7 @@ import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
 import { campusRouter } from "./sige/campus";
 import { institutionAdminRouter } from "./sige/institution-admin";
+import { courseRouter } from "./sige/course";
 import { criterionRouter } from "./sige/criterion";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
@@ -42,6 +43,7 @@ export const appRouter = {
   // Module 02 structure (sige/02 §3.3): campuses, levels, subjects, criteria, periods.
   campus: campusRouter,
   level: levelRouter,
+  course: courseRouter,
   subject: subjectRouter,
   criterion: criterionRouter,
   period: periodRouter,
