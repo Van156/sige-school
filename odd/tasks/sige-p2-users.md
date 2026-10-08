@@ -27,8 +27,9 @@
 
 Server (TDD; delegated writer):
 
-- [ ] T1 — sige-core pure rules (`user-import.ts`: header normalisation, row validation, role aliases, duplicate-in-file, every USR-R11 message) + zod fragments `packages/api/src/sige/schemas/user.ts` (§4.1 messages).
-- [ ] T2 — DB: `import_job` table + `import_kind`/`import_status` enums, index, running-job uniqueness (D7), migration, constraint tests.
+- [x] T1 — sige-core pure rules (`user-import.ts`: header normalisation, row validation, role aliases, duplicate-in-file, every USR-R11 message) + zod fragments `packages/api/src/sige/schemas/user.ts` (§4.1 messages).
+- [x] T2 — DB: `import_job` table + `import_kind`/`import_status` enums, index, running-job uniqueness (D7), migration, constraint tests.
+- [ ] T2-fix — Review warnings: `cellText` must read exceljs hyperlink/rich-text/formula-result cells and reject non-integer or unsafe numbers instead of emitting `1e+21`/`12.5`; normalise email before validating; birthDate "not future" compared in the institution timezone (America/Bogota), not UTC. Route: delegated with T3.
 - [ ] T3 — user read side: `lib/user-list-config.ts` (role token filter, multi-column name filter), `user.list/stats/get/options/previewUsername/checkEmail` (rate limit), tenant-isolation + permission-matrix suites.
 - [ ] T4 — user create/update/setActive/delete: shared user service, USR-R3/R4/R6/R7/R8 rules, session revocation, pg-errors additions, audit, last-owner race test.
 - [ ] T5 — `user.resetPassword` (document/custom), forced-change re-arm, session revocation, sign-in blocked for inactive users, no secrets in audit metadata.
@@ -47,3 +48,5 @@ Web (react-staff):
 ## Progress
 
 - Mapping done (delegated explorer). Branch created from `665619c`.
+- T1 in b6c1047 (+1038): `sige-core/src/user-import.ts` (headers + aliases, role tokens without admin/owner, `validateImportRows` with "Fila {n}: " messages, in-file duplicates flag the later row, `MAX_IMPORT_ERRORS = 200`) and `api/src/sige/schemas/user.ts` (create/edit/update/setActive/resetPassword/options/previewUsername/checkEmail). T2 in 207b554: `import_job` + enums, migration `20261008234529_sige_import_job` (generated), D7 = partial unique index `import_job_organizationId_kind_running_unique` (status = 'running') → 23505 for the concurrent-import CONFLICT; composite restrict FK to person (raises 23001); added `created_at` (spec omits it). Writer-authored messages listed in the writer report (missing role, invalid document, length limits, duplicate email in file). TDD: RED observed; GREEN sige-core 144, api sige 218, db 101; check-types/lint 0. Parent spot check: user-import 85, import-job 13 pass.
+- Review T1+T2 (665619c..207b554): medium, 1 lens (reliability), approved and acknowledged. Warnings + suggestion → T2-fix. Next boundary: 207b554.
