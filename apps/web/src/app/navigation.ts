@@ -3,6 +3,7 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
+  GraduationCap,
   LayoutDashboard,
   Layers,
   ListChecks,
@@ -122,6 +123,7 @@ export const navGroups: NavGroup<NavContext>[] = [
       },
       { label: "Sedes", to: "/sedes", icon: MapPin, visible: can("campus:read") },
       { label: "Niveles", to: "/niveles", icon: Layers, visible: can("level:read") },
+      { label: "Cursos", to: "/cursos", icon: GraduationCap, visible: can("course:read") },
       { label: "Asignaturas", to: "/asignaturas", icon: BookOpen, visible: can("subject:read") },
       { label: "Periodos", to: "/periodos", icon: CalendarDays, visible: can("period:read") },
       {

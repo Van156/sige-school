@@ -80,3 +80,35 @@ export type CriterionRow = {
   description: string | null;
   orderNum: number;
 };
+
+/** A row of `course.list` / the result of `course.get` (sige/02 §3.3). */
+export type CourseRow = {
+  id: string;
+  name: string;
+  campusId: string;
+  campusName: string;
+  levelId: string | null;
+  levelName: string | null;
+  directorPersonId: string | null;
+  directorName: string | null;
+  academicYear: string;
+  shift: "Mañana" | "Tarde" | "Nocturna" | "Única" | "Sabatina";
+  maxStudents: number;
+  studentCount: number;
+};
+
+/** `course.stats`: the three INS-11 tiles. */
+export type CourseStats = {
+  total: number;
+  campusesWithCourses: number;
+  withDirector: number;
+};
+
+/** A row of `course.options` (every module's course select). */
+export type CourseOption = {
+  id: string;
+  name: string;
+  campusId: string;
+  shift: CourseRow["shift"];
+  academicYear: string;
+};

@@ -1,7 +1,7 @@
 import { buttonVariants } from "@base-template/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Building2, CalendarDays, Layers, ListChecks } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, GraduationCap, Layers, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/app/orpc";
@@ -21,6 +21,7 @@ import LogoField from "./logo-field";
 const QUICK_LINKS = [
   { to: "/sedes", label: "Gestionar Sedes", icon: Building2 },
   { to: "/niveles", label: "Gestionar Niveles", icon: Layers },
+  { to: "/cursos", label: "Gestionar Grados", icon: GraduationCap },
   { to: "/asignaturas", label: "Gestionar Asignaturas", icon: BookOpen },
   { to: "/periodos", label: "Gestionar Periodos", icon: CalendarDays },
   { to: "/criterios", label: "Criterios de Evaluación", icon: ListChecks },

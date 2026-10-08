@@ -132,6 +132,7 @@ describe("navGroups visibility", () => {
       institution: ["read"],
       campus: ["read"],
       level: ["read"],
+      course: ["read"],
       subject: ["read"],
       period: ["read"],
       criterion: ["read"],
@@ -140,6 +141,7 @@ describe("navGroups visibility", () => {
       "/configuracion-institucion",
       "/sedes",
       "/niveles",
+      "/cursos",
       "/asignaturas",
       "/periodos",
       "/criterios",
@@ -147,8 +149,9 @@ describe("navGroups visibility", () => {
     const coordinator = withPermissions("coordinator", {
       institution: ["read"],
       campus: ["read"],
+      course: ["read"],
     });
-    expect(coordinator?.items.map((item) => item.to)).toEqual(["/sedes"]);
+    expect(coordinator?.items.map((item) => item.to)).toEqual(["/sedes", "/cursos"]);
     expect(withPermissions("teacher", {})).toBeUndefined();
     // Teachers read subjects and criteria but not levels or periods (sige/02 permission matrix).
     expect(
