@@ -128,14 +128,28 @@ describe("navGroups visibility", () => {
       filterNavGroups(navGroups, { ...member, kind, permissions }).find(
         (group) => group.id === "institution",
       );
-    const owner = withPermissions("owner", { institution: ["read"], campus: ["read"] });
-    expect(owner?.items.map((item) => item.to)).toEqual(["/configuracion-institucion", "/sedes"]);
+    const owner = withPermissions("owner", {
+      institution: ["read"],
+      campus: ["read"],
+      level: ["read"],
+      subject: ["read"],
+    });
+    expect(owner?.items.map((item) => item.to)).toEqual([
+      "/configuracion-institucion",
+      "/sedes",
+      "/niveles",
+      "/asignaturas",
+    ]);
     const coordinator = withPermissions("coordinator", {
       institution: ["read"],
       campus: ["read"],
     });
     expect(coordinator?.items.map((item) => item.to)).toEqual(["/sedes"]);
     expect(withPermissions("teacher", {})).toBeUndefined();
+    // Teachers read subjects but not levels (sige/02 permission matrix).
+    expect(withPermissions("teacher", { subject: ["read"] })?.items.map((item) => item.to)).toEqual(
+      ["/asignaturas"],
+    );
   });
 
   test("breadcrumbs resolve through the real config", () => {

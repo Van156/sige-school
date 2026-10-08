@@ -1,5 +1,14 @@
 import { parsePermissionString } from "@base-template/auth/permissions";
-import { Building2, LayoutDashboard, MapPin, Settings, ShieldCheck, UserRound } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  LayoutDashboard,
+  Layers,
+  MapPin,
+  Settings,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 
 import {
   buildRoleCatalog,
@@ -110,6 +119,8 @@ export const navGroups: NavGroup<NavContext>[] = [
         visible: (ctx) => isInstitutionManager(ctx) && holds(ctx, "institution:read"),
       },
       { label: "Sedes", to: "/sedes", icon: MapPin, visible: can("campus:read") },
+      { label: "Niveles", to: "/niveles", icon: Layers, visible: can("level:read") },
+      { label: "Asignaturas", to: "/asignaturas", icon: BookOpen, visible: can("subject:read") },
     ],
   },
   {

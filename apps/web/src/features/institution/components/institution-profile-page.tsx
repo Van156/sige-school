@@ -1,7 +1,7 @@
 import { buttonVariants } from "@base-template/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Building2 } from "lucide-react";
+import { BookOpen, Building2, Layers } from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/app/orpc";
@@ -18,7 +18,11 @@ import InstitutionProfileForm from "./institution-profile-form";
 import LogoField from "./logo-field";
 
 /** INS-06 "Enlaces Rápidos"; each structure task adds its entry with its route (no dead links). */
-const QUICK_LINKS = [{ to: "/sedes", label: "Gestionar Sedes", icon: Building2 }] as const;
+const QUICK_LINKS = [
+  { to: "/sedes", label: "Gestionar Sedes", icon: Building2 },
+  { to: "/niveles", label: "Gestionar Niveles", icon: Layers },
+  { to: "/asignaturas", label: "Gestionar Asignaturas", icon: BookOpen },
+] as const;
 
 /**
  * INS-06 `/configuracion-institucion` (container): the active institution's profile. Saving goes

@@ -28,3 +28,27 @@ export type InstitutionProfile = {
   currentAcademicYear: string;
   timezone: string;
 };
+
+/** A row of `level.list` (sige/02 §3.3). */
+export type LevelRow = {
+  id: string;
+  campusId: string;
+  campusName: string;
+  name: string;
+  orderNum: number;
+  courseCount: number;
+};
+
+/** A row of `subject.list` / the result of `subject.get` (sige/02 §3.3). */
+export type SubjectRow = {
+  id: string;
+  name: string;
+  code: string | null;
+};
+
+/** A row of `campus.options`: the active campuses a level can be created under. */
+export type CampusOption = {
+  id: string;
+  name: string;
+  isMain: boolean;
+};
