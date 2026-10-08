@@ -8,6 +8,7 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
 
 import { createInstitution } from "./create-institution";
+import { DEMO_ACADEMIC_YEAR, DEMO_PROFILE, seedInstitutionStructure } from "./seed-structure";
 
 /**
  * SIGE P0 seed skeleton (sige/00 §9, R4): the root platform admin, the demo institution and one
@@ -164,6 +165,7 @@ export async function seedSige(
       { database, auditLogger },
       {
         name: DEMO_INSTITUTION.name,
+        profile: { ...DEMO_PROFILE, academicYear: DEMO_ACADEMIC_YEAR },
         rector: {
           firstName: rector.firstName,
           lastName: rector.lastName,
@@ -177,6 +179,9 @@ export async function seedSige(
     org = { id: created.institution.id };
   }
   const organizationId = org.id;
+
+  // 2b. Demo structure (P1): campuses, levels, courses, subjects, periods and criteria.
+  await seedInstitutionStructure(database, organizationId);
 
   // 3. One login per remaining kind, found by document number inside the institution.
   const logins: SeedLogin[] = [];
