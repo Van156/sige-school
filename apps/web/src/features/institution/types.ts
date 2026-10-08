@@ -52,3 +52,31 @@ export type CampusOption = {
   name: string;
   isMain: boolean;
 };
+
+/** A row of `period.list` / the result of `period.get` (sige/02 §3.3). Dates are `YYYY-MM-DD`. */
+export type PeriodRow = {
+  id: string;
+  academicYear: string;
+  orderNum: number;
+  name: string;
+  shortName: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+};
+
+/** A row of `period.summary`: periods per academic year plus the INS-R5 warning, if any. */
+export type PeriodYearSummary = {
+  academicYear: string;
+  periodCount: number;
+  warning: string | null;
+};
+
+/** A row of `criterion.list` / the result of `criterion.get` (sige/02 §3.3). */
+export type CriterionRow = {
+  id: string;
+  name: string;
+  weight: number;
+  description: string | null;
+  orderNum: number;
+};

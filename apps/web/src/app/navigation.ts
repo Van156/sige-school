@@ -2,8 +2,10 @@ import { parsePermissionString } from "@base-template/auth/permissions";
 import {
   BookOpen,
   Building2,
+  CalendarDays,
   LayoutDashboard,
   Layers,
+  ListChecks,
   MapPin,
   Settings,
   ShieldCheck,
@@ -121,6 +123,13 @@ export const navGroups: NavGroup<NavContext>[] = [
       { label: "Sedes", to: "/sedes", icon: MapPin, visible: can("campus:read") },
       { label: "Niveles", to: "/niveles", icon: Layers, visible: can("level:read") },
       { label: "Asignaturas", to: "/asignaturas", icon: BookOpen, visible: can("subject:read") },
+      { label: "Periodos", to: "/periodos", icon: CalendarDays, visible: can("period:read") },
+      {
+        label: "Criterios de Evaluación",
+        to: "/criterios",
+        icon: ListChecks,
+        visible: can("criterion:read"),
+      },
     ],
   },
   {
