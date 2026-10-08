@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
 import { DOCUMENT_TYPES as DB_DOCUMENT_TYPES } from "@base-template/auth/provision-user";
-import { DOCUMENT_TYPES } from "@base-template/sige-core";
+import { DOCUMENT_TYPES, todayIn } from "@base-template/sige-core";
 import type { ZodType } from "zod";
 
 import {
@@ -36,7 +36,7 @@ const create = {
 };
 
 const nextYear = `${new Date().getUTCFullYear() + 1}-01-01`;
-const today = new Date().toISOString().slice(0, 10);
+const today = todayIn();
 
 describe("document types", () => {
   test("stay in sync with the DB enum", () => {
@@ -117,6 +117,18 @@ describe("userCreateInput (sige/03 §3.3, §4.1)", () => {
     expect(issues(userCreateInput, { ...create, email: "no-es-correo" }).email).toEqual([
       "Ingresa un correo válido.",
     ]);
+  });
+
+  describe("birthDate against the Bogota calendar day", () => {
+    afterEach(() => setSystemTime());
+
+    test("03:00 UTC on the 9th is still the 8th in Bogota", () => {
+      setSystemTime(new Date("2026-10-09T03:00:00Z"));
+      expect(issues(userCreateInput, { ...create, birthDate: "2026-10-08" })).toEqual({});
+      expect(issues(userCreateInput, { ...create, birthDate: "2026-10-09" }).birthDate).toEqual([
+        "La fecha de nacimiento no puede ser futura.",
+      ]);
+    });
   });
 
   test("birthDate: blank absent, calendar-valid, not in the future", () => {

@@ -148,16 +148,53 @@ export type ImportValidation = {
   errors: ImportRowError[];
 };
 
-/** Excel cells arrive as text, numbers, dates or nothing; only text and integers are meaningful. */
-function cellText(value: unknown): string {
+type Cell = { text: string; invalid: boolean };
+
+const BLANK: Cell = { text: "", invalid: false };
+const INVALID: Cell = { text: "", invalid: true };
+
+/**
+ * Reads the text of an exceljs cell value: plain strings, safe integers, dates (ISO day),
+ * hyperlinks (`{ text, hyperlink }`), rich text (`{ richText }`) and formulas (`{ result }`).
+ * Fractions, unsafe integers, non-finite numbers and error cells are `invalid`, so the row
+ * reports a clear error instead of importing `12.5` or `1e+21`.
+ */
+function readCell(value: unknown): Cell {
   if (typeof value === "string") {
-    return value.trim();
+    return { text: value.trim(), invalid: false };
   }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) ? { text: String(value), invalid: false } : INVALID;
   }
-  return "";
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime())
+      ? INVALID
+      : { text: value.toISOString().slice(0, 10), invalid: false };
+  }
+  if (typeof value !== "object" || value === null) {
+    return BLANK;
+  }
+  if ("error" in value) {
+    return INVALID;
+  }
+  if ("richText" in value && Array.isArray(value.richText)) {
+    const runs = value.richText.map((run: unknown) =>
+      typeof run === "object" && run !== null && "text" in run && typeof run.text === "string"
+        ? run.text
+        : "",
+    );
+    return { text: runs.join("").trim(), invalid: false };
+  }
+  if ("result" in value) {
+    return readCell(value.result);
+  }
+  if ("text" in value) {
+    return readCell(value.text);
+  }
+  return BLANK;
 }
+
+const cellText = (value: unknown): string => readCell(value).text;
 
 const prefix = (row: number, message: string) => `Fila ${row}: ${message}`;
 
@@ -172,12 +209,16 @@ type RowOutcome = { candidate: ImportCandidate } | { message: string };
 
 function validateRow({ row, cells }: ImportRawRow): RowOutcome {
   const fail = (message: string): RowOutcome => ({ message: prefix(row, message) });
+  const unreadable = IMPORT_FIELDS.find((field) => readCell(cells[field]).invalid);
+  if (unreadable) {
+    return fail(`Valor no admitido en la columna "${unreadable}".`);
+  }
   const firstName = cellText(cells.nombres);
   const lastName = cellText(cells.apellidos);
   const documentNumber = cellText(cells.documento);
   const roleRaw = cellText(cells.rol);
   const typeRaw = cellText(cells.tipo_documento);
-  const emailRaw = cellText(cells.correo);
+  const emailRaw = cellText(cells.correo).toLowerCase();
   const phone = cellText(cells.telefono);
 
   if (!documentNumber) {
@@ -226,14 +267,17 @@ function validateRow({ row, cells }: ImportRawRow): RowOutcome {
       documentType,
       documentNumber,
       role,
-      ...(emailRaw ? { email: emailRaw.toLowerCase() } : {}),
+      ...(emailRaw ? { email: emailRaw } : {}),
       ...(phone ? { phone } : {}),
     },
   };
 }
 
 const isBlankRow = (row: ImportRawRow) =>
-  Object.values(row.cells).every((value) => cellText(value) === "");
+  Object.values(row.cells).every((value) => {
+    const cell = readCell(value);
+    return cell.text === "" && !cell.invalid;
+  });
 
 /**
  * Validates every non-blank row. A row yields at most one message (the first failing rule). The

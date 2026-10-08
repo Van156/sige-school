@@ -3,6 +3,7 @@ import {
   DOCUMENT_NUMBER_MIN,
   DOCUMENT_TYPES,
   IMPORT_ROLES,
+  isFutureDate,
   NAME_MAX,
 } from "@base-template/sige-core";
 import { z } from "zod";
@@ -60,7 +61,8 @@ const birthDateField = z
       .string()
       .refine(isCalendarDate, { error: "Fecha de nacimiento inválida.", abort: true })
       .refine(
-        (value) => value <= new Date().toISOString().slice(0, 10),
+        // Compared with today's date in the institution time zone (America/Bogota), not UTC.
+        (value) => !isFutureDate(value),
         "La fecha de nacimiento no puede ser futura.",
       )
       .optional(),

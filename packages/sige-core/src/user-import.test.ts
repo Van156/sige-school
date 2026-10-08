@@ -201,7 +201,7 @@ describe("validateImportRows", () => {
 
   test("a non-integer numeric document is invalid", () => {
     expect(validateImportRows([good(3, { documento: 12345.5 })]).errors[0]?.message).toBe(
-      'Fila 3: Documento inválido "12345.5".',
+      'Fila 3: Valor no admitido en la columna "documento".',
     );
   });
 
@@ -311,5 +311,92 @@ describe("importErrorMessages (server-side collisions)", () => {
   });
   test("cap constant matches the spec", () => {
     expect(MAX_IMPORT_ERRORS).toBe(200);
+  });
+});
+
+describe("cell shapes (exceljs)", () => {
+  const documentOf = (value: unknown) =>
+    validateImportRows([good(2, { documento: value })]).valid[0]?.documentNumber;
+
+  test("hyperlink cells read their text", () => {
+    expect(documentOf({ text: "1101234501", hyperlink: "mailto:x@y.co" })).toBe("1101234501");
+    const email = validateImportRows([
+      good(2, { correo: { text: "Ana@Colegio.co", hyperlink: "mailto:ana@colegio.co" } }),
+    ]);
+    expect(email.valid[0]?.email).toBe("ana@colegio.co");
+  });
+
+  test("rich text cells concatenate their runs", () => {
+    expect(documentOf({ richText: [{ text: "11012" }, { text: "34501" }] })).toBe("1101234501");
+    const names = validateImportRows([
+      good(2, { nombres: { richText: [{ text: "Ma" }, { text: "ría" }] } }),
+    ]);
+    expect(names.valid[0]?.firstName).toBe("María");
+  });
+
+  test("formula cells read their result (also shared formulas)", () => {
+    expect(documentOf({ formula: "A1&B1", result: "1101234501" })).toBe("1101234501");
+    expect(documentOf({ sharedFormula: "A1", result: 1101234501 })).toBe("1101234501");
+  });
+
+  test("a formula without a result is blank", () => {
+    const result = validateImportRows([good(2, { documento: { formula: "A1" } })]);
+    expect(result.errors).toEqual([{ row: 2, message: "Fila 2: Falta el documento." }]);
+  });
+
+  test("date cells read as an ISO date, which fails document validation clearly", () => {
+    const result = validateImportRows([good(2, { documento: new Date("2024-03-05T00:00:00Z") })]);
+    expect(result.errors).toEqual([
+      { row: 2, message: 'Fila 2: Documento inválido "2024-03-05".' },
+    ]);
+  });
+
+  test("safe integers render without exponent", () => {
+    expect(documentOf(9007199254740991)).toBe("9007199254740991");
+    expect(validateImportRows([good(2, { telefono: -0 })]).valid[0]?.phone).toBe("0");
+  });
+
+  test.each([
+    ["a fraction", 12.5],
+    ["an unsafe integer", 1e21],
+    ["a beyond-safe integer", Number.MAX_SAFE_INTEGER + 2],
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+  ])("%s is rejected with a row error instead of being coerced", (_label, value) => {
+    const result = validateImportRows([good(4, { telefono: value })]);
+    expect(result.valid).toEqual([]);
+    expect(result.errors).toEqual([
+      { row: 4, message: 'Fila 4: Valor no admitido en la columna "telefono".' },
+    ]);
+  });
+
+  test("an error-valued cell is rejected; a row with only a bad number is not blank", () => {
+    expect(validateImportRows([good(3, { correo: { error: "#N/A" } })]).errors[0]?.message).toBe(
+      'Fila 3: Valor no admitido en la columna "correo".',
+    );
+    const onlyBad = validateImportRows([{ row: 5, cells: { documento: 1e21 } }]);
+    expect(onlyBad.total).toBe(1);
+    expect(onlyBad.errors).toEqual([
+      { row: 5, message: 'Fila 5: Valor no admitido en la columna "documento".' },
+    ]);
+  });
+});
+
+describe("email normalisation", () => {
+  test("is trimmed and lowercased before validation", () => {
+    const result = validateImportRows([good(2, { correo: "  MARIA@Colegio.CO  " })]);
+    expect(result.errors).toEqual([]);
+    expect(result.valid[0]?.email).toBe("maria@colegio.co");
+  });
+
+  test("spelling variants of one address are duplicates in the file", () => {
+    const result = validateImportRows([
+      good(2, { correo: "maria@colegio.co" }),
+      good(3, { correo: " MARIA@colegio.co " }),
+    ]);
+    expect(result.valid).toHaveLength(1);
+    expect(result.errors).toEqual([
+      { row: 3, message: 'Fila 3: El correo "MARIA@colegio.co" está repetido en el archivo.' },
+    ]);
   });
 });
