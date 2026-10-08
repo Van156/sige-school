@@ -6,7 +6,12 @@ import type { Database } from "@base-template/db";
  * the row vanish (or change) in between, exactly like a concurrent request winning the race.
  * `beforeWrite` must use the real (unwrapped) database.
  */
-export function racingDb(db: Database, beforeWrite: () => Promise<void>): Database {
+export function racingDb(
+  db: Database,
+  beforeWrite: () => Promise<void>,
+  /** `write`: before each update/delete statement; `transaction`: before a transaction opens. */
+  seam: "write" | "transaction" = "write",
+): Database {
   const wrap = (target: object): object =>
     new Proxy(target, {
       get(inner, prop) {
@@ -26,17 +31,23 @@ export function racingDb(db: Database, beforeWrite: () => Promise<void>): Databa
   return new Proxy(db, {
     get(target, prop) {
       const value = Reflect.get(target, prop, target) as unknown;
-      if ((prop === "update" || prop === "delete") && typeof value === "function") {
+      if (
+        seam === "write" &&
+        (prop === "update" || prop === "delete") &&
+        typeof value === "function"
+      ) {
         return (...args: unknown[]) => wrap((value as Function).apply(target, args) as object);
       }
       if (prop === "transaction" && typeof value === "function") {
-        // The callback's transaction handle is raced too, so writes inside it hit the seam.
-        return (callback: (tx: Database) => unknown, ...rest: unknown[]) =>
-          (value as Function).call(
+        return async (callback: (tx: Database) => unknown, ...rest: unknown[]) => {
+          if (seam === "transaction") await beforeWrite();
+          // In `write` mode the transaction handle is raced too, so writes inside it hit the seam.
+          return (value as Function).call(
             target,
-            (tx: Database) => callback(racingDb(tx, beforeWrite)),
+            (tx: Database) => callback(seam === "write" ? racingDb(tx, beforeWrite) : tx),
             ...rest,
           );
+        };
       }
       return typeof value === "function" ? value.bind(target) : value;
     },

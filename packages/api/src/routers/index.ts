@@ -8,6 +8,7 @@ import { institutionAdminRouter } from "./sige/institution-admin";
 import { criterionRouter } from "./sige/criterion";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
+import { periodRouter } from "./sige/period";
 import { subjectRouter } from "./sige/subject";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
@@ -38,11 +39,12 @@ export const appRouter = {
   me: meRouter,
   // INS-01/02 minimal (sige/02 §3.1): platform-only institution creation and list.
   institutionAdmin: institutionAdminRouter,
-  // Module 02 structure (sige/02 §3.3): campuses, levels, subjects, criteria.
+  // Module 02 structure (sige/02 §3.3): campuses, levels, subjects, criteria, periods.
   campus: campusRouter,
   level: levelRouter,
   subject: subjectRouter,
   criterion: criterionRouter,
+  period: periodRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
