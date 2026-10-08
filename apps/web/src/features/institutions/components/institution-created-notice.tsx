@@ -8,7 +8,14 @@ import type { CreatedInstitution } from "../types";
  * Confirmation after INS-02: the institution name, the generated rector username and the reminder
  * that the initial password is the document number (the rector must change it on first sign-in).
  */
-export default function InstitutionCreatedNotice({ created }: { created: CreatedInstitution }) {
+export default function InstitutionCreatedNotice({
+  created,
+  logoWarning,
+}: {
+  created: CreatedInstitution;
+  /** Set when the institution was created but its logo could not be uploaded. */
+  logoWarning?: string;
+}) {
   return (
     <section
       aria-labelledby="institution-created-title"
@@ -36,6 +43,14 @@ export default function InstitutionCreatedNotice({ created }: { created: Created
       <p className="text-sm text-muted-foreground">
         Deberá cambiarla en su primer inicio de sesión.
       </p>
+      {logoWarning ? (
+        <p
+          role="status"
+          className="rounded-md bg-warning/15 px-3 py-2 text-sm text-warning-foreground"
+        >
+          {logoWarning}
+        </p>
+      ) : null}
       <div>
         <Link to="/admin/instituciones" className={buttonVariants()}>
           Volver al listado

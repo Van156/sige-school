@@ -24,3 +24,14 @@ export function institutionSubtitle(
 export function valueOrDash(value: string | null | undefined): string {
   return value?.trim() ? value : "-";
 }
+
+const CREATED_DATE = new Intl.DateTimeFormat("es-CO", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+/** "dd/mm/yyyy" of a creation timestamp (the edit form's "Información" card). */
+export function formatCreatedDate(createdAt: Date | string): string {
+  return CREATED_DATE.format(new Date(createdAt));
+}

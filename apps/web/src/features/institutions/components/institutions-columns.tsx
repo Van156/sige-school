@@ -1,6 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
-import { Button } from "@base-template/ui/components/button";
-import { Building2, Eye, Trash2 } from "lucide-react";
+import { Button, buttonVariants } from "@base-template/ui/components/button";
+import { Link } from "@tanstack/react-router";
+import { Building2, Eye, Pencil, Trash2 } from "lucide-react";
 
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 
@@ -129,6 +130,14 @@ export function getInstitutionColumns({
           >
             <Eye />
           </Button>
+          <Link
+            to="/admin/instituciones/$institutionId/editar"
+            params={{ institutionId: row.original.id }}
+            aria-label={`Editar institución ${row.original.name}`}
+            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+          >
+            <Pencil />
+          </Link>
           <Button
             variant="ghost"
             size="icon-sm"

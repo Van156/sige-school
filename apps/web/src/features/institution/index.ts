@@ -23,3 +23,12 @@ export { default as FormPageLayout, HelpCard } from "./components/form-page-layo
 export { default as InstitutionProfilePage } from "./components/institution-profile-page";
 export { INVALID_FORM_MESSAGE } from "./lib/form-messages";
 export { mapSubmitError, type SubmitFailure } from "./lib/server-form-error";
+export { default as LogoField } from "./components/logo-field";
+export {
+  PROFILE_FIELDS,
+  PROFILE_FIELD_BY_MESSAGE,
+  profileFormSchema,
+  profileToFormValues,
+  type ProfileFormValues,
+  type ProfileInput,
+} from "./lib/profile-form";

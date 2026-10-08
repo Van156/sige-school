@@ -1,4 +1,4 @@
-import { Button } from "@base-template/ui/components/button";
+import { Button, buttonVariants } from "@base-template/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@base-template/ui/components/dialog";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 import { orpc } from "@/app/orpc";
 import Loader from "@/shared/components/feedback/loader";
@@ -53,6 +54,15 @@ export default function InstitutionDetailDialog({
           <Button variant="outline" onClick={onClose}>
             Cerrar
           </Button>
+          {institutionId ? (
+            <Link
+              to="/admin/instituciones/$institutionId/editar"
+              params={{ institutionId }}
+              className={buttonVariants()}
+            >
+              Editar Institución
+            </Link>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

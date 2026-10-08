@@ -21,6 +21,7 @@ export default function LogoField({
   logo,
   disabled = false,
   isBusy = false,
+  currentLabel = "Logo actual:",
   onUpload,
   onRemove,
 }: {
@@ -28,6 +29,8 @@ export default function LogoField({
   /** Read-only callers: no controls. */
   disabled?: boolean;
   isBusy?: boolean;
+  /** Caption next to the image; the create form shows a not-yet-uploaded pick as a selection. */
+  currentLabel?: string;
   onUpload: (file: File) => Promise<void>;
   onRemove: () => Promise<void>;
 }) {
@@ -58,9 +61,7 @@ export default function LogoField({
           </span>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-sm text-muted-foreground">
-            {logo ? "Logo actual:" : "Sin logo"}
-          </span>
+          <span className="text-sm text-muted-foreground">{logo ? currentLabel : "Sin logo"}</span>
           {disabled ? null : (
             <div className="flex flex-wrap items-center gap-2">
               <Input

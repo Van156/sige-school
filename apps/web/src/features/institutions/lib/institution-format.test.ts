@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   institutionLocation,
+  formatCreatedDate,
   institutionSubtitle,
   locationOrDash,
   valueOrDash,
@@ -38,5 +39,12 @@ describe("table and dialog copy", () => {
     expect(valueOrDash(null)).toBe("-");
     expect(valueOrDash("  ")).toBe("-");
     expect(valueOrDash("Res. 12")).toBe("Res. 12");
+  });
+});
+
+describe("formatCreatedDate", () => {
+  test("reads dd/mm/yyyy", () => {
+    expect(formatCreatedDate("2026-03-05T15:00:00Z")).toBe("05/03/2026");
+    expect(formatCreatedDate(new Date("2026-12-25T15:00:00Z"))).toBe("25/12/2026");
   });
 });

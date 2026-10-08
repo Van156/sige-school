@@ -22,3 +22,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+/** The institution exists but the optional logo failed: the notice points to the edit form. */
+export const LogoFailed: Story = {
+  args: { logoWarning: "No se pudo subir el logo. Puedes subirlo desde Editar Institución." },
+};
