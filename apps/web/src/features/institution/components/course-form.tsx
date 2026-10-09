@@ -10,13 +10,14 @@ import { useState } from "react";
 import { AuthFormError } from "@/features/auth";
 import FormField from "@/shared/components/form/form-field";
 import SubmitButton from "@/shared/components/form/submit-button";
-import type { Option } from "@/shared/lib/data-table/types";
 
 import {
   COURSE_FIELD_BY_MESSAGE,
   COURSE_FIELDS,
   COURSE_SAVE_FALLBACK,
   courseFormSchema,
+  type CurrentDirector,
+  type DirectorSource,
   levelAfterCampusChange,
   levelChoices,
   SHIFT_OPTIONS,
@@ -27,6 +28,18 @@ import {
 import { campusOptionLabel } from "../lib/level-form";
 import { mapSubmitError } from "../lib/server-form-error";
 import type { CampusOption, LevelRow } from "../types";
+import DirectorCombobox, {
+  DIRECTORS_UNAVAILABLE_NOTICE,
+  type DirectorStatus,
+} from "./director-combobox";
+
+/** The "Director de Grupo" field's data: the container runs the teacher search. */
+export type DirectorsProps = {
+  teachers: readonly DirectorSource[];
+  current?: CurrentDirector;
+  status: DirectorStatus;
+  onSearchChange: (search: string) => void;
+};
 
 /**
  * INS-12 course form (sige/02 §5.2). Presentational: `campuses` and `levels` are the selects'
@@ -34,8 +47,10 @@ import type { CampusOption, LevelRow } from "../types";
  * changes) and `onSubmit` performs the create or update, rejecting with the server error, which
  * this form maps onto its fields (a repeated course under "Nombre", a level of another campus
  * under "Nivel Académico", a director who is not an active teacher under "Director de Grupo") or
- * an inline message. `directors` are the choices of the "Director de Grupo" select (the container
- * builds them, keeping a deactivated current director); "Sin director asignado" clears it.
+ * an inline message. `directors` feed the searchable "Director de Grupo" combobox (the container
+ * runs the teacher search; "Sin director asignado" clears it and the current director, even a
+ * deactivated one, stays selectable). If the teachers cannot be loaded the field is disabled with
+ * a notice and the rest of the form still saves.
  */
 export default function CourseForm({
   initialValues,
@@ -50,7 +65,7 @@ export default function CourseForm({
   mode: "create" | "edit";
   campuses: readonly CampusOption[];
   levels: readonly LevelRow[];
-  directors: readonly Option[];
+  directors: DirectorsProps;
   onSubmit: (input: CourseInput) => Promise<void>;
   onInvalid?: () => void;
 }) {
@@ -162,17 +177,14 @@ export default function CourseForm({
             </form.Subscribe>
             <form.Field name="directorPersonId">
               {(field) => (
-                <FormField field={field} label="Director de Grupo">
-                  {(control) => (
-                    <NativeSelect {...control} className="w-full">
-                      <NativeSelectOption value="">Sin director asignado</NativeSelectOption>
-                      {directors.map((director) => (
-                        <NativeSelectOption key={director.value} value={director.value}>
-                          {director.label}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  )}
+                <FormField
+                  field={field}
+                  label="Director de Grupo"
+                  description={
+                    directors.status === "unavailable" ? DIRECTORS_UNAVAILABLE_NOTICE : undefined
+                  }
+                >
+                  {(control) => <DirectorCombobox control={control} {...directors} />}
                 </FormField>
               )}
             </form.Field>

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { withRouter } from "@/shared/storybook/with-router";
 
 import { emptyCourseForm } from "../lib/course-form";
-import CourseForm from "./course-form";
+import CourseForm, { type DirectorsProps } from "./course-form";
 
 const CAMPUSES = [
   { id: "c1", name: "Sede Principal", isMain: true },
@@ -29,10 +29,16 @@ const LEVELS = [
   },
 ];
 
-const DIRECTORS = [
-  { value: "t1", label: "Ada Lovelace" },
-  { value: "t2", label: "Alan Turing" },
+const TEACHERS = [
+  { personId: "t1", name: "Ada Lovelace" },
+  { personId: "t2", name: "Alan Turing" },
 ];
+
+const DIRECTORS: DirectorsProps = {
+  teachers: TEACHERS,
+  status: "ready",
+  onSearchChange: () => {},
+};
 
 const meta = {
   title: "Institution/CourseForm",
@@ -78,7 +84,7 @@ export const Edit: Story = {
   },
 };
 
-/** The current director was deactivated: still shown, marked inactive, so saving keeps them. */
+/** The server reports the current director as deactivated: still shown, marked inactive, so saving keeps them. */
 export const InactiveDirector: Story = {
   args: {
     mode: "edit",
@@ -88,7 +94,51 @@ export const InactiveDirector: Story = {
       name: "6-1",
       directorPersonId: "gone",
     },
-    directors: [{ value: "gone", label: "Grace Hopper (inactivo)" }, ...DIRECTORS],
+    directors: {
+      ...DIRECTORS,
+      current: { directorPersonId: "gone", directorName: "Grace Hopper", directorActive: false },
+    },
+  },
+};
+
+/** An active current director beyond the result window stays selected and unmarked. */
+export const DirectorOutsideResults: Story = {
+  args: {
+    mode: "edit",
+    initialValues: {
+      ...emptyCourseForm("2026"),
+      campusId: "c1",
+      name: "6-1",
+      directorPersonId: "far",
+    },
+    directors: {
+      ...DIRECTORS,
+      current: { directorPersonId: "far", directorName: "Zoe Zeta", directorActive: true },
+    },
+  },
+};
+
+/** A search in flight: the field stays usable while the results refresh. */
+export const SearchingDirectors: Story = {
+  args: { directors: { ...DIRECTORS, status: "searching" } },
+};
+
+/** `user.options` failed: the director field is disabled with a notice, the rest still saves. */
+export const OptionsUnavailable: Story = {
+  args: {
+    mode: "edit",
+    initialValues: {
+      ...emptyCourseForm("2026"),
+      campusId: "c1",
+      name: "6-1",
+      directorPersonId: "t1",
+    },
+    directors: {
+      teachers: [],
+      status: "unavailable",
+      onSearchChange: () => {},
+      current: { directorPersonId: "t1", directorName: "Ada Lovelace", directorActive: true },
+    },
   },
 };
 

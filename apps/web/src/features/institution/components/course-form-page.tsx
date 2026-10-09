@@ -2,7 +2,7 @@ import { buttonVariants } from "@base-template/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { GraduationCap } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/app/orpc";
@@ -13,17 +13,13 @@ import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
 import { isNotFoundError } from "@/shared/lib/orpc-error";
 
-import {
-  courseToFormValues,
-  directorChoices,
-  emptyCourseForm,
-  type CourseInput,
-} from "../lib/course-form";
+import { courseToFormValues, emptyCourseForm, type CourseInput } from "../lib/course-form";
 import { useDirectorTeachers } from "../hooks/use-director-teachers";
 import { INVALID_FORM_MESSAGE } from "../lib/form-messages";
 import { campusChoices } from "../lib/level-form";
 import ActiveInstitutionGuard from "./active-institution-guard";
 import CourseForm from "./course-form";
+import type { DirectorStatus } from "./director-combobox";
 import FormPageLayout, { HelpCard } from "./form-page-layout";
 
 const BREADCRUMB_ROOT = { label: "Grados", to: "/cursos" } as const;
@@ -58,7 +54,8 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
   const profileQuery = useQuery(orpc.institution.get.queryOptions());
   const campusesQuery = useQuery(orpc.campus.options.queryOptions());
   const levelsQuery = useQuery(orpc.level.list.queryOptions({ input: {} }));
-  const teachersQuery = useDirectorTeachers();
+  const [directorSearch, setDirectorSearch] = useState("");
+  const teachersQuery = useDirectorTeachers(directorSearch);
   const courseQuery = useQuery({
     ...orpc.course.get.queryOptions({ input: { id: courseId ?? "" } }),
     enabled: isEdit,
@@ -84,7 +81,6 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
     profileQuery.isError ||
     campusesQuery.isError ||
     levelsQuery.isError ||
-    teachersQuery.isError ||
     (isEdit && courseQuery.isError)
   ) {
     return (
@@ -94,7 +90,6 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
           void profileQuery.refetch();
           void campusesQuery.refetch();
           void levelsQuery.refetch();
-          void teachersQuery.refetch();
           if (isEdit) {
             void courseQuery.refetch();
           }
@@ -102,12 +97,7 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
       />
     );
   }
-  if (
-    profileQuery.isPending ||
-    campusesQuery.isPending ||
-    levelsQuery.isPending ||
-    teachersQuery.isPending
-  ) {
+  if (profileQuery.isPending || campusesQuery.isPending || levelsQuery.isPending) {
     return <Loader />;
   }
   if (isEdit && courseQuery.isPending) {
@@ -133,7 +123,12 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
         }
         campuses={campusChoices(campusesQuery.data, course)}
         levels={levelsQuery.data}
-        directors={directorChoices(teachersQuery.data, course)}
+        directors={{
+          teachers: teachersQuery.data ?? [],
+          current: course,
+          status: directorStatus(teachersQuery),
+          onSearchChange: setDirectorSearch,
+        }}
         onInvalid={() => toast.error(INVALID_FORM_MESSAGE)}
         onSubmit={(input: CourseInput) =>
           course
@@ -166,4 +161,16 @@ function CourseFormFrame({ children }: { children: ReactNode }) {
       }
     />
   );
+}
+
+/** The teachers query never gates the form: its failure only disables the director field. */
+function directorStatus(query: {
+  isError: boolean;
+  isPending: boolean;
+  isFetching: boolean;
+}): DirectorStatus {
+  if (query.isError) {
+    return "unavailable";
+  }
+  return query.isPending || query.isFetching ? "searching" : "ready";
 }

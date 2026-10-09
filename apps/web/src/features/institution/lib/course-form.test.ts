@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   COURSE_FIELD_BY_MESSAGE,
   courseFormSchema,
-  directorChoices,
+  directorItems,
+  directorSelection,
+  NO_DIRECTOR,
   courseToFormValues,
   emptyCourseForm,
   levelAfterCampusChange,
@@ -21,6 +23,7 @@ const course: CourseRow = {
   levelName: "Sexto",
   directorPersonId: "p1",
   directorName: "Ada Lovelace",
+  directorActive: true,
   academicYear: "2026",
   shift: "Tarde",
   maxStudents: 35,
@@ -146,29 +149,64 @@ describe("director select", () => {
     { personId: "t2", name: "Alan Turing" },
   ];
 
-  test("offers the active teachers by name", () => {
-    expect(directorChoices(teachers)).toEqual([
+  test("always offers the explicit no-director choice first, then the teachers", () => {
+    expect(directorItems(teachers)).toEqual([
+      NO_DIRECTOR,
       { value: "t1", label: "Ada Lovelace" },
       { value: "t2", label: "Alan Turing" },
     ]);
+    expect(NO_DIRECTOR).toEqual({ value: "", label: "Sin director asignado" });
   });
 
-  test("does not repeat a current director who is still an active teacher", () => {
+  test("does not repeat a current director who is among the results", () => {
+    const current = { directorPersonId: "t1", directorName: "Ada Lovelace", directorActive: true };
+    expect(directorItems(teachers, current)).toEqual(directorItems(teachers));
     expect(
-      directorChoices(teachers, { directorPersonId: "t1", directorName: "Ada Lovelace" }),
-    ).toEqual(directorChoices(teachers));
-    expect(directorChoices(teachers, { directorPersonId: null, directorName: null })).toEqual(
-      directorChoices(teachers),
-    );
+      directorItems(teachers, { directorPersonId: null, directorName: null, directorActive: null }),
+    ).toEqual(directorItems(teachers));
   });
 
-  test("keeps a deactivated current director first, marked inactive", () => {
-    expect(
-      directorChoices(teachers, { directorPersonId: "gone", directorName: "Grace Hopper" })[0],
-    ).toEqual({
+  test("keeps an active current director outside the results, unmarked", () => {
+    const items = directorItems(teachers, {
+      directorPersonId: "far",
+      directorName: "Zoe Zeta",
+      directorActive: true,
+    });
+    expect(items[1]).toEqual({ value: "far", label: "Zoe Zeta" });
+  });
+
+  test("marks a current director inactive only when the server says so", () => {
+    const base = { directorPersonId: "gone", directorName: "Grace Hopper" };
+    expect(directorItems(teachers, { ...base, directorActive: false })[1]).toEqual({
       value: "gone",
       label: "Grace Hopper (inactivo)",
     });
+    expect(directorItems(teachers, { ...base, directorActive: null })[1]?.label).toBe(
+      "Grace Hopper",
+    );
+  });
+
+  test("keeps the teacher just picked while the results change, once", () => {
+    const picked = { value: "t9", label: "Zoe Zeta" };
+    expect(directorItems([], undefined, picked)).toEqual([NO_DIRECTOR, picked]);
+    expect(directorItems([{ personId: "t9", name: "Zoe Zeta" }], undefined, picked)).toEqual([
+      NO_DIRECTOR,
+      picked,
+    ]);
+    expect(directorItems([], undefined, NO_DIRECTOR)).toEqual([NO_DIRECTOR]);
+  });
+
+  test("falls back to the id when the current director has no name", () => {
+    expect(
+      directorItems([], { directorPersonId: "x", directorName: null, directorActive: true })[1],
+    ).toEqual({ value: "x", label: "x" });
+  });
+
+  test("selects the item for the form value, or no director for a blank or unknown one", () => {
+    const items = directorItems(teachers);
+    expect(directorSelection(items, "t2")).toEqual({ value: "t2", label: "Alan Turing" });
+    expect(directorSelection(items, "")).toBe(NO_DIRECTOR);
+    expect(directorSelection(items, "missing")).toBe(NO_DIRECTOR);
   });
 });
 

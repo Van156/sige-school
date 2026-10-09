@@ -114,23 +114,55 @@ export function levelAfterCampusChange(
 /** An active teacher as `user.options` returns it. */
 export type DirectorSource = { personId: string; name: string };
 
-/** Label of the course's current director when they are no longer among the active teachers. */
+/** The course's current director as `course.get` reports them (active flag is server truth). */
+export type CurrentDirector = Pick<
+  CourseRow,
+  "directorPersonId" | "directorName" | "directorActive"
+>;
+
+/** Suffix of a current director the server reports as deactivated. */
 export const INACTIVE_DIRECTOR_SUFFIX = " (inactivo)";
 
-/**
- * The director select's choices: the active teachers and, first, the course's current director
- * when they are missing from them (deactivated), so editing other fields never drops them. The
- * server keeps an unchanged director on update, so submitting that choice is valid.
- */
-export function directorChoices(
-  teachers: readonly DirectorSource[],
-  current?: Pick<CourseRow, "directorPersonId" | "directorName">,
-): Option[] {
-  const choices = teachers.map((teacher) => ({ value: teacher.personId, label: teacher.name }));
+/** The explicit choice that clears the director (form value ""). */
+export const NO_DIRECTOR: Option = { value: "", label: "Sin director asignado" };
+
+/** The current director's choice; "(inactivo)" only when the server says `directorActive: false`. */
+function currentDirectorOption(current: CurrentDirector | undefined): Option | null {
   const id = current?.directorPersonId;
-  if (!id || teachers.some((teacher) => teacher.personId === id)) {
-    return choices;
+  if (!id) {
+    return null;
   }
-  const name = current?.directorName ?? id;
-  return [{ value: id, label: `${name}${INACTIVE_DIRECTOR_SUFFIX}` }, ...choices];
+  const name = current.directorName ?? id;
+  return {
+    value: id,
+    label: current.directorActive === false ? `${name}${INACTIVE_DIRECTOR_SUFFIX}` : name,
+  };
+}
+
+/**
+ * The director combobox's items: "Sin director asignado", then the choices that must stay
+ * selectable even when the search results do not include them (the course's current director,
+ * possibly deactivated or beyond the result window; the teacher just `picked`), then the
+ * teachers found. Editing other fields never drops the current director: the server keeps an
+ * unchanged director on update.
+ */
+export function directorItems(
+  teachers: readonly DirectorSource[],
+  current?: CurrentDirector,
+  picked?: Option,
+): Option[] {
+  const found = teachers.map((teacher) => ({ value: teacher.personId, label: teacher.name }));
+  const kept: Option[] = [];
+  for (const option of [currentDirectorOption(current), picked]) {
+    const known = [...found, ...kept].some((item) => item.value === option?.value);
+    if (option && option.value !== NO_DIRECTOR.value && !known) {
+      kept.push(option);
+    }
+  }
+  return [NO_DIRECTOR, ...kept, ...found];
+}
+
+/** The item the form value points at; blank or unknown values select "Sin director asignado". */
+export function directorSelection(items: readonly Option[], directorPersonId: string): Option {
+  return items.find((item) => item.value === directorPersonId) ?? NO_DIRECTOR;
 }

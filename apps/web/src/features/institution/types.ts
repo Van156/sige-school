@@ -91,6 +91,8 @@ export type CourseRow = {
   levelName: string | null;
   directorPersonId: string | null;
   directorName: string | null;
+  /** `null` without a director; `false` once they were deactivated. */
+  directorActive: boolean | null;
   academicYear: string;
   shift: "Mañana" | "Tarde" | "Nocturna" | "Única" | "Sabatina";
   maxStudents: number;
