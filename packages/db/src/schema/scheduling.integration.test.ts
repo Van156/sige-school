@@ -332,6 +332,26 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       });
     });
 
+    test("clearing the offering's teacher while an assignment exists raises 23502 (SCH-R3)", async () => {
+      await db().insert(teacherAssignment).values(values());
+      const clear = () =>
+        db()
+          .update(offering)
+          .set({ teacherPersonId: null })
+          .where(sql`${offering.id} = ${ctx.offeringA}`);
+      expect(await pgFailure(clear)).toMatchObject({ code: "23502" });
+      // The service path deletes the assignment first; then the teacher can be cleared.
+      await db()
+        .delete(teacherAssignment)
+        .where(sql`${teacherAssignment.offeringId} = ${ctx.offeringA}`);
+      await clear();
+      const [row] = await db()
+        .select()
+        .from(offering)
+        .where(sql`${offering.id} = ${ctx.offeringA}`);
+      expect(row?.teacherPersonId).toBeNull();
+    });
+
     test("notes are limited to 500 characters", async () => {
       await db()
         .insert(teacherAssignment)
@@ -746,6 +766,79 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
         .from(scheduleSlot)
         .where(sql`${scheduleSlot.id} = ${row!.id}`);
       expect(filled?.teacherPersonId).toBe(ctx.teacherA);
+    });
+
+    describe("concurrent null-teacher slot vs offering teacher assignment (R3-002)", () => {
+      const nullTeacherSlot = () =>
+        slot({
+          offeringId: ctx.offeringE,
+          courseId: ctx.courseA,
+          teacherPersonId: null,
+          classroomId: ctx.roomA,
+          dayOfWeek: 2,
+        });
+      const giveTeacher = (tx: typeof handle.db) =>
+        tx
+          .update(offering)
+          .set({ teacherPersonId: ctx.teacherA })
+          .where(sql`${offering.id} = ${ctx.offeringE}`);
+      const settleAfter = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+      /** Slots whose teacher differs from their offering's: the invariant the trigger pair keeps empty. */
+      async function inconsistentSlots() {
+        const result = await db().execute(
+          sql`select s.id from "schedule_slot" s join "offering" o on o.organization_id = s.organization_id and o.id = s.offering_id where s.teacher_person_id is distinct from o.teacher_person_id`,
+        );
+        return result.rows;
+      }
+
+      test("slot inserted first: the offering update waits, then fills the slot", async () => {
+        let slotInserted!: () => void;
+        const inserted = new Promise<void>((resolve) => (slotInserted = resolve));
+        let commitSlot!: () => void;
+        const gate = new Promise<void>((resolve) => (commitSlot = resolve));
+        const slotTx = db().transaction(async (tx) => {
+          await tx.insert(scheduleSlot).values(nullTeacherSlot());
+          slotInserted();
+          await gate;
+        });
+        await inserted;
+        const offeringTx = db().transaction(async (tx) => {
+          await giveTeacher(tx);
+        });
+        await settleAfter(200);
+        commitSlot();
+        await Promise.all([slotTx, offeringTx]);
+        expect(await inconsistentSlots()).toEqual([]);
+        const rows = await db()
+          .select()
+          .from(scheduleSlot)
+          .where(sql`${scheduleSlot.offeringId} = ${ctx.offeringE}`);
+        expect(rows.map((row) => row.teacherPersonId)).toEqual([ctx.teacherA]);
+      });
+
+      test("offering updated first: the null-teacher slot insert is rejected", async () => {
+        let offeringUpdated!: () => void;
+        const updated = new Promise<void>((resolve) => (offeringUpdated = resolve));
+        let commitOffering!: () => void;
+        const gate = new Promise<void>((resolve) => (commitOffering = resolve));
+        const offeringTx = db().transaction(async (tx) => {
+          await giveTeacher(tx);
+          offeringUpdated();
+          await gate;
+        });
+        await updated;
+        const slotTx = pgFailure(() =>
+          db().transaction(async (tx) => {
+            await tx.insert(scheduleSlot).values(nullTeacherSlot());
+          }),
+        );
+        await settleAfter(200);
+        commitOffering();
+        await offeringTx;
+        expect(await slotTx).toMatchObject({ code: "23514", constraint: SLOT_TEACHER_SYNC_CHECK });
+        expect(await inconsistentSlots()).toEqual([]);
+      });
     });
 
     test("after a cascade the teacher exclusion still rejects a real overlap", async () => {
