@@ -23,18 +23,21 @@ import { useUserActivation } from "../hooks/use-user-activation";
 import {
   hasActiveFilters,
   hasNoUsers,
+  statTileDisplay,
   toUserListInput,
   userListDescription,
   userListTitle,
+  USERS_LOAD_ERROR,
   userSearchConfig,
   type UserSearch,
 } from "../lib/user-list";
 import type { UserRow } from "../types";
 import UsersTable from "./users-table";
 
-const LOAD_ERROR_MESSAGE = "No se pudieron cargar los usuarios.";
-
-/** The row a delete confirmation is about; the toast and dialog name the user by username. */
+/**
+ * The row a delete confirmation is about. `useDeleteEntity` names the row through `name`, which
+ * for users is the username (the toast and dialog name the user by it).
+ */
 type DeleteTarget = { id: string; name: string };
 
 /**
@@ -87,6 +90,7 @@ function UsersContent({ search }: { search: UserSearch }) {
 
   const stats = statsQuery.data;
   const total = listQuery.data?.total;
+  const tile = (count: number | undefined) => statTileDisplay(count, statsQuery.isError);
 
   return (
     <>
@@ -96,10 +100,10 @@ function UsersContent({ search }: { search: UserSearch }) {
         banner={<ActiveInstitutionBanner />}
         stats={
           <StatGrid>
-            <StatTile label="Total Usuarios" value={stats?.total ?? 0} icon={Users} />
-            <StatTile label="Profesores" value={stats?.teachers ?? 0} icon={UserRound} />
-            <StatTile label="Estudiantes" value={stats?.students ?? 0} icon={GraduationCap} />
-            <StatTile label="Activos" value={stats?.active ?? 0} icon={Activity} />
+            <StatTile label="Total Usuarios" {...tile(stats?.total)} icon={Users} />
+            <StatTile label="Profesores" {...tile(stats?.teachers)} icon={UserRound} />
+            <StatTile label="Estudiantes" {...tile(stats?.students)} icon={GraduationCap} />
+            <StatTile label="Activos" {...tile(stats?.active)} icon={Activity} />
           </StatGrid>
         }
         listTitle="Lista de Usuarios"
@@ -126,7 +130,7 @@ function UsersContent({ search }: { search: UserSearch }) {
               isPending: listQuery.isPending,
               isFetching: listQuery.isFetching,
               isPlaceholderData: listQuery.isPlaceholderData,
-              errorMessage: listQuery.isError ? LOAD_ERROR_MESSAGE : null,
+              errorMessage: listQuery.isError ? USERS_LOAD_ERROR : null,
               onRetry: () => void listQuery.refetch(),
             }}
           />

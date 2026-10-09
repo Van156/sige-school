@@ -5,32 +5,28 @@ import { toast } from "sonner";
 import { orpc } from "@/app/orpc";
 import { confirmFor } from "@/shared/lib/confirm";
 
-import { activationCopy, activationFailureMessage } from "../lib/user-activation";
+import { runActivation } from "../lib/activation-flow";
+import { activationCopy } from "../lib/user-activation";
 import type { UserRow } from "../types";
 
 /**
  * Container logic of the row activate/deactivate action: remembers the row awaiting confirmation,
- * calls `user.setActive`, refreshes the list and stats, and reports the outcome. A failure toasts
- * the server message and keeps the dialog open. Spread `dialog` into `ConfirmDialog`.
+ * runs `runActivation` (`user.setActive`, refresh of `orpc.user.key()`, toasts). A failure keeps the
+ * dialog open. Spread `dialog` into `ConfirmDialog`.
  */
 export function useUserActivation() {
   const queryClient = useQueryClient();
   const setActive = useMutation(orpc.user.setActive.mutationOptions());
   const [target, setTarget] = useState<UserRow | null>(null);
 
-  const confirm = confirmFor(target, async (row) => {
-    const copy = activationCopy(row);
-    try {
-      await setActive.mutateAsync({ personId: row.personId, active: copy.active });
-    } catch (error) {
-      toast.error(`No se pudo actualizar a ${row.username}`, {
-        description: activationFailureMessage(error),
-      });
-      throw error;
-    }
-    toast.success(copy.successMessage);
-    await queryClient.invalidateQueries({ queryKey: orpc.user.key() });
-  });
+  const confirm = confirmFor(target, (row) =>
+    runActivation(row, {
+      setActive: (user, active) => setActive.mutateAsync({ personId: user.personId, active }),
+      notifyError: (title, description) => toast.error(title, { description }),
+      notifySuccess: (message) => toast.success(message),
+      refresh: () => queryClient.invalidateQueries({ queryKey: orpc.user.key() }),
+    }),
+  );
 
   return {
     target,

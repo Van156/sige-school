@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { withRouter } from "@/shared/storybook/with-router";
 
-import { userSearchDefaults } from "../lib/user-list";
+import { USERS_LOAD_ERROR, userSearchDefaults } from "../lib/user-list";
 import type { UserRow } from "../types";
 import UsersTable from "./users-table";
 
@@ -79,7 +79,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Owner and own rows carry no actions (USR-R4). */
+/** Owner rows carry no actions and the own row cannot be deactivated or deleted (USR-R4). */
 export const Manager: Story = {};
 
 export const ReadOnly: Story = { args: { permissions: { canUpdate: false, canDelete: false } } };
@@ -98,7 +98,7 @@ export const LoadFailed: Story = {
       ...meta.args.list,
       rows: undefined,
       total: undefined,
-      errorMessage: "No se pudieron cargar los usuarios.",
+      errorMessage: USERS_LOAD_ERROR,
     },
   },
 };

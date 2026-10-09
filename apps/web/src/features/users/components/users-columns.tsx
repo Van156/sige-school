@@ -10,6 +10,7 @@ import {
   USER_ROLE_FILTER_OPTIONS,
   USER_STATUS_FILTER_OPTIONS,
   userRowAccess,
+  type UserRowPermissions,
 } from "../lib/user-list";
 import { toRoleKind } from "../lib/user-roles";
 import type { UserRow, UserTableRow } from "../types";
@@ -23,7 +24,7 @@ export const HIDDEN_COLUMNS = { createdAt: false } as const;
 
 export type UserRowActions = {
   /** `user:update` and `user:delete` of the caller; UX only, the procedures re-check. */
-  permissions: { canUpdate: boolean; canDelete: boolean };
+  permissions: UserRowPermissions;
   onToggleActive: (user: UserRow) => void;
   onDelete: (user: UserRow) => void;
 };

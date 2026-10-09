@@ -113,20 +113,42 @@ export function hasActiveFilters(search: UserSearch) {
   return simpleSearchToFilters(search, USER_FILTER_VARIANTS).length > 0;
 }
 
+/** Row-action permissions of the caller (`user:update`, `user:delete`); UX only. */
+export type UserRowPermissions = { canUpdate: boolean; canDelete: boolean };
+
 export type UserRowAccess = { canActivate: boolean; canDelete: boolean };
+
+/** Shown by the USR-01 list when `user.list` fails. */
+export const USERS_LOAD_ERROR = "No se pudieron cargar los usuarios.";
 
 /**
  * Which row actions to offer (sige/03 §5.1, USR-R4): none on the caller's own row for delete and
- * deactivation, none on `owner`/`admin` rows. UX only; the procedures re-check and the API
- * messages stay authoritative.
+ * deactivation, none on `owner`/`admin` rows. UX only; the procedures re-check and the API messages
+ * stay authoritative.
  */
 export function userRowAccess(
   row: Pick<UserRow, "role" | "isSelf">,
-  permissions: { canUpdate: boolean; canDelete: boolean },
+  permissions: UserRowPermissions,
 ): UserRowAccess {
   const manageable = !row.isSelf && !isProtectedRole(row.role);
   return {
     canActivate: permissions.canUpdate && manageable,
     canDelete: permissions.canDelete && manageable,
   };
+}
+
+const STAT_PLACEHOLDER = "—";
+
+/**
+ * What a KPI tile shows for a `user.stats` count: a dash while the query is pending and a dash
+ * with a hint when it failed, never a misleading 0.
+ */
+export function statTileDisplay(
+  count: number | undefined,
+  isError: boolean,
+): { value: string; hint?: string } {
+  if (count !== undefined) {
+    return { value: String(count) };
+  }
+  return isError ? { value: STAT_PLACEHOLDER, hint: "No disponible" } : { value: STAT_PLACEHOLDER };
 }

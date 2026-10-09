@@ -7,6 +7,7 @@ import {
   toUserListInput,
   userListDescription,
   userListTitle,
+  statTileDisplay,
   userRowAccess,
   userSearchConfig,
   userSearchDefaults,
@@ -118,5 +119,20 @@ describe("userRowAccess", () => {
       canActivate: true,
       canDelete: false,
     });
+  });
+});
+
+describe("statTileDisplay", () => {
+  test("shows the count once loaded, including a real zero", () => {
+    expect(statTileDisplay(12, false)).toEqual({ value: "12" });
+    expect(statTileDisplay(0, false)).toEqual({ value: "0" });
+  });
+
+  test("shows a placeholder while pending", () => {
+    expect(statTileDisplay(undefined, false)).toEqual({ value: "—" });
+  });
+
+  test("shows a placeholder with a hint when the query failed", () => {
+    expect(statTileDisplay(undefined, true)).toEqual({ value: "—", hint: "No disponible" });
   });
 });
