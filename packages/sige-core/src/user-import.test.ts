@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  cellText,
   IMPORT_ROLES,
+  isBlankRow,
   importErrorMessages,
   isValidDocumentNumber,
   isValidEmail,
@@ -398,5 +400,20 @@ describe("email normalisation", () => {
     expect(result.errors).toEqual([
       { row: 3, message: 'Fila 3: El correo "MARIA@colegio.co" está repetido en el archivo.' },
     ]);
+  });
+});
+
+describe("cellText and isBlankRow (shared with the server-side file reader)", () => {
+  test("cellText reads exceljs rich values and blanks the unreadable ones", () => {
+    expect(cellText("  Ana ")).toBe("Ana");
+    expect(cellText({ richText: [{ text: "A" }, { text: "na" }] })).toBe("Ana");
+    expect(cellText(12.5)).toBe("");
+    expect(cellText(null)).toBe("");
+  });
+
+  test("isBlankRow ignores whitespace-only rows but not unreadable cells", () => {
+    expect(isBlankRow({ row: 2, cells: { nombres: "  ", documento: null } })).toBe(true);
+    expect(isBlankRow({ row: 3, cells: { nombres: "Ana" } })).toBe(false);
+    expect(isBlankRow({ row: 4, cells: { documento: 12.5 } })).toBe(false);
   });
 });

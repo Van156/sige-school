@@ -194,7 +194,8 @@ function readCell(value: unknown): Cell {
   return BLANK;
 }
 
-const cellText = (value: unknown): string => readCell(value).text;
+/** Text of an exceljs cell value (see `readCell`); `""` for blank and unreadable cells. */
+export const cellText = (value: unknown): string => readCell(value).text;
 
 const prefix = (row: number, message: string) => `Fila ${row}: ${message}`;
 
@@ -273,7 +274,8 @@ function validateRow({ row, cells }: ImportRawRow): RowOutcome {
   };
 }
 
-const isBlankRow = (row: ImportRawRow) =>
+/** Whether every cell of the row is empty (such rows are ignored, not reported). */
+export const isBlankRow = (row: ImportRawRow) =>
   Object.values(row.cells).every((value) => {
     const cell = readCell(value);
     return cell.text === "" && !cell.invalid;
