@@ -33,3 +33,5 @@ export {
   type ProfileInput,
 } from "./lib/profile-form";
 export { INSTITUTION_SELECTOR_PATH } from "./lib/institution-scope";
+export { campusChoices, campusOptionLabel } from "./lib/level-form";
+export type { CampusOption } from "./types";

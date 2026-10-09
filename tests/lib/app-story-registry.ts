@@ -73,4 +73,6 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/institutions/components/platform-user-form.tsx",
   "features/institutions/components/platform-users-table.tsx",
   "shared/components/form/password-input.tsx",
+  "features/scheduling/components/classroom-form.tsx",
+  "features/scheduling/components/classrooms-table.tsx",
 ];

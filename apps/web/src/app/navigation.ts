@@ -3,6 +3,7 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
+  DoorOpen,
   GraduationCap,
   LayoutDashboard,
   Layers,
@@ -134,6 +135,12 @@ export const navGroups: NavGroup<NavContext>[] = [
         visible: can("criterion:read"),
       },
     ],
+  },
+  {
+    id: "scheduling",
+    label: "Horarios",
+    visible: hasOrganization,
+    items: [{ label: "Salones", to: "/salones", icon: DoorOpen, visible: can("classroom:read") }],
   },
   {
     id: "users",

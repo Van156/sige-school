@@ -163,6 +163,15 @@ describe("navGroups visibility", () => {
     ).toEqual(["/asignaturas", "/criterios"]);
   });
 
+  test("the scheduling group lists Salones for holders of classroom:read", () => {
+    const scheduling = (permissions: Record<string, string[]>) =>
+      filterNavGroups(navGroups, { ...member, kind: "coordinator", permissions }).find(
+        (group) => group.id === "scheduling",
+      );
+    expect(scheduling({ classroom: ["read"] })?.items.map((item) => item.to)).toEqual(["/salones"]);
+    expect(scheduling({ campus: ["read"] })).toBeUndefined();
+  });
+
   test("the users group lists Usuarios only for holders of user:read", () => {
     const usersGroup = (kind: NavContext["kind"], permissions: Record<string, string[]>) =>
       filterNavGroups(navGroups, { ...member, kind, permissions }).find(
