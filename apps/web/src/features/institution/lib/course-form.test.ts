@@ -3,8 +3,12 @@ import { describe, expect, test } from "bun:test";
 import {
   COURSE_FIELD_BY_MESSAGE,
   courseFormSchema,
+  DIRECTORS_SEARCH_FAILED_NOTICE,
+  DIRECTORS_UNAVAILABLE_NOTICE,
   directorItems,
+  directorNotice,
   directorSelection,
+  directorStatus,
   NO_DIRECTOR,
   courseToFormValues,
   emptyCourseForm,
@@ -220,5 +224,38 @@ describe("level select", () => {
     expect(levelAfterCampusChange("l1", "c1", levels)).toBe("l1");
     expect(levelAfterCampusChange("l1", "c2", levels)).toBe("");
     expect(levelAfterCampusChange("", "c2", levels)).toBe("");
+  });
+});
+
+describe("directorStatus", () => {
+  const settled = { isError: false, isPending: false, isFetching: false };
+
+  test("is ready once the list loaded, searching while one is pending or refetching", () => {
+    expect(directorStatus(settled, "")).toBe("ready");
+    expect(directorStatus({ ...settled, isPending: true, isFetching: true }, "")).toBe("searching");
+    expect(directorStatus({ ...settled, isFetching: true }, "ada")).toBe("searching");
+  });
+
+  test("locks the field when the first list failed, and recovers once a retry succeeds", () => {
+    const failed = { ...settled, isError: true };
+    expect(directorStatus(failed, "")).toBe("unavailable");
+    expect(directorStatus({ ...failed, isFetching: true }, "")).toBe("searching");
+    expect(directorStatus(settled, "")).toBe("ready");
+  });
+
+  test("keeps the input usable when a typed search failed, and recovers on retry", () => {
+    const failed = { ...settled, isError: true };
+    expect(directorStatus(failed, "ada")).toBe("search-failed");
+    expect(directorStatus({ ...failed, isFetching: true }, "ada")).toBe("searching");
+    expect(directorStatus(settled, "ada")).toBe("ready");
+  });
+});
+
+describe("directorNotice", () => {
+  test("explains only the failed states", () => {
+    expect(directorNotice("unavailable")).toBe(DIRECTORS_UNAVAILABLE_NOTICE);
+    expect(directorNotice("search-failed")).toBe(DIRECTORS_SEARCH_FAILED_NOTICE);
+    expect(directorNotice("ready")).toBeUndefined();
+    expect(directorNotice("searching")).toBeUndefined();
   });
 });

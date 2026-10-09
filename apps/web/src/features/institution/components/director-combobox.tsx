@@ -15,19 +15,18 @@ import {
   directorSelection,
   type CurrentDirector,
   type DirectorSource,
+  type DirectorStatus,
 } from "../lib/course-form";
 
-/** What the director choices depend on: ready, a search in flight, or the teachers unavailable. */
-export type DirectorStatus = "ready" | "searching" | "unavailable";
-
-export const DIRECTORS_UNAVAILABLE_NOTICE =
-  "No se pudo cargar la lista de profesores; el director no se puede cambiar por ahora.";
+/** Re-exported for the stories and the container. */
+export type { DirectorStatus };
 
 /**
  * "Director de Grupo" searchable combobox (INS-12). Presentational: `teachers` are the active
  * teachers matching the search the container runs on `onSearchChange`; "Sin director asignado"
  * clears the director and the current director stays selectable even when the results omit them.
- * `unavailable` disables the field, still showing the current value.
+ * `unavailable` disables the field, still showing the current value; a `search-failed` input
+ * stays usable so the user can change the term.
  */
 export default function DirectorCombobox({
   control,

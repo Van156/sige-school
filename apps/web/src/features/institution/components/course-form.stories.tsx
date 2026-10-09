@@ -38,6 +38,7 @@ const DIRECTORS: DirectorsProps = {
   teachers: TEACHERS,
   status: "ready",
   onSearchChange: () => {},
+  onRetry: () => {},
 };
 
 const meta = {
@@ -123,7 +124,12 @@ export const SearchingDirectors: Story = {
   args: { directors: { ...DIRECTORS, status: "searching" } },
 };
 
-/** `user.options` failed: the director field is disabled with a notice, the rest still saves. */
+/** A typed search failed after the list loaded: the input stays usable, with a retry action. */
+export const SearchFailed: Story = {
+  args: { directors: { ...DIRECTORS, status: "search-failed" } },
+};
+
+/** `user.options` failed: the director field is disabled with a notice and "Reintentar", the rest still saves. */
 export const OptionsUnavailable: Story = {
   args: {
     mode: "edit",
@@ -137,6 +143,7 @@ export const OptionsUnavailable: Story = {
       teachers: [],
       status: "unavailable",
       onSearchChange: () => {},
+      onRetry: () => {},
       current: { directorPersonId: "t1", directorName: "Ada Lovelace", directorActive: true },
     },
   },

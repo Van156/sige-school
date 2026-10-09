@@ -166,3 +166,39 @@ export function directorItems(
 export function directorSelection(items: readonly Option[], directorPersonId: string): Option {
   return items.find((item) => item.value === directorPersonId) ?? NO_DIRECTOR;
 }
+
+/**
+ * What the director choices depend on: ready, a search in flight, the first teacher list not
+ * loaded (`unavailable`, the field is locked until a retry succeeds) or a typed search that
+ * failed (`search-failed`, the input stays usable so the term can be changed).
+ */
+export type DirectorStatus = "ready" | "searching" | "unavailable" | "search-failed";
+
+export const DIRECTORS_UNAVAILABLE_NOTICE =
+  "No se pudo cargar la lista de profesores; el director no se puede cambiar por ahora.";
+
+export const DIRECTORS_SEARCH_FAILED_NOTICE =
+  "No se pudo buscar profesores. Cambia el término o reintenta.";
+
+/**
+ * Maps the teachers query to a status. `term` is the (debounced) search the query ran with: a
+ * failure of the blank first list leaves nothing to pick from, while a failure of a typed term
+ * happens after the list loaded. A refetch in flight (a retry) counts as searching.
+ */
+export function directorStatus(
+  query: { isError: boolean; isPending: boolean; isFetching: boolean },
+  term: string,
+): DirectorStatus {
+  if (query.isError && !query.isFetching) {
+    return term === "" ? "unavailable" : "search-failed";
+  }
+  return query.isPending || query.isFetching ? "searching" : "ready";
+}
+
+/** The inline notice for a failed teachers query; none while it works. */
+export function directorNotice(status: DirectorStatus): string | undefined {
+  if (status === "unavailable") {
+    return DIRECTORS_UNAVAILABLE_NOTICE;
+  }
+  return status === "search-failed" ? DIRECTORS_SEARCH_FAILED_NOTICE : undefined;
+}

@@ -13,13 +13,17 @@ import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
 import { isNotFoundError } from "@/shared/lib/orpc-error";
 
-import { courseToFormValues, emptyCourseForm, type CourseInput } from "../lib/course-form";
+import {
+  courseToFormValues,
+  directorStatus,
+  emptyCourseForm,
+  type CourseInput,
+} from "../lib/course-form";
 import { useDirectorTeachers } from "../hooks/use-director-teachers";
 import { INVALID_FORM_MESSAGE } from "../lib/form-messages";
 import { campusChoices } from "../lib/level-form";
 import ActiveInstitutionGuard from "./active-institution-guard";
 import CourseForm from "./course-form";
-import type { DirectorStatus } from "./director-combobox";
 import FormPageLayout, { HelpCard } from "./form-page-layout";
 
 const BREADCRUMB_ROOT = { label: "Grados", to: "/cursos" } as const;
@@ -55,7 +59,7 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
   const campusesQuery = useQuery(orpc.campus.options.queryOptions());
   const levelsQuery = useQuery(orpc.level.list.queryOptions({ input: {} }));
   const [directorSearch, setDirectorSearch] = useState("");
-  const teachersQuery = useDirectorTeachers(directorSearch);
+  const { query: teachersQuery, term: teachersTerm } = useDirectorTeachers(directorSearch);
   const courseQuery = useQuery({
     ...orpc.course.get.queryOptions({ input: { id: courseId ?? "" } }),
     enabled: isEdit,
@@ -126,8 +130,9 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
         directors={{
           teachers: teachersQuery.data ?? [],
           current: course,
-          status: directorStatus(teachersQuery),
+          status: directorStatus(teachersQuery, teachersTerm),
           onSearchChange: setDirectorSearch,
+          onRetry: () => void teachersQuery.refetch(),
         }}
         onInvalid={() => toast.error(INVALID_FORM_MESSAGE)}
         onSubmit={(input: CourseInput) =>
@@ -161,16 +166,4 @@ function CourseFormFrame({ children }: { children: ReactNode }) {
       }
     />
   );
-}
-
-/** The teachers query never gates the form: its failure only disables the director field. */
-function directorStatus(query: {
-  isError: boolean;
-  isPending: boolean;
-  isFetching: boolean;
-}): DirectorStatus {
-  if (query.isError) {
-    return "unavailable";
-  }
-  return query.isPending || query.isFetching ? "searching" : "ready";
 }

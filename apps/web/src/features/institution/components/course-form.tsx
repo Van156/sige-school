@@ -1,4 +1,4 @@
-import { buttonVariants } from "@base-template/ui/components/button";
+import { Button, buttonVariants } from "@base-template/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@base-template/ui/components/card";
 import { FieldGroup } from "@base-template/ui/components/field";
 import { Input } from "@base-template/ui/components/input";
@@ -17,7 +17,9 @@ import {
   COURSE_SAVE_FALLBACK,
   courseFormSchema,
   type CurrentDirector,
+  directorNotice,
   type DirectorSource,
+  type DirectorStatus,
   levelAfterCampusChange,
   levelChoices,
   SHIFT_OPTIONS,
@@ -28,10 +30,7 @@ import {
 import { campusOptionLabel } from "../lib/level-form";
 import { mapSubmitError } from "../lib/server-form-error";
 import type { CampusOption, LevelRow } from "../types";
-import DirectorCombobox, {
-  DIRECTORS_UNAVAILABLE_NOTICE,
-  type DirectorStatus,
-} from "./director-combobox";
+import DirectorCombobox from "./director-combobox";
 
 /** The "Director de Grupo" field's data: the container runs the teacher search. */
 export type DirectorsProps = {
@@ -39,7 +38,25 @@ export type DirectorsProps = {
   current?: CurrentDirector;
   status: DirectorStatus;
   onSearchChange: (search: string) => void;
+  /** Runs the failed teachers query again. */
+  onRetry: () => void;
 };
+
+/** The failed-teachers notice with its "Reintentar" action; nothing while the teachers work. */
+function DirectorNotice({ status, onRetry }: { status: DirectorStatus; onRetry: () => void }) {
+  const notice = directorNotice(status);
+  if (!notice) {
+    return null;
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span>{notice}</span>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        Reintentar
+      </Button>
+    </span>
+  );
+}
 
 /**
  * INS-12 course form (sige/02 §5.2). Presentational: `campuses` and `levels` are the selects'
@@ -50,7 +67,8 @@ export type DirectorsProps = {
  * an inline message. `directors` feed the searchable "Director de Grupo" combobox (the container
  * runs the teacher search; "Sin director asignado" clears it and the current director, even a
  * deactivated one, stays selectable). If the teachers cannot be loaded the field is disabled with
- * a notice and the rest of the form still saves.
+ * a notice with a retry action (a failed typed search keeps the input usable) and the rest of the
+ * form still saves.
  */
 export default function CourseForm({
   initialValues,
@@ -181,7 +199,9 @@ export default function CourseForm({
                   field={field}
                   label="Director de Grupo"
                   description={
-                    directors.status === "unavailable" ? DIRECTORS_UNAVAILABLE_NOTICE : undefined
+                    directorNotice(directors.status) ? (
+                      <DirectorNotice status={directors.status} onRetry={directors.onRetry} />
+                    ) : undefined
                   }
                 >
                   {(control) => <DirectorCombobox control={control} {...directors} />}

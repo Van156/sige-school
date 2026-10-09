@@ -38,4 +38,8 @@ describe("DirectorCombobox", () => {
   test("stays enabled while a search is in flight", () => {
     expect(render("searching")).not.toMatch(/<input[^>]*\sdisabled[="\s]/);
   });
+
+  test("stays usable, to change the term, when a typed search failed", () => {
+    expect(render("search-failed")).not.toMatch(/<input[^>]*\sdisabled[="\s]/);
+  });
 });
