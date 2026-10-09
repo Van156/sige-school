@@ -367,6 +367,32 @@ await sigeSuite("user import service", (fx) => {
     expect((await jobRow(fresh!.id)).status).toBe("running");
   });
 
+  test("without a cutoff the sweep compares against the database clock", async () => {
+    await clearJobs();
+    const base = {
+      organizationId: tenant.orgId,
+      kind: "users" as const,
+      status: "running" as const,
+      total: 10,
+      createdBy: tenant.people.owner!.personId,
+    };
+    // started_at comes from the database default (now()), so the cutoff must too.
+    const [old] = await fx.db.insert(schema.importJob).values(base).returning();
+    const [future] = await fx.db
+      .insert(schema.importJob)
+      .values({
+        ...base,
+        organizationId: other.orgId,
+        createdBy: other.people.owner!.personId,
+        startedAt: new Date(Date.now() + 3_600_000),
+      })
+      .returning();
+
+    expect(await sweepInterruptedImports(fx.db)).toBe(1);
+    expect((await jobRow(old!.id)).status).toBe("failed");
+    expect((await jobRow(future!.id)).status).toBe("running");
+  });
+
   test("the restart sweep marks running jobs failed and leaves finished ones alone", async () => {
     await clearJobs();
     const values = (status: "running" | "done", orgId: string, personId: string) => ({

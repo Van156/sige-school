@@ -350,13 +350,14 @@ export async function getImportJob(db: Database, organizationId: string, jobId: 
  * documents are skipped. Single-instance assumption: with several server processes, a starting
  * instance would also fail another instance's live job.
  *
- * `processStartedAt` bounds the sweep to jobs started before this process did: a job created
- * while the server is still booting is alive and must keep holding the one-running-job slot.
+ * `cutoff` bounds the sweep to jobs started before it: a job created later is alive and must
+ * keep holding the one-running-job slot. `import_job.started_at` is written by the database
+ * (`default now()`), so by default the cutoff is the database's own `now()`: both sides share one
+ * clock and app/DB skew cannot misclassify a job. The boot sweep runs before the server accepts
+ * requests, so every job started before that instant belongs to a previous process. Pass a
+ * `Date` only to pin the cutoff explicitly (tests).
  */
-export async function sweepInterruptedImports(
-  db: Database,
-  processStartedAt: Date,
-): Promise<number> {
+export async function sweepInterruptedImports(db: Database, cutoff?: Date): Promise<number> {
   const interrupted = JSON.stringify([{ row: 0, message: IMPORT_INTERRUPTED_MESSAGE }]);
   const swept = await db
     .update(schema.importJob)
@@ -367,7 +368,10 @@ export async function sweepInterruptedImports(
         then ${schema.importJob.errors} || ${interrupted}::jsonb else ${schema.importJob.errors} end`,
     })
     .where(
-      and(eq(schema.importJob.status, "running"), lt(schema.importJob.startedAt, processStartedAt)),
+      and(
+        eq(schema.importJob.status, "running"),
+        lt(schema.importJob.startedAt, cutoff ?? sql`now()`),
+      ),
     )
     .returning({ id: schema.importJob.id });
   return swept.length;
