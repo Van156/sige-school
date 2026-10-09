@@ -289,6 +289,36 @@ await sigeSuite("user import service", (fx) => {
     expect(await getImportJob(fx.db, tenant.orgId, "missing")).toBeNull();
   });
 
+  test("the restart sweep spares a job started after the process did", async () => {
+    await clearJobs();
+    const processStart = new Date("2026-10-01T10:00:00Z");
+    const base = {
+      organizationId: tenant.orgId,
+      kind: "users" as const,
+      status: "running" as const,
+      total: 10,
+      createdBy: tenant.people.owner!.personId,
+    };
+    const [old] = await fx.db
+      .insert(schema.importJob)
+      .values({ ...base, startedAt: new Date("2026-10-01T09:59:59Z") })
+      .returning();
+    // D7 allows one running job per institution, so the survivor belongs to the other tenant.
+    const [fresh] = await fx.db
+      .insert(schema.importJob)
+      .values({
+        ...base,
+        organizationId: other.orgId,
+        createdBy: other.people.owner!.personId,
+        startedAt: new Date("2026-10-01T10:00:01Z"),
+      })
+      .returning();
+
+    expect(await sweepInterruptedImports(fx.db, processStart)).toBe(1);
+    expect((await jobRow(old!.id)).status).toBe("failed");
+    expect((await jobRow(fresh!.id)).status).toBe("running");
+  });
+
   test("the restart sweep marks running jobs failed and leaves finished ones alone", async () => {
     await clearJobs();
     const values = (status: "running" | "done", orgId: string, personId: string) => ({
@@ -315,7 +345,7 @@ await sigeSuite("user import service", (fx) => {
       })
       .returning();
 
-    expect(await sweepInterruptedImports(fx.db)).toBe(2);
+    expect(await sweepInterruptedImports(fx.db, new Date(Date.now() + 60_000))).toBe(2);
     for (const id of [a!.id, b!.id]) {
       const job = await jobRow(id);
       expect(job.status).toBe("failed");
@@ -325,7 +355,7 @@ await sigeSuite("user import service", (fx) => {
     }
     expect((await jobRow(c!.id)).status).toBe("done");
     expect(IMPORT_INTERRUPTED_MESSAGE).toBe("Importación interrumpida");
-    expect(await sweepInterruptedImports(fx.db)).toBe(0);
+    expect(await sweepInterruptedImports(fx.db, new Date(Date.now() + 60_000))).toBe(0);
     // A new job can start once the stale one no longer holds the running slot.
     const d = deps();
     await startUserImport(d, tenant.orgId, actor(), {

@@ -10,7 +10,7 @@ import {
 } from "@base-template/sige-core";
 import type { ImportCandidate, ImportRawRow, ImportRowError } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { recordAudit } from "./audit";
 import type { ImportJobRunnerPort } from "./import-runner";
@@ -349,8 +349,14 @@ export async function getImportJob(db: Database, organizationId: string, jobId: 
  * Marks it failed so the institution can import again; re-uploading is safe because existing
  * documents are skipped. Single-instance assumption: with several server processes, a starting
  * instance would also fail another instance's live job.
+ *
+ * `processStartedAt` bounds the sweep to jobs started before this process did: a job created
+ * while the server is still booting is alive and must keep holding the one-running-job slot.
  */
-export async function sweepInterruptedImports(db: Database): Promise<number> {
+export async function sweepInterruptedImports(
+  db: Database,
+  processStartedAt: Date,
+): Promise<number> {
   const interrupted = JSON.stringify([{ row: 0, message: IMPORT_INTERRUPTED_MESSAGE }]);
   const swept = await db
     .update(schema.importJob)
@@ -360,7 +366,9 @@ export async function sweepInterruptedImports(db: Database): Promise<number> {
       errors: sql`case when jsonb_array_length(${schema.importJob.errors}) < ${MAX_IMPORT_ERRORS}
         then ${schema.importJob.errors} || ${interrupted}::jsonb else ${schema.importJob.errors} end`,
     })
-    .where(eq(schema.importJob.status, "running"))
+    .where(
+      and(eq(schema.importJob.status, "running"), lt(schema.importJob.startedAt, processStartedAt)),
+    )
     .returning({ id: schema.importJob.id });
   return swept.length;
 }

@@ -99,10 +99,15 @@ app.get("/", (c) => {
   return c.text("OK");
 });
 
+// Imports run in this process (D7): any job still `running` that started before this process did
+// belongs to a previous one. The sweep is awaited (it never throws) so the server does not accept
+// requests until it is done, and it is cut off at the process start time as a second guard: a job
+// created in the boot window must never be failed, since that would free the D7 slot.
+const processStartedAt = new Date(Date.now() - process.uptime() * 1000);
+await recoverInterruptedImports(() => sweepInterruptedImports(db, processStartedAt), console);
+
 // Only the real server process starts the background jobs, and stops them on shutdown.
 const backgroundJobs = startBackgroundJobs();
-// Imports run in this process (D7): any job still `running` belongs to a previous one.
-void recoverInterruptedImports(() => sweepInterruptedImports(db), console);
 
 function shutdown(signal: string): void {
   console.log(`[server] received ${signal}, stopping background jobs`);
