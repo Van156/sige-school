@@ -48,15 +48,15 @@ export const OFFERING_COURSE_FK = "offering_course_fk";
 export const OFFERING_TEACHER_FK = "offering_teacher_fk";
 export const ASSIGNMENT_OFFERING_UNIQUE = "teacher_assignment_offeringId_unique";
 export const ASSIGNMENT_OFFERING_FK = "teacher_assignment_offering_fk";
-export const ASSIGNMENT_TEACHER_FK = "teacher_assignment_teacher_fk";
 export const CLASSROOM_CODE_UNIQUE = "classroom_organizationId_campusId_code_unique";
 export const CLASSROOM_CAMPUS_FK = "classroom_campus_fk";
 export const TIME_BLOCK_UNIQUE = "time_block_organizationId_campusId_name_year_shift_unique";
 export const TIME_BLOCK_CAMPUS_FK = "time_block_campus_fk";
 export const SLOT_OFFERING_COURSE_FK = "schedule_slot_offering_course_fk";
 export const SLOT_CLASSROOM_FK = "schedule_slot_classroom_fk";
-export const SLOT_COURSE_FK = "schedule_slot_course_fk";
-export const SLOT_TEACHER_FK = "schedule_slot_teacher_fk";
+export const SLOT_OFFERING_TEACHER_FK = "schedule_slot_offering_teacher_fk";
+/** Trigger-raised (23514) when a slot's teacher is null but its offering has one (see migration). */
+export const SLOT_TEACHER_SYNC_CHECK = "schedule_slot_teacher_sync_check";
 /** GiST exclusion constraints (D1); created by hand in the migration, Drizzle cannot declare them. */
 export const SLOT_CLASSROOM_EXCLUDE = "schedule_slot_classroom_overlap_excl";
 export const SLOT_TEACHER_EXCLUDE = "schedule_slot_teacher_overlap_excl";
@@ -113,6 +113,12 @@ export const offering = pgTable(
       table.id,
       table.courseId,
     ),
+    // Target of the slot / assignment -> offering composite FKs: they carry the offering's teacher.
+    unique("offering_organizationId_id_teacherPersonId_unique").on(
+      table.organizationId,
+      table.id,
+      table.teacherPersonId,
+    ),
     unique(OFFERING_UNIQUE).on(table.organizationId, table.subjectId, table.courseId),
     index("offering_organizationId_courseId_idx").on(table.organizationId, table.courseId),
     index("offering_organizationId_teacherPersonId_idx").on(
@@ -139,16 +145,16 @@ export const teacherAssignment = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
+    // The offering is the single source of truth for the teacher (SCH-R3): the assignment carries
+    // the offering's own teacher, so the two can never diverge. The tenant FK to `person` is
+    // implied (offering -> person) and therefore not repeated.
     foreignKey({
       name: ASSIGNMENT_OFFERING_FK,
-      columns: [table.organizationId, table.offeringId],
-      foreignColumns: [offering.organizationId, offering.id],
-    }).onDelete("cascade"),
-    foreignKey({
-      name: ASSIGNMENT_TEACHER_FK,
-      columns: [table.organizationId, table.teacherPersonId],
-      foreignColumns: [person.organizationId, person.id],
-    }).onDelete("restrict"),
+      columns: [table.organizationId, table.offeringId, table.teacherPersonId],
+      foreignColumns: [offering.organizationId, offering.id, offering.teacherPersonId],
+    })
+      .onDelete("cascade")
+      .onUpdate("cascade"),
     unique("teacher_assignment_organizationId_id_unique").on(table.organizationId, table.id),
     unique(ASSIGNMENT_OFFERING_UNIQUE).on(table.offeringId),
     index("teacher_assignment_organizationId_teacherPersonId_status_idx").on(
@@ -280,16 +286,16 @@ export const scheduleSlot = pgTable(
       columns: [table.organizationId, table.classroomId],
       foreignColumns: [classroom.organizationId, classroom.id],
     }).onDelete("restrict"),
+    // The slot's teacher follows the offering's (SCH-R3). MATCH SIMPLE skips this FK when the slot
+    // teacher is null, so the null case is closed by a trigger in the migration. The tenant FKs to
+    // `course` and `person` are implied through the offering and not repeated.
     foreignKey({
-      name: SLOT_COURSE_FK,
-      columns: [table.organizationId, table.courseId],
-      foreignColumns: [course.organizationId, course.id],
-    }).onDelete("restrict"),
-    foreignKey({
-      name: SLOT_TEACHER_FK,
-      columns: [table.organizationId, table.teacherPersonId],
-      foreignColumns: [person.organizationId, person.id],
-    }).onDelete("restrict"),
+      name: SLOT_OFFERING_TEACHER_FK,
+      columns: [table.organizationId, table.offeringId, table.teacherPersonId],
+      foreignColumns: [offering.organizationId, offering.id, offering.teacherPersonId],
+    })
+      .onDelete("cascade")
+      .onUpdate("cascade"),
     unique("schedule_slot_organizationId_id_unique").on(table.organizationId, table.id),
     index("schedule_slot_organizationId_offeringId_idx").on(table.organizationId, table.offeringId),
     index("schedule_slot_organizationId_classroomId_dayOfWeek_idx").on(

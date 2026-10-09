@@ -9,7 +9,6 @@ import { person } from "./person";
 import {
   ASSIGNMENT_OFFERING_FK,
   ASSIGNMENT_OFFERING_UNIQUE,
-  ASSIGNMENT_TEACHER_FK,
   CLASSROOM_CAMPUS_FK,
   CLASSROOM_CODE_UNIQUE,
   OFFERING_COURSE_FK,
@@ -19,10 +18,10 @@ import {
   SLOT_CLASSROOM_EXCLUDE,
   SLOT_CLASSROOM_FK,
   SLOT_COURSE_EXCLUDE,
-  SLOT_COURSE_FK,
   SLOT_OFFERING_COURSE_FK,
   SLOT_TEACHER_EXCLUDE,
-  SLOT_TEACHER_FK,
+  SLOT_OFFERING_TEACHER_FK,
+  SLOT_TEACHER_SYNC_CHECK,
   TIME_BLOCK_CAMPUS_FK,
   TIME_BLOCK_UNIQUE,
   classroom,
@@ -71,6 +70,8 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
     courseB: string;
     subjectA: string;
     subjectB: string;
+    subjectC: string;
+    subjectD: string;
     teacherA: string;
     teacherB: string;
     roomA: string;
@@ -78,6 +79,8 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
     offeringA: string; // courseA / subjectA / teacherA
     offeringB: string; // courseB / subjectB / teacherA (same teacher, other course)
     offeringC: string; // courseB / subjectA / no teacher
+    offeringD: string; // courseA / subjectC / teacherB
+    offeringE: string; // courseA / subjectD / no teacher
   };
   let ctx: Ctx;
   let other: {
@@ -119,6 +122,8 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       .values([
         { organizationId, name: "Matemáticas" },
         { organizationId, name: "Inglés" },
+        { organizationId, name: "Ciencias" },
+        { organizationId, name: "Artes" },
       ])
       .returning();
     const people = [];
@@ -167,7 +172,7 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       ]);
     const a = await seedOrg(orgA, "a");
     const b = await seedOrg(orgB, "b");
-    const [oA, oB, oC] = await db()
+    const [oA, oB, oC, oD, oE] = await db()
       .insert(offering)
       .values([
         {
@@ -183,6 +188,13 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
           teacherPersonId: a.people[0]!.id,
         },
         { organizationId: orgA, courseId: a.courses[1]!.id, subjectId: a.subjects[0]!.id },
+        {
+          organizationId: orgA,
+          courseId: a.courses[0]!.id,
+          subjectId: a.subjects[2]!.id,
+          teacherPersonId: a.people[1]!.id,
+        },
+        { organizationId: orgA, courseId: a.courses[0]!.id, subjectId: a.subjects[3]!.id },
       ])
       .returning();
     ctx = {
@@ -191,6 +203,8 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       courseB: a.courses[1]!.id,
       subjectA: a.subjects[0]!.id,
       subjectB: a.subjects[1]!.id,
+      subjectC: a.subjects[2]!.id,
+      subjectD: a.subjects[3]!.id,
       teacherA: a.people[0]!.id,
       teacherB: a.people[1]!.id,
       roomA: a.rooms[0]!.id,
@@ -198,6 +212,8 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       offeringA: oA!.id,
       offeringB: oB!.id,
       offeringC: oC!.id,
+      offeringD: oD!.id,
+      offeringE: oE!.id,
     };
     other = {
       campusId: b.camp.id,
@@ -328,20 +344,35 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       expect(failure?.code).toBe("22001");
     });
 
-    test("tenant FKs reject another institution's teacher", async () => {
+    test("the assignment teacher must be the offering's teacher (single source of truth)", async () => {
+      // Another institution's teacher and a same-institution teacher who is not the offering's.
+      for (const teacherPersonId of [other.personId, ctx.teacherB]) {
+        expect(
+          await pgFailure(() => db().insert(teacherAssignment).values(values({ teacherPersonId }))),
+        ).toMatchObject({ code: "23503", constraint: ASSIGNMENT_OFFERING_FK });
+      }
+      // An offering without a teacher cannot have an assignment either.
       expect(
         await pgFailure(() =>
           db()
             .insert(teacherAssignment)
-            .values(values({ teacherPersonId: other.personId })),
+            .values(values({ offeringId: ctx.offeringC })),
         ),
-      ).toMatchObject({ code: "23503", constraint: ASSIGNMENT_TEACHER_FK });
+      ).toMatchObject({ code: "23503", constraint: ASSIGNMENT_OFFERING_FK });
+    });
+
+    test("reassigning the offering's teacher cascades to its assignment", async () => {
+      await db().insert(teacherAssignment).values(values());
+      await db()
+        .update(offering)
+        .set({ teacherPersonId: ctx.teacherB })
+        .where(sql`${offering.id} = ${ctx.offeringA}`);
+      const [row] = await db().select().from(teacherAssignment);
+      expect(row?.teacherPersonId).toBe(ctx.teacherB);
     });
 
     test("deleting the offering cascades the assignment; the teacher is restricted", async () => {
-      await db()
-        .insert(teacherAssignment)
-        .values(values({ offeringId: ctx.offeringC }));
+      await db().insert(teacherAssignment).values(values());
       expect(
         await pgFailure(() =>
           db()
@@ -351,7 +382,7 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       ).toMatchObject({ code: "23001" });
       await db()
         .delete(offering)
-        .where(sql`${offering.id} = ${ctx.offeringC}`);
+        .where(sql`${offering.id} = ${ctx.offeringA}`);
       const rows = await db().select().from(teacherAssignment);
       expect(rows).toHaveLength(0);
     });
@@ -359,13 +390,18 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
     test("an offering of another institution is rejected by the tenant FK", async () => {
       const [foreign] = await db()
         .insert(offering)
-        .values({ organizationId: orgB, courseId: other.courseId, subjectId: other.subjectId })
+        .values({
+          organizationId: orgB,
+          courseId: other.courseId,
+          subjectId: other.subjectId,
+          teacherPersonId: other.personId,
+        })
         .returning();
       expect(
         await pgFailure(() =>
           db()
             .insert(teacherAssignment)
-            .values(values({ offeringId: foreign!.id })),
+            .values(values({ offeringId: foreign!.id, teacherPersonId: other.personId })),
         ),
       ).toMatchObject({ code: "23503", constraint: ASSIGNMENT_OFFERING_FK });
     });
@@ -582,9 +618,14 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
     /** Slot of `offeringC` (courseB, no teacher) in roomA: shares only the room with `slot()`. */
     const roomOnly = (extra: Partial<Slot> = {}): Slot =>
       slot({ offeringId: ctx.offeringC, courseId: ctx.courseB, teacherPersonId: null, ...extra });
-    /** Slot of `offeringA` again in roomB with teacherB: shares only the course with `slot()`. */
+    /** Slot of `offeringD` (courseA, teacherB) in roomB: shares only the course with `slot()`. */
     const courseOnly = (extra: Partial<Slot> = {}): Slot =>
-      slot({ classroomId: ctx.roomB, teacherPersonId: ctx.teacherB, ...extra });
+      slot({
+        offeringId: ctx.offeringD,
+        classroomId: ctx.roomB,
+        teacherPersonId: ctx.teacherB,
+        ...extra,
+      });
 
     test("defaults: active", async () => {
       const [row] = await db().insert(scheduleSlot).values(slot()).returning();
@@ -627,14 +668,128 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
             .insert(scheduleSlot)
             .values(slot({ courseId: other.courseId })),
         ),
-      ).toMatchObject({ code: "23503" });
+      ).toMatchObject({ code: "23503", constraint: SLOT_OFFERING_COURSE_FK });
       expect(
         await pgFailure(() =>
           db()
             .insert(scheduleSlot)
             .values(slot({ teacherPersonId: other.personId })),
         ),
-      ).toMatchObject({ code: "23503", constraint: SLOT_TEACHER_FK });
+      ).toMatchObject({ code: "23503", constraint: SLOT_OFFERING_TEACHER_FK });
+    });
+
+    test("the slot's teacher must be its offering's teacher", async () => {
+      // A same-institution teacher who is not the offering's.
+      expect(
+        await pgFailure(() =>
+          db()
+            .insert(scheduleSlot)
+            .values(slot({ teacherPersonId: ctx.teacherB })),
+        ),
+      ).toMatchObject({ code: "23503", constraint: SLOT_OFFERING_TEACHER_FK });
+      // A teacher on a slot of an offering without one.
+      expect(
+        await pgFailure(() =>
+          db()
+            .insert(scheduleSlot)
+            .values(roomOnly({ teacherPersonId: ctx.teacherA })),
+        ),
+      ).toMatchObject({ code: "23503", constraint: SLOT_OFFERING_TEACHER_FK });
+    });
+
+    test("a null slot teacher is rejected while the offering has one (MATCH SIMPLE hole)", async () => {
+      expect(
+        await pgFailure(() =>
+          db()
+            .insert(scheduleSlot)
+            .values(slot({ teacherPersonId: null })),
+        ),
+      ).toMatchObject({ code: "23514", constraint: SLOT_TEACHER_SYNC_CHECK });
+      const [row] = await db().insert(scheduleSlot).values(slot()).returning();
+      expect(
+        await pgFailure(() =>
+          db()
+            .update(scheduleSlot)
+            .set({ teacherPersonId: null })
+            .where(sql`${scheduleSlot.id} = ${row!.id}`),
+        ),
+      ).toMatchObject({ code: "23514", constraint: SLOT_TEACHER_SYNC_CHECK });
+    });
+
+    test("reassigning the offering's teacher cascades to its slots", async () => {
+      const [row] = await db().insert(scheduleSlot).values(slot()).returning();
+      await db()
+        .update(offering)
+        .set({ teacherPersonId: ctx.teacherB })
+        .where(sql`${offering.id} = ${ctx.offeringA}`);
+      const [moved] = await db()
+        .select()
+        .from(scheduleSlot)
+        .where(sql`${scheduleSlot.id} = ${row!.id}`);
+      expect(moved?.teacherPersonId).toBe(ctx.teacherB);
+      // Clearing the teacher clears the slots, and giving one back fills them again.
+      await db()
+        .update(offering)
+        .set({ teacherPersonId: null })
+        .where(sql`${offering.id} = ${ctx.offeringA}`);
+      const [cleared] = await db()
+        .select()
+        .from(scheduleSlot)
+        .where(sql`${scheduleSlot.id} = ${row!.id}`);
+      expect(cleared?.teacherPersonId).toBeNull();
+      await db()
+        .update(offering)
+        .set({ teacherPersonId: ctx.teacherA })
+        .where(sql`${offering.id} = ${ctx.offeringA}`);
+      const [filled] = await db()
+        .select()
+        .from(scheduleSlot)
+        .where(sql`${scheduleSlot.id} = ${row!.id}`);
+      expect(filled?.teacherPersonId).toBe(ctx.teacherA);
+    });
+
+    test("after a cascade the teacher exclusion still rejects a real overlap", async () => {
+      // offeringD (teacherB) and offeringA (teacherA) at the same time in different rooms/courses.
+      await db().insert(scheduleSlot).values(slot());
+      await db()
+        .insert(scheduleSlot)
+        .values(
+          slot({
+            offeringId: ctx.offeringB,
+            courseId: ctx.courseB,
+            classroomId: ctx.roomB,
+            startTime: "12:00",
+            endTime: "13:00",
+          }),
+        );
+      await db()
+        .update(offering)
+        .set({ teacherPersonId: ctx.teacherB })
+        .where(sql`${offering.id} = ${ctx.offeringB}`);
+      // teacherB now owns the 12:00 slot; a new teacherB slot at 12:30 overlaps it.
+      expect(
+        await pgFailure(() =>
+          db()
+            .insert(scheduleSlot)
+            .values(courseOnly({ startTime: "12:30", endTime: "13:30", classroomId: ctx.roomA })),
+        ),
+      ).toMatchObject({ code: "23P01", constraint: SLOT_TEACHER_EXCLUDE });
+      // Reassigning an offering onto a teacher that is busy then is rejected as well.
+      await db()
+        .update(offering)
+        .set({ teacherPersonId: ctx.teacherA })
+        .where(sql`${offering.id} = ${ctx.offeringB}`);
+      await db()
+        .insert(scheduleSlot)
+        .values(courseOnly({ classroomId: ctx.roomA, startTime: "12:30", endTime: "13:30" }));
+      expect(
+        await pgFailure(() =>
+          db()
+            .update(offering)
+            .set({ teacherPersonId: ctx.teacherA })
+            .where(sql`${offering.id} = ${ctx.offeringD}`),
+        ),
+      ).toMatchObject({ code: "23P01", constraint: SLOT_TEACHER_EXCLUDE });
     });
 
     test("the slot's course must be its offering's course", async () => {
@@ -649,14 +804,14 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
 
     test("the course tenant FK is named and restricts deletion", async () => {
       await db().insert(scheduleSlot).values(slot());
-      // Offering delete is refused first by the offering FK; a bare course delete hits both.
+      // The slot has no course FK of its own (it is implied through the offering), so the offering
+      // FK is the only constraint that can fire.
       const failure = await pgFailure(() =>
         db()
           .delete(course)
           .where(sql`${course.id} = ${ctx.courseA}`),
       );
-      expect(failure?.code).toBe("23001");
-      expect([OFFERING_COURSE_FK, SLOT_COURSE_FK]).toContain(failure?.constraint ?? "");
+      expect(failure).toMatchObject({ code: "23001", constraint: OFFERING_COURSE_FK });
     });
 
     test("deleting the offering cascades its slots; a used classroom is restricted", async () => {
@@ -741,7 +896,9 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
         await db().insert(scheduleSlot).values(roomOnly());
         await db()
           .insert(scheduleSlot)
-          .values(slot({ teacherPersonId: null, classroomId: ctx.roomB }));
+          .values(
+            slot({ offeringId: ctx.offeringE, teacherPersonId: null, classroomId: ctx.roomB }),
+          );
         const rows = await db().select().from(scheduleSlot);
         expect(rows.filter((row) => row.teacherPersonId === null)).toHaveLength(2);
       });
@@ -767,6 +924,29 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
           .values(courseOnly({ startTime: "09:00", endTime: "10:00" }));
       });
 
+      test("inactive slots never block, and cannot be reactivated into a conflict", async () => {
+        const [first] = await db()
+          .insert(scheduleSlot)
+          .values(slot({ isActive: false }))
+          .returning();
+        // Same room, teacher and course as the inactive slot: one probe per exclusion.
+        for (const probe of [roomOnly(), teacherOnly(), courseOnly()]) {
+          const [row] = await db().insert(scheduleSlot).values(probe).returning();
+          await db()
+            .delete(scheduleSlot)
+            .where(sql`${scheduleSlot.id} = ${row!.id}`);
+        }
+        await db().insert(scheduleSlot).values(roomOnly());
+        expect(
+          await pgFailure(() =>
+            db()
+              .update(scheduleSlot)
+              .set({ isActive: true })
+              .where(sql`${scheduleSlot.id} = ${first!.id}`),
+          ),
+        ).toMatchObject({ code: "23P01", constraint: SLOT_CLASSROOM_EXCLUDE });
+      });
+
       test("different days and different years never conflict", async () => {
         await db().insert(scheduleSlot).values(slot());
         await db()
@@ -781,7 +961,12 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
         await db().insert(scheduleSlot).values(slot());
         const [foreign] = await db()
           .insert(offering)
-          .values({ organizationId: orgB, courseId: other.courseId, subjectId: other.subjectId })
+          .values({
+            organizationId: orgB,
+            courseId: other.courseId,
+            subjectId: other.subjectId,
+            teacherPersonId: other.personId,
+          })
           .returning();
         await db().insert(scheduleSlot).values({
           organizationId: orgB,
