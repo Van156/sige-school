@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { orpc } from "@/app/orpc";
@@ -17,22 +17,33 @@ const PREVIEW_STALE_MS = 60_000;
 
 const NO_INPUT: UsernamePreviewParts = { firstName: "", lastName: "", documentNumber: "" };
 
+/** What every preview procedure answers (`user.previewUsername`, `platformUser.previewUsername`). */
+type PreviewAnswer = { username: string | null; documentTaken: boolean };
+
+/** The query options of one preview procedure for the debounced input. */
+export type UsernamePreviewQuery = (input: UsernamePreviewParts) => UseQueryOptions<PreviewAnswer>;
+
+/** USR-02: the tenant `user.previewUsername`. */
+export const tenantUsernamePreview: UsernamePreviewQuery = (input) =>
+  orpc.user.previewUsername.queryOptions({ input });
+
 /**
- * USR-02 live username (USR-R2): asks `user.previewUsername` `USERNAME_PREVIEW_DEBOUNCE_MS` after the last keystroke once
- * names and document are filled in. Never writes.
+ * Live username (USR-R2): asks the preview procedure `USERNAME_PREVIEW_DEBOUNCE_MS` after the last
+ * keystroke once names and document are filled in. `queryFor` picks the procedure: the tenant
+ * `user.previewUsername` (USR-02, the default) or `platformUser.previewUsername` (INS-02/05).
+ * Never writes.
  */
-export function useUsernamePreview({
-  firstName,
-  lastName,
-  documentNumber,
-}: UsernamePreviewParts): UsernamePreviewState {
+export function useUsernamePreview(
+  { firstName, lastName, documentNumber }: UsernamePreviewParts,
+  queryFor: UsernamePreviewQuery = tenantUsernamePreview,
+): UsernamePreviewState {
   const input = useMemo(
     () => usernamePreviewInput({ firstName, lastName, documentNumber }),
     [firstName, lastName, documentNumber],
   );
   const settled = useDebouncedValue(input, USERNAME_PREVIEW_DEBOUNCE_MS);
   const query = useQuery({
-    ...orpc.user.previewUsername.queryOptions({ input: settled ?? NO_INPUT }),
+    ...queryFor(settled ?? NO_INPUT),
     enabled: settled !== null,
     retry: false,
     staleTime: PREVIEW_STALE_MS,

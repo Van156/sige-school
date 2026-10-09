@@ -69,5 +69,8 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/users/components/import-progress-card.tsx",
   "features/users/components/import-result.tsx",
   "features/users/components/import-format-card.tsx",
+  "features/institutions/components/platform-role-select.tsx",
+  "features/institutions/components/platform-user-form.tsx",
+  "features/institutions/components/platform-users-table.tsx",
   "shared/components/form/password-input.tsx",
 ];

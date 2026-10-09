@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   INSTITUTION_SELECTOR_PATH,
   decideInstitutionScope,
+  formatInstitutionBannerLine,
   formatInstitutionLocation,
   institutionBannerBadge,
   selectInstitutionMessage,
@@ -71,5 +72,18 @@ describe("formatInstitutionLocation", () => {
 describe("INSTITUTION_SELECTOR_PATH", () => {
   test("is the INS-03 route", () => {
     expect(INSTITUTION_SELECTOR_PATH).toBe("/admin/instituciones/seleccionar");
+  });
+});
+
+describe("formatInstitutionBannerLine", () => {
+  test("appends the NIT to the location", () => {
+    expect(formatInstitutionBannerLine("Medellín", "Antioquia", "900.123.456-7")).toBe(
+      "Medellín, Antioquia | NIT: 900.123.456-7",
+    );
+  });
+
+  test("is just the location without a NIT", () => {
+    expect(formatInstitutionBannerLine("Medellín", "Antioquia", null)).toBe("Medellín, Antioquia");
+    expect(formatInstitutionBannerLine(null, null, "  ")).toBe("Ubicación no especificada");
   });
 });

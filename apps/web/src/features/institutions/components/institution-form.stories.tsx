@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { UsernamePreviewBox } from "@/features/users";
 import { withRouter } from "@/shared/storybook/with-router";
 
 import { emptyInstitutionForm, institutionToFormValues } from "../lib/institution-form";
@@ -23,6 +24,17 @@ type Story = StoryObj<typeof meta>;
 
 /** Institution profile plus the mandatory rector block. */
 export const Create: Story = {};
+
+/** The rector's live "Username auto-generado" box fed by `platformUser.previewUsername`. */
+export const CreateWithUsernamePreview: Story = {
+  args: {
+    renderRectorUsernamePreview: () => (
+      <UsernamePreviewBox
+        state={{ status: "ready", username: "jperez4501", documentTaken: false }}
+      />
+    ),
+  },
+};
 
 export const CreateConflict: Story = {
   args: {

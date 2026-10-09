@@ -1,7 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
 import { Building2 } from "lucide-react";
 
-import { formatInstitutionLocation } from "../lib/institution-scope";
+import { formatInstitutionBannerLine } from "../lib/institution-scope";
 
 /** Institution name and location strip shown at the top of the tenant screens (sige/02 §5.2). */
 export default function InstitutionBanner({
@@ -9,6 +9,7 @@ export default function InstitutionBanner({
   logo,
   municipality,
   department,
+  nit,
   badge,
 }: {
   name: string;
@@ -16,6 +17,8 @@ export default function InstitutionBanner({
   logo?: string | null;
   municipality?: string | null;
   department?: string | null;
+  /** Shown after the location as "| NIT: x" (the root's view of an institution, INS-04/05). */
+  nit?: string | null;
   badge?: string;
 }) {
   return (
@@ -33,7 +36,7 @@ export default function InstitutionBanner({
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium">{name}</span>
         <span className="truncate text-[13px] text-muted-foreground">
-          {formatInstitutionLocation(municipality, department)}
+          {formatInstitutionBannerLine(municipality, department, nit)}
         </span>
       </div>
       {badge ? <Badge variant="secondary">{badge}</Badge> : null}

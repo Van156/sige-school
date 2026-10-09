@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/app/orpc";
+import { LiveUsernamePreview } from "@/features/users";
 import { FormPageLayout, HelpCard, INVALID_FORM_MESSAGE, LogoField } from "@/features/institution";
 import EmptyState from "@/shared/components/feedback/empty-state";
 import Loader from "@/shared/components/feedback/loader";
@@ -13,6 +14,7 @@ import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
 
 import { useObjectUrl } from "../hooks/use-object-url";
+import { platformUsernamePreview } from "../hooks/platform-username-preview";
 import { createInstitutionWithLogo } from "../lib/create-flow";
 import { formatCreatedDate } from "../lib/institution-format";
 import { emptyInstitutionForm, institutionToFormValues } from "../lib/institution-form";
@@ -77,6 +79,9 @@ function CreateInstitution() {
           mode="create"
           initialValues={emptyInstitutionForm()}
           onInvalid={() => toast.error(INVALID_FORM_MESSAGE)}
+          renderRectorUsernamePreview={(parts) => (
+            <LiveUsernamePreview {...parts} queryFor={platformUsernamePreview()} />
+          )}
           logoField={
             <LogoField
               logo={preview}

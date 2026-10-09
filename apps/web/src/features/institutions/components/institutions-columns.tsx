@@ -1,7 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
 import { Button, buttonVariants } from "@base-template/ui/components/button";
 import { Link } from "@tanstack/react-router";
-import { Building2, Eye, LogIn, Pencil, Trash2 } from "lucide-react";
+import { Building2, Eye, LogIn, Pencil, Trash2, Users } from "lucide-react";
 
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 
@@ -145,6 +145,14 @@ export function getInstitutionColumns({
           >
             <LogIn />
           </Button>
+          <Link
+            to="/admin/instituciones/$institutionId/usuarios"
+            params={{ institutionId: row.original.id }}
+            aria-label={`Ver usuarios de ${row.original.name}`}
+            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+          >
+            <Users />
+          </Link>
           <Link
             to="/admin/instituciones/$institutionId/editar"
             params={{ institutionId: row.original.id }}

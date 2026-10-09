@@ -29,6 +29,9 @@ import {
 export type CreateInstitutionInput = ReturnType<typeof toCreateInstitutionInput>;
 export type UpdateInstitutionInput = ProfileInput;
 
+/** What the rector's live username preview needs from the form (INS-02). */
+export type RectorNameParts = { firstName: string; lastName: string; documentNumber: string };
+
 const SELECT_CLASS =
   "h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive dark:bg-input/30";
 
@@ -41,17 +44,20 @@ type SubmitProps =
  * Presentational: `onSubmit` performs the save and rejects with the server error, which is mapped
  * onto the fields (e.g. a taken NIT) or shown inline above the button. `logoField` is the logo
  * control, rendered between the fields and the button; the container owns what picking does
- * (stage a file on create, upload on edit).
+ * (stage a file on create, upload on edit). `renderRectorUsernamePreview` is the live
+ * "Username auto-generado" box of the create form; it receives the rector's names and document.
  */
 export default function InstitutionForm({
   initialValues,
   logoField,
   onInvalid,
+  renderRectorUsernamePreview,
   ...submit
 }: SubmitProps & {
   initialValues: InstitutionFormValues;
   logoField?: ReactNode;
   onInvalid?: () => void;
+  renderRectorUsernamePreview?: (parts: RectorNameParts) => ReactNode;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
   const isCreate = submit.mode === "create";
@@ -274,9 +280,19 @@ export default function InstitutionForm({
                 </form.Field>
               </FieldGroup>
             </fieldset>
+            {renderRectorUsernamePreview ? (
+              <form.Subscribe
+                selector={(state) => ({
+                  firstName: state.values.rectorFirstName,
+                  lastName: state.values.rectorLastName,
+                  documentNumber: state.values.rectorDocumentNumber,
+                })}
+              >
+                {(parts) => renderRectorUsernamePreview(parts)}
+              </form.Subscribe>
+            ) : null}
             <p className="text-sm text-muted-foreground">
-              El username se genera automáticamente con el nombre y el documento. Contraseña
-              inicial: Nº de documento.
+              El username se genera automáticamente al escribir los datos
             </p>
           </CardContent>
         </Card>

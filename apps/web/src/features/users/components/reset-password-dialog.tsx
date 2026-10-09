@@ -8,9 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@base-template/ui/components/dialog";
-import { FieldGroup } from "@base-template/ui/components/field";
+import { Field, FieldGroup, FieldLabel } from "@base-template/ui/components/field";
+import { Input } from "@base-template/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { AuthFormError } from "@/features/auth";
 import { mapSubmitError } from "@/features/institution";
@@ -27,7 +28,8 @@ import {
 
 /**
  * Password reset dialog (sige/03 §5.6, USR-R9). `document` mode asks to reset to the document
- * number (USR-03); `custom` mode asks for a new password of at least 8 characters (INS-04).
+ * number (USR-03); `custom` mode shows the read-only "Usuario" and asks for a new password of at
+ * least 8 characters (INS-04).
  * Presentational: `onSubmit` performs the reset and rejects with the server error, which is shown
  * inline; the dialog closes only when it resolves.
  */
@@ -72,6 +74,7 @@ function ResetPasswordForm({
 }) {
   const [formError, setFormError] = useState<string | null>(null);
   const isCustom = mode === "custom";
+  const userFieldId = useId();
 
   const form = useForm({
     defaultValues: { newPassword: "" },
@@ -113,6 +116,10 @@ function ResetPasswordForm({
       </DialogHeader>
       {isCustom ? (
         <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor={userFieldId}>Usuario</FieldLabel>
+            <Input id={userFieldId} value={userLabel} readOnly />
+          </Field>
           <form.Field name="newPassword">
             {(field) => (
               <FormField

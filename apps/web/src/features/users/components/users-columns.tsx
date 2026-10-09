@@ -18,7 +18,7 @@ import type { UserRow, UserTableRow } from "../types";
 import RoleBadge from "./role-badge";
 import UserCell from "./user-cell";
 
-type UserColumn = DataTableColumnDef<UserTableRow, string>;
+export type UserColumn = DataTableColumnDef<UserTableRow, string>;
 
 /** Columns that carry no cell of their own: `createdAt` only backs the default sort. */
 export const HIDDEN_COLUMNS = { createdAt: false } as const;
@@ -31,17 +31,14 @@ export type UserRowActions = {
 };
 
 /**
- * USR-01 columns (sige/03 §5.1). Ids are the server's list ids. The "Nombre Completo" column
- * hosts the toolbar search (name, email or username); role and status are select filters. The
- * actions column exists only for callers who can update or delete, and each row shows just the
- * actions allowed on it (never on the caller's own or on `owner`/`admin` rows).
+ * The data columns every user table shares (USR-01, INS-04): identity, name (hosts the toolbar
+ * search), role, status and the hidden `createdAt` sort key. Row actions are added by each table.
+ * `searchPlaceholder` is the toolbar search text.
  */
-export function getUserColumns({
-  permissions,
-  onToggleActive,
-  onDelete,
-}: UserRowActions): UserColumn[] {
-  const columns: UserColumn[] = [
+export function getUserDataColumns(
+  searchPlaceholder = "Buscar por nombre, apellido, email o username",
+): UserColumn[] {
+  return [
     {
       id: "username",
       accessorKey: "username",
@@ -62,7 +59,7 @@ export function getUserColumns({
       cell: ({ row }) => row.original.name,
       meta: {
         label: "Nombre Completo",
-        placeholder: "Buscar por nombre, apellido, email o username",
+        placeholder: searchPlaceholder,
         variant: "text",
       },
       enableColumnFilter: true,
@@ -97,6 +94,20 @@ export function getUserColumns({
       enableHiding: false,
     },
   ];
+}
+
+/**
+ * USR-01 columns (sige/03 §5.1). Ids are the server's list ids. The "Nombre Completo" column
+ * hosts the toolbar search (name, email or username); role and status are select filters. The
+ * actions column exists only for callers who can update or delete, and each row shows just the
+ * actions allowed on it (never on the caller's own or on `owner`/`admin` rows).
+ */
+export function getUserColumns({
+  permissions,
+  onToggleActive,
+  onDelete,
+}: UserRowActions): UserColumn[] {
+  const columns = getUserDataColumns();
 
   if (permissions.canUpdate || permissions.canDelete) {
     columns.push({

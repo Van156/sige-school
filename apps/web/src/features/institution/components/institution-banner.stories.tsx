@@ -24,3 +24,6 @@ export const RootView: Story = { args: { badge: "Vista Root" } };
 export const WithoutLocation: Story = {
   args: { municipality: null, department: null, badge: undefined },
 };
+
+/** The root's view in INS-04/05: location plus NIT and the "Root Admin" badge. */
+export const RootAdminWithNit: Story = { args: { nit: "900.123.456-7", badge: "Root Admin" } };

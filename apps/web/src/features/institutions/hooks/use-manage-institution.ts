@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { toast } from "sonner";
 
 import { authClient } from "@/app/auth-client";
@@ -8,17 +9,22 @@ import { betterAuthErrorMessage } from "@/features/auth";
 
 import { MANAGE_FAILED_MESSAGE, startManagement } from "../lib/manage-flow";
 
+/** Where the root lands once the impersonation of the rector started. */
+export type ManageDestination =
+  | { to: "/dashboard" | "/sedes" }
+  | { to: "/usuarios/$personId/editar"; params: { personId: string } };
+
 /**
- * INS-03 "Gestionar" / INS-01 "Gestionar sedes": `institutionAdmin.manage`, then the existing
+ * "Gestionar" (INS-03, INS-01, INS-04 "Editar"): `institutionAdmin.manage`, then the existing
  * better-auth impersonation of the rector, then `destination` inside the tenant area. Every cached
  * query depended on "who am I", so all are invalidated before navigating.
  */
-export function useManageInstitution(destination: "/dashboard" | "/sedes") {
+export function useManagement() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const mutation = useMutation({
-    mutationFn: (institutionId: string) =>
+    mutationFn: ({ institutionId }: { institutionId: string; destination: ManageDestination }) =>
       startManagement(
         {
           resolveRector: (id) => client.institutionAdmin.manage({ id }),
@@ -31,10 +37,10 @@ export function useManageInstitution(destination: "/dashboard" | "/sedes") {
         },
         institutionId,
       ),
-    onSuccess: async () => {
+    onSuccess: async (_result, { destination }) => {
       await queryClient.invalidateQueries();
       toast.success("Institución seleccionada");
-      await navigate({ to: destination });
+      await navigate(destination);
     },
     onError: (error) => {
       toast.error(betterAuthErrorMessage(error, MANAGE_FAILED_MESSAGE));
@@ -43,9 +49,19 @@ export function useManageInstitution(destination: "/dashboard" | "/sedes") {
 
   return {
     /** Stable across renders (TanStack's `mutate`). */
-    manage: mutation.mutate,
+    start: mutation.mutate,
     isPending: mutation.isPending,
     /** The institution being opened, for a per-row pending state. */
-    pendingId: mutation.isPending ? mutation.variables : undefined,
+    pendingId: mutation.isPending ? mutation.variables.institutionId : undefined,
   };
+}
+
+/** INS-03 "Gestionar" / INS-01 "Gestionar sedes": manage an institution and land on `destination`. */
+export function useManageInstitution(destination: "/dashboard" | "/sedes") {
+  const { start, isPending, pendingId } = useManagement();
+  const manage = useCallback(
+    (institutionId: string) => start({ institutionId, destination: { to: destination } }),
+    [start, destination],
+  );
+  return { manage, isPending, pendingId };
 }

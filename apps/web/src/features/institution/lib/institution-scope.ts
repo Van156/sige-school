@@ -41,3 +41,13 @@ export function formatInstitutionLocation(
   const parts = [municipality, department].map((part) => part?.trim()).filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : "Ubicación no especificada";
 }
+
+/** Root view of the banner: the location followed by " | NIT: {nit}" when the NIT is known. */
+export function formatInstitutionBannerLine(
+  municipality: string | null | undefined,
+  department: string | null | undefined,
+  nit: string | null | undefined,
+): string {
+  const location = formatInstitutionLocation(municipality, department);
+  return nit?.trim() ? `${location} | NIT: ${nit.trim()}` : location;
+}
