@@ -29,6 +29,11 @@ const LEVELS = [
   },
 ];
 
+const DIRECTORS = [
+  { value: "t1", label: "Ada Lovelace" },
+  { value: "t2", label: "Alan Turing" },
+];
+
 const meta = {
   title: "Institution/CourseForm",
   component: CourseForm,
@@ -47,6 +52,7 @@ const meta = {
     initialValues: emptyCourseForm("2026"),
     campuses: CAMPUSES,
     levels: LEVELS,
+    directors: DIRECTORS,
     onSubmit: async () => {},
   },
 } satisfies Meta<typeof CourseForm>;
@@ -63,10 +69,42 @@ export const Edit: Story = {
     initialValues: {
       campusId: "c1",
       levelId: "l1",
+      directorPersonId: "t1",
       name: "6-1",
       academicYear: "2026",
       shift: "Tarde",
       maxStudents: "35",
+    },
+  },
+};
+
+/** The current director was deactivated: still shown, marked inactive, so saving keeps them. */
+export const InactiveDirector: Story = {
+  args: {
+    mode: "edit",
+    initialValues: {
+      ...emptyCourseForm("2026"),
+      campusId: "c1",
+      name: "6-1",
+      directorPersonId: "gone",
+    },
+    directors: [{ value: "gone", label: "Grace Hopper (inactivo)" }, ...DIRECTORS],
+  },
+};
+
+export const DirectorNotATeacher: Story = {
+  args: {
+    initialValues: {
+      ...emptyCourseForm("2026"),
+      campusId: "c1",
+      name: "6-1",
+      directorPersonId: "t1",
+    },
+    onSubmit: async () => {
+      throw {
+        code: "BAD_REQUEST",
+        message: "El director debe ser un profesor activo de la institución.",
+      };
     },
   },
 };

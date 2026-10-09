@@ -10,6 +10,7 @@ import { useState } from "react";
 import { AuthFormError } from "@/features/auth";
 import FormField from "@/shared/components/form/form-field";
 import SubmitButton from "@/shared/components/form/submit-button";
+import type { Option } from "@/shared/lib/data-table/types";
 
 import {
   COURSE_FIELD_BY_MESSAGE,
@@ -32,13 +33,16 @@ import type { CampusOption, LevelRow } from "../types";
  * choices (the level select shows only the chosen campus's levels and resets when the campus
  * changes) and `onSubmit` performs the create or update, rejecting with the server error, which
  * this form maps onto its fields (a repeated course under "Nombre", a level of another campus
- * under "Nivel Académico") or an inline message. There is no director select yet (D2).
+ * under "Nivel Académico", a director who is not an active teacher under "Director de Grupo") or
+ * an inline message. `directors` are the choices of the "Director de Grupo" select (the container
+ * builds them, keeping a deactivated current director); "Sin director asignado" clears it.
  */
 export default function CourseForm({
   initialValues,
   mode,
   campuses,
   levels,
+  directors,
   onSubmit,
   onInvalid,
 }: {
@@ -46,6 +50,7 @@ export default function CourseForm({
   mode: "create" | "edit";
   campuses: readonly CampusOption[];
   levels: readonly LevelRow[];
+  directors: readonly Option[];
   onSubmit: (input: CourseInput) => Promise<void>;
   onInvalid?: () => void;
 }) {
@@ -155,6 +160,22 @@ export default function CourseForm({
                 </form.Field>
               )}
             </form.Subscribe>
+            <form.Field name="directorPersonId">
+              {(field) => (
+                <FormField field={field} label="Director de Grupo">
+                  {(control) => (
+                    <NativeSelect {...control} className="w-full">
+                      <NativeSelectOption value="">Sin director asignado</NativeSelectOption>
+                      {directors.map((director) => (
+                        <NativeSelectOption key={director.value} value={director.value}>
+                          {director.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </FormField>
+              )}
+            </form.Field>
             <div className="grid gap-4 sm:grid-cols-3">
               <form.Field name="academicYear">
                 {(field) => (

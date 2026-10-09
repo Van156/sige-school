@@ -11,13 +11,15 @@ import EmptyState from "@/shared/components/feedback/empty-state";
 import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
+import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import {
   courseToFormValues,
+  directorChoices,
   emptyCourseForm,
-  toCourseUpdate,
   type CourseInput,
 } from "../lib/course-form";
+import { useDirectorTeachers } from "../hooks/use-director-teachers";
 import { INVALID_FORM_MESSAGE } from "../lib/form-messages";
 import { campusChoices } from "../lib/level-form";
 import ActiveInstitutionGuard from "./active-institution-guard";
@@ -56,6 +58,7 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
   const profileQuery = useQuery(orpc.institution.get.queryOptions());
   const campusesQuery = useQuery(orpc.campus.options.queryOptions());
   const levelsQuery = useQuery(orpc.level.list.queryOptions({ input: {} }));
+  const teachersQuery = useDirectorTeachers();
   const courseQuery = useQuery({
     ...orpc.course.get.queryOptions({ input: { id: courseId ?? "" } }),
     enabled: isEdit,
@@ -63,7 +66,7 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
   const createMutation = useMutation(orpc.course.create.mutationOptions());
   const updateMutation = useMutation(orpc.course.update.mutationOptions());
 
-  if (isEdit && courseQuery.isError && isNotFound(courseQuery.error)) {
+  if (isEdit && courseQuery.isError && isNotFoundError(courseQuery.error)) {
     return (
       <EmptyState
         icon={<GraduationCap />}
@@ -81,6 +84,7 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
     profileQuery.isError ||
     campusesQuery.isError ||
     levelsQuery.isError ||
+    teachersQuery.isError ||
     (isEdit && courseQuery.isError)
   ) {
     return (
@@ -90,6 +94,7 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
           void profileQuery.refetch();
           void campusesQuery.refetch();
           void levelsQuery.refetch();
+          void teachersQuery.refetch();
           if (isEdit) {
             void courseQuery.refetch();
           }
@@ -97,7 +102,12 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
       />
     );
   }
-  if (profileQuery.isPending || campusesQuery.isPending || levelsQuery.isPending) {
+  if (
+    profileQuery.isPending ||
+    campusesQuery.isPending ||
+    levelsQuery.isPending ||
+    teachersQuery.isPending
+  ) {
     return <Loader />;
   }
   if (isEdit && courseQuery.isPending) {
@@ -123,12 +133,12 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
         }
         campuses={campusChoices(campusesQuery.data, course)}
         levels={levelsQuery.data}
+        directors={directorChoices(teachersQuery.data, course)}
         onInvalid={() => toast.error(INVALID_FORM_MESSAGE)}
         onSubmit={(input: CourseInput) =>
           course
             ? save(
-                () =>
-                  updateMutation.mutateAsync({ id: course.id, ...toCourseUpdate(input, course) }),
+                () => updateMutation.mutateAsync({ id: course.id, ...input }),
                 "Grado actualizado",
               )
             : save(() => createMutation.mutateAsync(input), "Grado creado")
@@ -136,10 +146,6 @@ function CourseFormLoader({ courseId }: { courseId?: string }) {
       />
     </CourseFormFrame>
   );
-}
-
-function isNotFound(error: unknown): boolean {
-  return (error as { code?: unknown } | null)?.code === "NOT_FOUND";
 }
 
 function CourseFormFrame({ children }: { children: ReactNode }) {
@@ -152,6 +158,8 @@ function CourseFormFrame({ children }: { children: ReactNode }) {
           <p>Un grupo específico de estudiantes en un año lectivo y sede.</p>
           <p className="font-medium text-foreground">Nivel Académico</p>
           <p>Opcional. Solo se ofrecen los niveles de la sede elegida.</p>
+          <p className="font-medium text-foreground">Director de Grupo</p>
+          <p>Opcional. Solo profesores activos de la institución.</p>
           <p className="font-medium text-foreground">Capacidad</p>
           <p>Entre 1 y 60 estudiantes; evita el sobrecupo.</p>
         </HelpCard>

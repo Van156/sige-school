@@ -11,13 +11,14 @@ const DEFAULT_CAPACITY = "40";
 
 /**
  * INS-12 form rules. The API's own fragments carry the messages; the campus has a client-only
- * "required" message, the level is optional (blank = none) and the capacity is parsed from the
+ * "required" message, the level and the director are optional (blank = none) and the capacity is parsed from the
  * number input's text (blank = the default 40) before the API rule checks 1–60.
  */
 export const courseFormSchema = z
   .object({
     campusId: z.string().min(1, CAMPUS_REQUIRED),
     levelId: z.string(),
+    directorPersonId: z.string(),
     name: courseInput.shape.name,
     academicYear: courseInput.shape.academicYear,
     shift: courseInput.shape.shift,
@@ -27,12 +28,16 @@ export const courseFormSchema = z
       .transform((value) => Number(value === "" ? DEFAULT_CAPACITY : value))
       .pipe(courseInput.shape.maxStudents.removeDefault()),
   })
-  .transform((values) => ({ ...values, levelId: values.levelId === "" ? null : values.levelId }));
+  .transform((values) => ({
+    ...values,
+    levelId: values.levelId === "" ? null : values.levelId,
+    directorPersonId: values.directorPersonId === "" ? null : values.directorPersonId,
+  }));
 
 /** Form state: every control holds a string; the selects hold an id/value or "". */
 export type CourseFormValues = z.input<typeof courseFormSchema>;
 
-/** The validated form: the shape `course.create` takes (no director: D2). */
+/** The validated form: the shape `course.create` and `course.update` take (full replace). */
 export type CourseInput = z.output<typeof courseFormSchema>;
 
 /** INS-12 defaults: the institution's year, "Mañana", capacity 40. */
@@ -40,6 +45,7 @@ export function emptyCourseForm(academicYear: string): CourseFormValues {
   return {
     campusId: "",
     levelId: "",
+    directorPersonId: "",
     name: "",
     academicYear,
     shift: "Mañana",
@@ -52,6 +58,7 @@ export const COURSE_FIELDS = [
   "name",
   "campusId",
   "levelId",
+  "directorPersonId",
   "academicYear",
   "shift",
   "maxStudents",
@@ -61,6 +68,7 @@ export function courseToFormValues(course: CourseRow): CourseFormValues {
   return {
     campusId: course.campusId,
     levelId: course.levelId ?? "",
+    directorPersonId: course.directorPersonId ?? "",
     name: course.name,
     academicYear: course.academicYear,
     shift: course.shift,
@@ -72,17 +80,6 @@ export function toCourseInput(values: CourseFormValues): CourseInput {
   return courseFormSchema.parse(values);
 }
 
-/**
- * `course.update` replaces the whole row and the form has no director select yet (D2), so the
- * course's current director is sent back unchanged; omitting it would clear it.
- */
-export function toCourseUpdate(
-  input: CourseInput,
-  course: Pick<CourseRow, "directorPersonId">,
-): CourseInput & { directorPersonId: string | null } {
-  return { ...input, directorPersonId: course.directorPersonId };
-}
-
 export const COURSE_SAVE_FALLBACK = "No se pudo guardar el grado. Intente nuevamente.";
 
 /** Server messages that belong under a specific course field (sige/02 §4.1). */
@@ -90,6 +87,7 @@ export const COURSE_FIELD_BY_MESSAGE: Readonly<Record<string, keyof CourseFormVa
   "Ya existe un grado con la misma sede, nombre, año y jornada.": "name",
   "El nivel no pertenece a la sede seleccionada.": "levelId",
   "La sede no existe.": "campusId",
+  "El director debe ser un profesor activo de la institución.": "directorPersonId",
 };
 
 export const SHIFT_OPTIONS: Option[] = COURSE_SHIFTS.map((shift) => ({
@@ -111,4 +109,28 @@ export function levelAfterCampusChange(
   levels: readonly LevelRow[],
 ): string {
   return levels.some((level) => level.id === levelId && level.campusId === campusId) ? levelId : "";
+}
+
+/** An active teacher as `user.options` returns it. */
+export type DirectorSource = { personId: string; name: string };
+
+/** Label of the course's current director when they are no longer among the active teachers. */
+export const INACTIVE_DIRECTOR_SUFFIX = " (inactivo)";
+
+/**
+ * The director select's choices: the active teachers and, first, the course's current director
+ * when they are missing from them (deactivated), so editing other fields never drops them. The
+ * server keeps an unchanged director on update, so submitting that choice is valid.
+ */
+export function directorChoices(
+  teachers: readonly DirectorSource[],
+  current?: Pick<CourseRow, "directorPersonId" | "directorName">,
+): Option[] {
+  const choices = teachers.map((teacher) => ({ value: teacher.personId, label: teacher.name }));
+  const id = current?.directorPersonId;
+  if (!id || teachers.some((teacher) => teacher.personId === id)) {
+    return choices;
+  }
+  const name = current?.directorName ?? id;
+  return [{ value: id, label: `${name}${INACTIVE_DIRECTOR_SUFFIX}` }, ...choices];
 }

@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  COURSE_FIELD_BY_MESSAGE,
   courseFormSchema,
+  directorChoices,
   courseToFormValues,
   emptyCourseForm,
   levelAfterCampusChange,
   levelChoices,
   toCourseInput,
-  toCourseUpdate,
 } from "./course-form";
 import type { CourseRow, LevelRow } from "../types";
 
@@ -55,6 +56,7 @@ describe("course form", () => {
     expect(emptyCourseForm("2026")).toEqual({
       campusId: "",
       levelId: "",
+      directorPersonId: "",
       name: "",
       academicYear: "2026",
       shift: "Mañana",
@@ -73,6 +75,7 @@ describe("course form", () => {
     ).toEqual({
       campusId: "c1",
       levelId: null,
+      directorPersonId: null,
       name: "6-1",
       academicYear: "2026",
       shift: "Mañana",
@@ -111,6 +114,7 @@ describe("course form", () => {
     expect(courseToFormValues(course)).toEqual({
       campusId: "c1",
       levelId: "l1",
+      directorPersonId: "p1",
       name: "6-1",
       academicYear: "2026",
       shift: "Tarde",
@@ -119,10 +123,52 @@ describe("course form", () => {
     expect(courseToFormValues({ ...course, levelId: null }).levelId).toBe("");
   });
 
-  test("an update keeps the director the form cannot edit", () => {
-    const input = toCourseInput(courseToFormValues(course));
-    expect(toCourseUpdate(input, course).directorPersonId).toBe("p1");
-    expect(toCourseUpdate(input, { directorPersonId: null }).directorPersonId).toBeNull();
+  test("the chosen director is sent as is and a blank one clears it", () => {
+    expect(toCourseInput(courseToFormValues(course)).directorPersonId).toBe("p1");
+    expect(toCourseInput(courseToFormValues({ ...course, directorPersonId: null }))).toMatchObject({
+      directorPersonId: null,
+    });
+    expect(
+      toCourseInput({ ...courseToFormValues(course), directorPersonId: "" }).directorPersonId,
+    ).toBeNull();
+  });
+
+  test("maps the director rejection onto the director field", () => {
+    expect(
+      COURSE_FIELD_BY_MESSAGE["El director debe ser un profesor activo de la institución."],
+    ).toBe("directorPersonId");
+  });
+});
+
+describe("director select", () => {
+  const teachers = [
+    { personId: "t1", name: "Ada Lovelace" },
+    { personId: "t2", name: "Alan Turing" },
+  ];
+
+  test("offers the active teachers by name", () => {
+    expect(directorChoices(teachers)).toEqual([
+      { value: "t1", label: "Ada Lovelace" },
+      { value: "t2", label: "Alan Turing" },
+    ]);
+  });
+
+  test("does not repeat a current director who is still an active teacher", () => {
+    expect(
+      directorChoices(teachers, { directorPersonId: "t1", directorName: "Ada Lovelace" }),
+    ).toEqual(directorChoices(teachers));
+    expect(directorChoices(teachers, { directorPersonId: null, directorName: null })).toEqual(
+      directorChoices(teachers),
+    );
+  });
+
+  test("keeps a deactivated current director first, marked inactive", () => {
+    expect(
+      directorChoices(teachers, { directorPersonId: "gone", directorName: "Grace Hopper" })[0],
+    ).toEqual({
+      value: "gone",
+      label: "Grace Hopper (inactivo)",
+    });
   });
 });
 
