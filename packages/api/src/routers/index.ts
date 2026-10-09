@@ -12,7 +12,7 @@ import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
 import { periodRouter } from "./sige/period";
 import { subjectRouter } from "./sige/subject";
-import { platformUserRouter, userRouter } from "./sige/user";
+import { importJobRouter, platformUserRouter, userRouter } from "./sige/user";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
 import { projectRouter } from "./project";
@@ -52,6 +52,7 @@ export const appRouter = {
   period: periodRouter,
   // Module 03 users (sige/03 §3.3): read side in P2 T3.
   user: userRouter,
+  importJob: importJobRouter,
   // Platform side of module 03 (sige/03 §3.4, INS-04/05).
   platformUser: platformUserRouter,
 };

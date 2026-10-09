@@ -1,4 +1,5 @@
 import { appRouter } from "@base-template/api/routers/index";
+import { sweepInterruptedImports } from "@base-template/api/sige/user-import-service";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
@@ -14,8 +15,9 @@ import { cors } from "hono/cors";
 import { createContext } from "./context";
 import { ENV } from "./env.server";
 import { createFileRoutes } from "./file-routes";
+import { recoverInterruptedImports } from "./import-recovery";
 import { createPublicRoutes } from "./public-routes";
-import { auth, fileStorage, startBackgroundJobs } from "./services";
+import { auth, db, fileStorage, startBackgroundJobs } from "./services";
 
 initLogger({
   env: { service: "base-template-server" },
@@ -99,6 +101,8 @@ app.get("/", (c) => {
 
 // Only the real server process starts the background jobs, and stops them on shutdown.
 const backgroundJobs = startBackgroundJobs();
+// Imports run in this process (D7): any job still `running` belongs to a previous one.
+void recoverInterruptedImports(() => sweepInterruptedImports(db), console);
 
 function shutdown(signal: string): void {
   console.log(`[server] received ${signal}, stopping background jobs`);

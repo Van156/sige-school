@@ -39,7 +39,21 @@ import {
   updateUser,
 } from "../../sige/user-service";
 import type { UserActor } from "../../sige/user-service";
+import { defaultImportRunner } from "../../sige/import-runner";
 import { INSTITUTION_NOT_FOUND } from "../../sige/logo";
+import {
+  analyzeUserImport,
+  getImportJob,
+  NO_VALID_ROWS_MESSAGE,
+  previewUserImport,
+  startUserImport,
+} from "../../sige/user-import-service";
+import {
+  buildImportTemplate,
+  IMPORT_TEMPLATE_FILENAME,
+  readImportUpload,
+  XLSX_CONTENT_TYPE,
+} from "../../sige/user-import-file";
 import { sigeProcedure } from "../../sige/procedure";
 
 /**
@@ -51,6 +65,9 @@ import { sigeProcedure } from "../../sige/procedure";
  */
 
 const listInput = createListInput(userListConfig);
+
+/** The `.xlsx` upload of `importPreview`/`importStart` (limits are enforced by `readImportUpload`). */
+const importFileInput = z.object({ file: z.instanceof(File) });
 
 /** `user.checkEmail`: 30 calls per minute per user (sige/03 §3.3). */
 const CHECK_EMAIL_RULE = { limit: 30, windowMs: 60_000 } as const;
@@ -221,6 +238,77 @@ export const userRouter = {
     .handler(({ context, input }) =>
       resetUserPassword(context, context.org.id, input, actorOf(context)),
     ),
+
+  /** USR-04 dry run: per-row validation of the upload, no writes (USR-R11, R12). */
+  importPreview: sigeProcedure
+    .use(requirePermission({ user: ["import"] }))
+    .input(importFileInput)
+    .handler(async ({ context, input }) => {
+      const { rows } = await readImportUpload(input.file);
+      return previewUserImport(context.db, context.org.id, rows);
+    }),
+
+  /** `plantilla-usuarios.xlsx`: the USR-R11 header row plus an example row. */
+  importTemplate: sigeProcedure.use(requirePermission({ user: ["import"] })).handler(
+    async () =>
+      new File([await buildImportTemplate()], IMPORT_TEMPLATE_FILENAME, {
+        type: XLSX_CONTENT_TYPE,
+      }),
+  ),
+
+  /**
+   * Validates the upload, records the job and returns its id; the valid rows are provisioned in
+   * the background (USR-R12, D7). A running job of the institution makes this `CONFLICT`.
+   */
+  importStart: sigeProcedure
+    .use(requirePermission({ user: ["import"] }))
+    .input(importFileInput)
+    .handler(async ({ context, input }) => {
+      const { rows } = await readImportUpload(input.file);
+      const analysis = await analyzeUserImport(context.db, context.org.id, rows);
+      if (analysis.valid.length === 0) {
+        throw new ORPCError("BAD_REQUEST", { message: NO_VALID_ROWS_MESSAGE });
+      }
+      return startUserImport(
+        {
+          db: context.db,
+          auditLogger: context.auditLogger,
+          runner: context.importRunner ?? defaultImportRunner,
+        },
+        context.org.id,
+        {
+          userId: context.session.user.id,
+          personId: context.person.id,
+          impersonatorUserId: context.session.session.impersonatedBy ?? null,
+        },
+        analysis,
+      );
+    }),
+};
+
+/**
+ * `importJob.get` (sige/03 §3.3): progress polled by the import screens of any kind. The gate is
+ * either import permission; the job is visible to its creator or to a holder of the import
+ * permission of its kind, and is `NOT_FOUND` for every other caller or institution.
+ */
+export const importJobRouter = {
+  get: sigeProcedure
+    .use(requireAnyPermission({ user: ["import"] }, { student: ["import"] }))
+    .input(z.object({ jobId: z.string().min(1) }))
+    .handler(async ({ context, input }) => {
+      const job = await getImportJob(context.db, context.org.id, input.jobId);
+      const permission: Record<string, string[]> =
+        job?.kind === "students" ? { student: ["import"] } : { user: ["import"] };
+      const visible =
+        job !== null &&
+        (job.createdBy === context.person.id ||
+          (await context.authorization.hasOrgPermission(context.headers, permission)));
+      if (!job || !visible) {
+        throw new ORPCError("NOT_FOUND", { message: "La importación no existe." });
+      }
+      const { createdBy: _createdBy, ...status } = job;
+      return status;
+    }),
 };
 
 /**

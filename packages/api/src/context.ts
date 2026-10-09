@@ -6,6 +6,7 @@ import type { AuthorizationPort } from "./authorization";
 import type { PlatformAdminPort } from "./platform-admin";
 import type { RateLimiterPort } from "./rate-limit";
 import type { GradeRecalculationPort } from "./sige/grade-recalculation";
+import type { ImportJobRunnerPort } from "./sige/import-runner";
 import type { FileStoragePort } from "./storage/port";
 
 export type Context = {
@@ -28,6 +29,8 @@ export type Context = {
   gradeRecalculation?: GradeRecalculationPort;
   /** Rate limiting (sige/03 `user.checkEmail`); absent means the in-memory process-wide limiter. */
   rateLimiter?: RateLimiterPort;
+  /** Background import execution (sige/03 USR-R12); absent means the in-process runner. */
+  importRunner?: ImportJobRunnerPort;
   /** Logo storage (sige/02 §2.2); absent means uploads fail with a configuration error. */
   fileStorage?: FileStoragePort;
 };
