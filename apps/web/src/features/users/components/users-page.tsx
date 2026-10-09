@@ -2,7 +2,7 @@ import { Badge } from "@base-template/ui/components/badge";
 import { buttonVariants } from "@base-template/ui/components/button";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Activity, GraduationCap, Plus, UserRound, Users } from "lucide-react";
+import { Activity, FileSpreadsheet, GraduationCap, Plus, UserRound, Users } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
@@ -43,8 +43,8 @@ import UsersTable from "./users-table";
 type DeleteTarget = { id: string; name: string };
 
 /**
- * USR-01 `/usuarios`: the institution's users. Links to USR-02 (create) and USR-03 (edit); the
- * import entry point belongs to USR-04.
+ * USR-01 `/usuarios`: the institution's users. Links to USR-02 (create), USR-03 (edit) and USR-04
+ * (import).
  */
 export default function UsersPage({ search }: { search: UserSearch }) {
   return (
@@ -59,6 +59,7 @@ function UsersContent({ search }: { search: UserSearch }) {
   const canUpdate = useCan("user:update").can;
   const canDelete = useCan("user:delete").can;
   const canCreate = useCan("user:create").can;
+  const canImport = useCan("user:import").can;
   const permissions = useMemo(() => ({ canUpdate, canDelete }), [canUpdate, canDelete]);
 
   const listQuery = useQuery({
@@ -107,7 +108,19 @@ function UsersContent({ search }: { search: UserSearch }) {
       <ListPageShell
         title={userListTitle(search.role)}
         description={userListDescription(search.role, institutionQuery.data?.name)}
-        actions={canCreate ? createLink(createAction.label) : undefined}
+        actions={
+          canCreate || canImport ? (
+            <>
+              {canImport ? (
+                <Link to="/usuarios/importar" className={buttonVariants({ variant: "outline" })}>
+                  <FileSpreadsheet data-icon="inline-start" />
+                  Importar Excel
+                </Link>
+              ) : null}
+              {canCreate ? createLink(createAction.label) : null}
+            </>
+          ) : undefined
+        }
         banner={<ActiveInstitutionBanner />}
         stats={
           <StatGrid>

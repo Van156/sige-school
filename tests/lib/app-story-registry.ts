@@ -63,5 +63,11 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/users/components/user-help-cards.tsx",
   "features/users/components/user-summary-strip.tsx",
   "features/users/components/user-edit-cards.tsx",
+  "features/users/components/import-file-card.tsx",
+  "features/users/components/import-error-list.tsx",
+  "features/users/components/import-preview-card.tsx",
+  "features/users/components/import-progress-card.tsx",
+  "features/users/components/import-result.tsx",
+  "features/users/components/import-format-card.tsx",
   "shared/components/form/password-input.tsx",
 ];

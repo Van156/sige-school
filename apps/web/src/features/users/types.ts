@@ -46,3 +46,39 @@ export type UserDetail = UserRow & {
   /** Academic profile id; `null` until module 05 (D4). */
   studentId: string | null;
 };
+
+/** One entry of `importPreview.errors` and `importJob.get.errors`; `row` 0 is a job-level error. */
+export type ImportRowError = { row: number; message: string };
+
+/** A previewed row of `user.importPreview` (sige/03 §3.3). */
+export type ImportPreviewRow = {
+  row: number;
+  nombres: string;
+  apellidos: string;
+  documento: string;
+  rol: string;
+  valid: boolean;
+  /** The row's error message, or `null` when valid. */
+  message: string | null;
+};
+
+/** `user.importPreview`: the dry run of an upload (first 50 rows, first 200 errors). */
+export type ImportPreview = {
+  total: number;
+  valid: number;
+  invalid: number;
+  rows: ImportPreviewRow[];
+  errors: ImportRowError[];
+};
+
+export type ImportJobStatus = "running" | "done" | "failed";
+
+/** `importJob.get`: the progress of a started import. */
+export type ImportJob = {
+  status: ImportJobStatus;
+  total: number;
+  processed: number;
+  imported: number;
+  skipped: number;
+  errors: ImportRowError[];
+};
