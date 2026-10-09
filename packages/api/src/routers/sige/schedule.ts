@@ -3,7 +3,7 @@ import type { Database } from "@base-template/db";
 import { buildScheduleRows } from "@base-template/sige-core";
 import type { GridBlock, GridEntry, WeeklySchedule } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { requireAnyPermission, requirePermission } from "../../index";
@@ -11,6 +11,7 @@ import { currentAcademicYear } from "../../sige/academic-year";
 import { recordAudit } from "../../sige/audit";
 import { rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
+import { TEACHER_SCOPE_STATUSES } from "../../sige/scope-resolvers";
 import { regenerateSlots } from "../../sige/schedule-generation";
 import {
   scheduleDeleteSlotInput,
@@ -120,12 +121,24 @@ export const scheduleRouter = {
 
       if (input.view === "teacher") {
         const year = await currentAcademicYear(context.db, orgId);
-        // The scope predicate keeps `activo`/`temporal` assignments only (D3); managers who do
+        // D3 applied explicitly: the scope predicate is undefined for unrestricted callers, so a
+        // manager who also teaches would otherwise see `inactivo` assignments. Managers who do
         // not teach get an empty grid.
         const own = and(
           eq(schema.offering.teacherPersonId, context.person.id),
           eq(schema.course.academicYear, year),
-          context.scope.offeringWhere(),
+          exists(
+            context.db
+              .select({ one: sql`1` })
+              .from(schema.teacherAssignment)
+              .where(
+                and(
+                  eq(schema.teacherAssignment.organizationId, schema.offering.organizationId),
+                  eq(schema.teacherAssignment.offeringId, schema.offering.id),
+                  inArray(schema.teacherAssignment.status, [...TEACHER_SCOPE_STATUSES]),
+                ),
+              ),
+          ),
         );
         const [courses, cells] = await Promise.all([
           context.db

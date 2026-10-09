@@ -641,6 +641,31 @@ await sigeSuite("schedule router", (fx) => {
     expect(c1.id).toBeString();
   });
 
+  test("an unrestricted manager who also teaches gets the D3 status filter in the teacher view", async () => {
+    const { s, offerings } = await generated("VistaGestor");
+    // The owner is unrestricted (`offeringWhere()` is undefined) yet teaches c1Nat (2 slots).
+    const ownerPersonId = s.tenant.people.owner!.personId;
+    await fx.db
+      .update(schema.offering)
+      .set({ teacherPersonId: ownerPersonId })
+      .where(eq(schema.offering.id, offerings.c1Nat.id));
+    const view = async () =>
+      cellsOf(await call(scheduleRouter.get, { view: "teacher" }, { context: s.owner }));
+    expect(await view()).toHaveLength(2);
+
+    await fx.db
+      .update(schema.teacherAssignment)
+      .set({ status: "temporal" })
+      .where(eq(schema.teacherAssignment.offeringId, offerings.c1Nat.id));
+    expect(await view()).toHaveLength(2);
+
+    await fx.db
+      .update(schema.teacherAssignment)
+      .set({ status: "inactivo" })
+      .where(eq(schema.teacherAssignment.offeringId, offerings.c1Nat.id));
+    expect(await view()).toHaveLength(0);
+  });
+
   test("a teacher may view a course in scope (all its slots) and gets NOT_FOUND outside it", async () => {
     const { s, campus, c1 } = await generated("ProfesorCurso");
     const sub = await subjects(s);
