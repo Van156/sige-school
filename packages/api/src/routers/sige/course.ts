@@ -11,9 +11,10 @@ import { requirePermission } from "../../index";
 import { courseListConfig } from "../../lib/course-list-config";
 import { createListInput } from "../../lib/list-input";
 import { changedFields, recordAudit } from "../../sige/audit";
-import { assertCourseDirector } from "../../sige/course-director";
+import { assertCourseDirector, isActiveTeacher } from "../../sige/course-director";
 import { rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
+import { onMember } from "../../sige/user-queries";
 import { courseInput } from "../../sige/schemas/institution";
 
 /**
@@ -50,8 +51,11 @@ const rowColumns = {
   levelName: schema.gradeLevel.name,
   directorPersonId: schema.course.directorPersonId,
   directorName,
-  // Null without a director; false once the person was deactivated (the form labels it "(inactivo)").
-  directorActive: sql<boolean | null>`${schema.person.isActive}`,
+  // Null without a director; false once the person was deactivated or lost the teacher role
+  // (the form labels it "(inactivo)"). Same rule as `assertCourseDirector`.
+  directorActive: sql<
+    boolean | null
+  >`case when ${schema.person.id} is null then null else coalesce(${isActiveTeacher}, false) end`,
   academicYear: schema.course.academicYear,
   shift: schema.course.shift,
   maxStudents: schema.course.maxStudents,
@@ -98,6 +102,7 @@ const selectRows = (db: Pick<Database, "select">, organizationId: string) =>
         eq(schema.person.id, schema.course.directorPersonId),
       ),
     )
+    .leftJoin(schema.member, onMember)
     .$dynamic()
     .where(eq(schema.course.organizationId, organizationId));
 

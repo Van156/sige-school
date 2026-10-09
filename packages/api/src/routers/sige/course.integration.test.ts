@@ -1,7 +1,7 @@
 import { call, ORPCError } from "@orpc/server";
 import * as schema from "@base-template/db/schema";
 import type { RecordingAuditLogger } from "@base-template/auth/testing";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "bun:test";
 
 import type { Context } from "../../context";
@@ -372,6 +372,30 @@ await sigeSuite("course router", (fx) => {
         .update(schema.person)
         .set({ isActive: false })
         .where(eq(schema.person.id, t.people.teacher!.personId));
+      expect(
+        (await call(courseRouter.get, { id: course.id }, { context: ctx })).directorActive,
+      ).toBe(false);
+    });
+
+    test("get reports a director who lost the teacher role as not active", async () => {
+      const t = await fx.provisionTenant("SinRol", ["owner", "teacher"]);
+      const ctx = await fx.contextFor(t.people.owner!, t);
+      const campus = await seedCampus(fx, t);
+      const course = await seedCourse(fx, t, campus.id, {
+        directorPersonId: t.people.teacher!.personId,
+      });
+      expect(
+        (await call(courseRouter.get, { id: course.id }, { context: ctx })).directorActive,
+      ).toBe(true);
+      await fx.db
+        .update(schema.member)
+        .set({ role: "admin" })
+        .where(
+          and(
+            eq(schema.member.organizationId, t.orgId),
+            eq(schema.member.userId, t.people.teacher!.userId),
+          ),
+        );
       expect(
         (await call(courseRouter.get, { id: course.id }, { context: ctx })).directorActive,
       ).toBe(false);

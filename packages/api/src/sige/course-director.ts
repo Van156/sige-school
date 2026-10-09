@@ -2,12 +2,19 @@ import type { Database } from "@base-template/db";
 import * as schema from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 
 import { hasRoleToken } from "../lib/user-list-config";
 import { onMember } from "./user-queries";
 
 /** sige/02 §4.1. Also the answer for an id of another institution, so nothing leaks. */
 export const DIRECTOR_MESSAGE = "El director debe ser un profesor activo de la institución.";
+
+/** SQL: the person is active and holds the `teacher` role (needs `person` joined to `member`). */
+export const isActiveTeacher: SQL = and(
+  eq(schema.person.isActive, true),
+  hasRoleToken("teacher"),
+) as SQL;
 
 /**
  * A course director must be an active person with role `teacher` in the same institution (D9).
@@ -33,8 +40,7 @@ export async function assertCourseDirector(
       and(
         eq(schema.person.organizationId, organizationId),
         eq(schema.person.id, directorPersonId),
-        eq(schema.person.isActive, true),
-        hasRoleToken("teacher"),
+        isActiveTeacher,
       ),
     )
     .limit(1);
