@@ -6,10 +6,14 @@ import type { SigeTestFixture, TestTenant } from "./fixture";
 
 /** Row seeders shared by the module 04 router suites (offering, assignment). */
 
-export const seedCampus = async (fx: SigeTestFixture, tenant: TestTenant) => {
+export const seedCampus = async (
+  fx: SigeTestFixture,
+  tenant: TestTenant,
+  values: Partial<typeof schema.campus.$inferInsert> = {},
+) => {
   const [row] = await fx.db
     .insert(schema.campus)
-    .values({ organizationId: tenant.orgId, name: `Sede ${crypto.randomUUID()}` })
+    .values({ organizationId: tenant.orgId, name: `Sede ${crypto.randomUUID()}`, ...values })
     .returning();
   return row!;
 };
@@ -87,7 +91,7 @@ export const seedSlot = async (
   tenant: TestTenant,
   campusId: string,
   offering: { id: string; courseId: string; teacherPersonId?: string | null },
-  when: { dayOfWeek?: number; startTime?: string; endTime?: string } = {},
+  when: { dayOfWeek?: number; startTime?: string; endTime?: string; academicYear?: string } = {},
 ) => {
   const [room] = await fx.db
     .insert(schema.classroom)
@@ -109,8 +113,48 @@ export const seedSlot = async (
       dayOfWeek: when.dayOfWeek ?? 0,
       startTime: when.startTime ?? "07:00",
       endTime: when.endTime ?? "08:00",
-      academicYear: "2026",
+      academicYear: when.academicYear ?? "2026",
     })
     .returning();
   return slot!;
+};
+
+export const seedClassroom = async (
+  fx: SigeTestFixture,
+  tenant: TestTenant,
+  campusId: string,
+  values: Partial<typeof schema.classroom.$inferInsert> = {},
+) => {
+  const [row] = await fx.db
+    .insert(schema.classroom)
+    .values({
+      organizationId: tenant.orgId,
+      campusId,
+      name: `Salón ${crypto.randomUUID().slice(0, 6)}`,
+      code: `R-${crypto.randomUUID().slice(0, 8)}`,
+      ...values,
+    })
+    .returning();
+  return row!;
+};
+
+export const seedTimeBlock = async (
+  fx: SigeTestFixture,
+  tenant: TestTenant,
+  campusId: string,
+  values: Partial<typeof schema.timeBlock.$inferInsert> & { startTime: string; endTime: string },
+) => {
+  const [row] = await fx.db
+    .insert(schema.timeBlock)
+    .values({
+      organizationId: tenant.orgId,
+      campusId,
+      name: `Bloque ${values.startTime}`,
+      orderNum: 1,
+      shift: "Mañana",
+      academicYear: "2026",
+      ...values,
+    })
+    .returning();
+  return row!;
 };

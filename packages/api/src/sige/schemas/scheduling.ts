@@ -138,3 +138,14 @@ export const scheduleGenerateInput = z.object({
   campusId: z.string().min(1).optional(),
   courseId: z.string().min(1).optional(),
 });
+
+/** SCH-11 `schedule.get`: a course grid (`courseId` omitted = the caller's own course) or the teacher's own. */
+export const scheduleGetInput = z.discriminatedUnion("view", [
+  z.object({ view: z.literal("course"), courseId: z.string().min(1).optional() }),
+  z.object({ view: z.literal("teacher") }),
+]);
+
+/** SCH-11 `schedule.deleteSlot`. */
+export const scheduleDeleteSlotInput = z.object({
+  slotId: z.string().min(1, "La clase es obligatoria."),
+});

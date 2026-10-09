@@ -14,6 +14,7 @@ import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
 import { offeringRouter } from "./sige/offering";
 import { periodRouter } from "./sige/period";
+import { scheduleRouter } from "./sige/schedule";
 import { subjectRouter } from "./sige/subject";
 import { timeBlockRouter } from "./sige/time-block";
 import { importJobRouter, platformUserRouter, userRouter } from "./sige/user";
@@ -56,6 +57,7 @@ export const appRouter = {
   assignment: assignmentRouter,
   classroom: classroomRouter,
   timeBlock: timeBlockRouter,
+  schedule: scheduleRouter,
   criterion: criterionRouter,
   period: periodRouter,
   // Module 03 users (sige/03 §3.3): read side in P2 T3.
