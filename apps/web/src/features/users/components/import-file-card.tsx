@@ -6,7 +6,7 @@ import { Input } from "@base-template/ui/components/input";
 import { Download } from "lucide-react";
 import { useId } from "react";
 
-import { IMPORT_ACCEPT } from "../lib/user-import";
+import { IMPORT_ACCEPT, IMPORT_FILE_HINT } from "../lib/user-import";
 
 /**
  * USR-04 card "Archivo Excel" (sige/03 §5.4): the `.xlsx` picker and "Descargar Plantilla".
@@ -46,7 +46,7 @@ export default function ImportFileCard({
             aria-describedby={helpId}
             onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
           />
-          <FieldDescription id={helpId}>Solo archivos .xlsx (máx 10MB)</FieldDescription>
+          <FieldDescription id={helpId}>{IMPORT_FILE_HINT}</FieldDescription>
         </Field>
         {error ? (
           <Alert variant="destructive" role="alert">

@@ -18,9 +18,16 @@ import ImportResult from "./import-result";
 /**
  * USR-04 `/usuarios/importar` (container): bulk user import from an `.xlsx`. Pick a file, review
  * the preview, start the import, follow its progress and read the result. Unreachable without
- * `user:import`.
+ * `user:import`. The running job id is kept in the URL so a reload resumes it.
  */
-export default function UserImportPage() {
+export default function UserImportPage({
+  jobId,
+  onJobChange,
+}: {
+  /** The running import, from the URL (`?job=`); `null` shows the picker. */
+  jobId: string | null;
+  onJobChange: (jobId: string | null) => void;
+}) {
   return (
     <ActiveInstitutionGuard pageName="sus usuarios">
       <CanGate
@@ -38,14 +45,20 @@ export default function UserImportPage() {
             </Link>
           }
         />
-        <ImportUsers />
+        <ImportUsers jobId={jobId} onJobChange={onJobChange} />
       </CanGate>
     </ActiveInstitutionGuard>
   );
 }
 
-function ImportUsers() {
-  const flow = useUserImport();
+function ImportUsers({
+  jobId,
+  onJobChange,
+}: {
+  jobId: string | null;
+  onJobChange: (jobId: string | null) => void;
+}) {
+  const flow = useUserImport({ jobId, onJobChange });
   const template = useImportTemplate();
 
   if (flow.phase === "running" || flow.phase === "finished") {

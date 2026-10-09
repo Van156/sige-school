@@ -9,6 +9,9 @@ export const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
 /** The `accept` attribute of the file input. */
 export const IMPORT_ACCEPT = ".xlsx";
 
+/** The picker hint: "Solo archivos .xlsx (máx 10MB)", built from the accept and size limits. */
+export const IMPORT_FILE_HINT = `Solo archivos ${IMPORT_ACCEPT} (máx ${IMPORT_MAX_BYTES / (1024 * 1024)}MB)`;
+
 export const IMPORT_EXTENSION_MESSAGE = "Solo se permiten archivos Excel (.xlsx).";
 /** AUTH-05 copy for 413. */
 export const IMPORT_SIZE_MESSAGE =
@@ -24,7 +27,7 @@ export const IMPORT_LISTED_ERRORS = 10;
  * before the upload. Returns the Spanish message to show, or `null` when the file may be sent.
  */
 export function validateImportFile(file: { name: string; size: number }): string | null {
-  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+  if (!file.name.toLowerCase().endsWith(IMPORT_ACCEPT)) {
     return IMPORT_EXTENSION_MESSAGE;
   }
   return file.size > IMPORT_MAX_BYTES ? IMPORT_SIZE_MESSAGE : null;
@@ -110,12 +113,30 @@ export function hiddenErrorsLabel(hidden: number): string {
   return hidden === 1 ? "... y 1 error más" : `... y ${hidden} errores más`;
 }
 
+/** A job-level entry (`row` 0, e.g. an interrupted import) is not about a spreadsheet row. */
+function isJobLevelError(error: ImportRowError): boolean {
+  return error.row <= 0;
+}
+
 /**
- * Number of errors of a finished job. The list is capped by the server, `skipped` is exact, and a
- * job-level failure adds an entry that is not a skipped row, so the larger of the two wins.
+ * Why a job stopped as a whole: the message of its job-level (`row` 0) error, or `null` when the
+ * job only has row errors. Shown in the failed-job callout instead of the row error list.
+ */
+export function importFailureReason(errors: readonly ImportRowError[]): string | null {
+  return errors.find(isJobLevelError)?.message ?? null;
+}
+
+/** The row errors of a job: its list without the job-level (`row` 0) entries. */
+export function importRowErrors(errors: readonly ImportRowError[]): ImportRowError[] {
+  return errors.filter((error) => !isJobLevelError(error));
+}
+
+/**
+ * Number of row errors of a finished job. The list is capped by the server while `skipped` is
+ * exact, so the larger of the two wins; job-level entries are not skipped rows and never count.
  */
 export function importErrorCount(job: Pick<ImportJob, "errors" | "skipped">): number {
-  return Math.max(job.errors.length, job.skipped);
+  return Math.max(importRowErrors(job.errors).length, job.skipped);
 }
 
 export type ImportPhase = "select" | "previewing" | "ready" | "running" | "finished";

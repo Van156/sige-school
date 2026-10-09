@@ -120,6 +120,23 @@ describe("edit validation", () => {
   });
 });
 
+describe("editUserFormSchema.shape.newPassword", () => {
+  const field = editUserFormSchema.shape.newPassword;
+
+  test("accepts a blank value (the password stays unchanged)", () => {
+    expect(field.safeParse("").success).toBe(true);
+  });
+
+  test("rejects a short password", () => {
+    expect(field.safeParse("corta").success).toBe(false);
+  });
+
+  test("rejects whitespace only, like the server: it is not blank to the API schema", () => {
+    // `blankToUndefined` only maps the empty string; "   " reaches the password policy and fails.
+    expect(field.safeParse("   ").success).toBe(false);
+  });
+});
+
 describe("userToFormValues", () => {
   test("prefills every field from the detail", () => {
     expect(userToFormValues(detail)).toEqual({

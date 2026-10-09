@@ -103,6 +103,8 @@ function EditUser({ personId }: { personId: string }) {
     );
   }
 
+  // Type narrowing only: past the pending and error branches `data` is always defined, except
+  // for a failed refetch of a cached user (kept on screen on purpose), which still has data.
   const user = detailQuery.data;
   if (user === undefined) {
     return null;

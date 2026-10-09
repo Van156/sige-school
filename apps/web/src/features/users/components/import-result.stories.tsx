@@ -44,3 +44,19 @@ export const Interrupted: Story = {
     },
   },
 };
+
+/** A stopped job with skipped rows: the reason sits in the callout, row errors in the card. */
+export const InterruptedWithRowErrors: Story = {
+  args: {
+    job: {
+      status: "failed",
+      imported: 40,
+      skipped: 3,
+      errors: [
+        { row: 4, message: "Fila 4: El documento ya existe." },
+        { row: 9, message: "Fila 9: Rol inválido." },
+        { row: 0, message: "Importación interrumpida" },
+      ],
+    },
+  },
+};

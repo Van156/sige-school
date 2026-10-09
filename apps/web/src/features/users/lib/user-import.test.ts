@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  IMPORT_ACCEPT,
   IMPORT_EXTENSION_MESSAGE,
+  IMPORT_FILE_HINT,
   IMPORT_MAX_BYTES,
   IMPORT_POLL_INTERVAL_MS,
   IMPORT_PREVIEW_FALLBACK,
@@ -9,6 +11,8 @@ import {
   hiddenErrorsLabel,
   importErrorCount,
   importErrorLabel,
+  importFailureReason,
+  importRowErrors,
   importErrorMessage,
   importPhase,
   importPollInterval,
@@ -38,6 +42,17 @@ describe("validateImportFile", () => {
     expect(validateImportFile({ name: "a.xlsx", size: IMPORT_MAX_BYTES + 1 })).toBe(
       IMPORT_SIZE_MESSAGE,
     );
+  });
+});
+
+describe("import limits", () => {
+  test("the picker hint is built from the accepted extension and the size limit", () => {
+    expect(IMPORT_ACCEPT).toBe(".xlsx");
+    expect(IMPORT_FILE_HINT).toBe("Solo archivos .xlsx (máx 10MB)");
+  });
+
+  test("the extension pre-check follows the accept value", () => {
+    expect(validateImportFile({ name: `a${IMPORT_ACCEPT}`, size: 1 })).toBeNull();
   });
 });
 
@@ -144,7 +159,21 @@ describe("error summary", () => {
   test("the count is the larger of the list and the skipped rows", () => {
     expect(importErrorCount({ errors: [], skipped: 0 })).toBe(0);
     expect(importErrorCount({ errors: errors.slice(0, 3), skipped: 250 })).toBe(250);
-    expect(importErrorCount({ errors: [{ row: 0, message: "x" }], skipped: 0 })).toBe(1);
+  });
+
+  test("job-level (row 0) entries are not counted as skipped rows", () => {
+    const jobLevel = { row: 0, message: "Importación interrumpida" };
+    expect(importErrorCount({ errors: [jobLevel], skipped: 0 })).toBe(0);
+    // Capped list: the row 0 entry must not push the count past the exact skipped total.
+    expect(importErrorCount({ errors: [...errors, jobLevel], skipped: 14 })).toBe(14);
+    expect(importErrorCount({ errors: [...errors, jobLevel], skipped: 3 })).toBe(14);
+  });
+
+  test("the failure reason is the job-level message, row errors keep their own list", () => {
+    const jobLevel = { row: 0, message: "Importación interrumpida" };
+    expect(importFailureReason([errors[0]!, jobLevel])).toBe("Importación interrumpida");
+    expect(importFailureReason(errors)).toBeNull();
+    expect(importRowErrors([jobLevel, ...errors])).toEqual(errors);
   });
 });
 

@@ -1,63 +1,69 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { orpc } from "@/app/orpc";
 
+import { resetImport, selectImportFile } from "../lib/import-flow";
 import {
   IMPORT_PREVIEW_FALLBACK,
   IMPORT_START_FALLBACK,
   importErrorMessage,
   importPhase,
-  validateImportFile,
 } from "../lib/user-import";
 import { useImportJob } from "./use-import-job";
 
 /**
  * USR-04 flow (container logic): pick a file -> `user.importPreview` -> `user.importStart` ->
- * poll the job. The picked file is pre-checked client-side (the server stays authoritative);
- * `reset` returns to the empty picker. Each failure is exposed as the text to show.
+ * poll the job. The running job id lives in the URL (`jobId`, changed through `onJobChange`), so
+ * a reload resumes polling it; a job that no longer exists returns to the picker. The picked
+ * file is pre-checked client-side (the server stays authoritative); `reset` returns to the empty
+ * picker. Each failure is exposed as the text to show. The orchestration itself is in
+ * `lib/import-flow`.
  */
-export function useUserImport() {
+export function useUserImport({
+  jobId: urlJobId,
+  onJobChange,
+}: {
+  jobId: string | null;
+  onJobChange: (jobId: string | null) => void;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const previewMutation = useMutation(orpc.user.importPreview.mutationOptions());
-  const startMutation = useMutation(orpc.user.importStart.mutationOptions());
-  const jobId = startMutation.data?.jobId ?? null;
+  const startMutation = useMutation({
+    ...orpc.user.importStart.mutationOptions(),
+    onSuccess: (started) => onJobChange(started.jobId),
+  });
+  const jobId = urlJobId;
   const jobState = useImportJob(jobId);
+
+  const effects = {
+    resetStart: () => {
+      startMutation.reset();
+      onJobChange(null);
+    },
+    resetPreview: () => previewMutation.reset(),
+    setFile,
+    setFileError,
+  };
+
+  // The URL points at a job the server no longer has: back to the picker.
+  const { notFound } = jobState;
+  const backToPicker = useEffectEvent(() => resetImport(effects));
+  useEffect(() => {
+    if (notFound) {
+      backToPicker();
+    }
+  }, [notFound]);
 
   const phase = importPhase({
     jobId,
     jobStatus: jobState.job?.status,
-    startPending: startMutation.isPending,
+    // The job id reaches the URL a moment after `importStart` resolves: stay in "running".
+    startPending: startMutation.isPending || (startMutation.isSuccess && urlJobId === null),
     previewPending: previewMutation.isPending,
     hasPreview: previewMutation.isSuccess,
   });
-
-  function select(picked: File | null) {
-    startMutation.reset();
-    previewMutation.reset();
-    const invalid = picked ? validateImportFile(picked) : null;
-    setFileError(invalid);
-    if (!picked || invalid) {
-      setFile(null);
-      return;
-    }
-    setFile(picked);
-    previewMutation.mutate({ file: picked });
-  }
-
-  function start() {
-    if (file) {
-      startMutation.mutate({ file });
-    }
-  }
-
-  function reset() {
-    startMutation.reset();
-    previewMutation.reset();
-    setFile(null);
-    setFileError(null);
-  }
 
   const previewError = previewMutation.isError
     ? importErrorMessage(previewMutation.error, IMPORT_PREVIEW_FALLBACK)
@@ -75,8 +81,16 @@ export function useUserImport() {
     job: jobState.job,
     jobLoadFailed: jobState.isError,
     retryJob: () => void jobState.refetch(),
-    select,
-    start,
-    reset,
+    select: (picked: File | null) =>
+      selectImportFile(picked, {
+        ...effects,
+        requestPreview: (next) => previewMutation.mutate({ file: next }),
+      }),
+    start: () => {
+      if (file) {
+        startMutation.mutate({ file });
+      }
+    },
+    reset: () => resetImport(effects),
   };
 }
