@@ -27,7 +27,8 @@ export type UsernamePreviewState =
 
 /**
  * Preview state from the debounced query. `pending` means the typed values have not reached the
- * query yet; the last answer stays visible while a newer one loads only as "loading".
+ * query yet. While a newer answer loads, the state is "loading": the previous answer is replaced,
+ * not kept on screen.
  */
 export function usernamePreviewState(state: {
   enabled: boolean;

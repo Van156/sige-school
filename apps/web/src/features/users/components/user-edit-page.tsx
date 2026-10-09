@@ -77,7 +77,8 @@ function EditUser({ personId }: { personId: string }) {
       </>
     );
   }
-  if (detailQuery.isError) {
+  // A failed background refetch keeps the cached user (and the unsaved edits on screen).
+  if (detailQuery.isError && detailQuery.data === undefined) {
     return (
       <>
         <Header />
@@ -103,6 +104,9 @@ function EditUser({ personId }: { personId: string }) {
   }
 
   const user = detailQuery.data;
+  if (user === undefined) {
+    return null;
+  }
   return (
     <>
       <Header user={user} />
@@ -118,7 +122,7 @@ function EditUser({ personId }: { personId: string }) {
           }
         />
       ) : (
-        <EditUserForm user={user} />
+        <EditUserForm key={user.personId} user={user} />
       )}
     </>
   );

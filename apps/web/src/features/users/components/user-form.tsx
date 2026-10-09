@@ -5,6 +5,7 @@ import { FieldDescription, FieldGroup, FieldLabel } from "@base-template/ui/comp
 import { Input } from "@base-template/ui/components/input";
 import { NativeSelect, NativeSelectOption } from "@base-template/ui/components/native-select";
 import { useForm } from "@tanstack/react-form";
+import type { StandardSchemaV1 } from "@tanstack/react-form";
 import { Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
@@ -61,10 +62,8 @@ export default function UserForm({
   const form = useForm({
     defaultValues: initialValues,
     validators: {
-      // Both schemas take the same input; only their rules differ, and the container re-parses.
-      onSubmit: (isCreate
-        ? createUserFormSchema
-        : editUserFormSchema) as typeof createUserFormSchema,
+      // Both schemas take `UserFormValues`; only their rules differ, and the container re-parses.
+      onSubmit: validatorFor(mode),
     },
     onSubmitInvalid: () => onInvalid?.(),
     onSubmit: async ({ value, formApi }) => {
@@ -351,6 +350,11 @@ export default function UserForm({
       </Card>
     </form>
   );
+}
+
+/** The schema of the mode, typed against the shared input shape so the compiler checks both. */
+function validatorFor(mode: "create" | "edit"): StandardSchemaV1<UserFormValues, unknown> {
+  return mode === "create" ? createUserFormSchema : editUserFormSchema;
 }
 
 function FormSection({

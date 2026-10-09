@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { mapSubmitError } from "@/features/institution";
+
 import type { UserDetail } from "../types";
 import {
   countryOptions,
@@ -9,6 +11,9 @@ import {
   toUserCreateInput,
   toUserUpdateInput,
   userCreateSearchSchema,
+  USER_CREATE_FALLBACK,
+  USER_FIELD_BY_MESSAGE,
+  USER_FORM_FIELDS,
   userToFormValues,
   type UserFormValues,
 } from "./user-form";
@@ -227,5 +232,32 @@ describe("userCreateSearchSchema", () => {
     expect(userCreateSearchSchema.parse({ role: "parent" })).toEqual({ role: "parent" });
     expect(userCreateSearchSchema.parse({ role: "admin" })).toEqual({ role: undefined });
     expect(userCreateSearchSchema.parse({})).toEqual({});
+  });
+});
+
+describe("server conflicts on the user form", () => {
+  const map = (message: string) =>
+    mapSubmitError(
+      { code: "CONFLICT", message },
+      {
+        fields: USER_FORM_FIELDS,
+        fieldByMessage: USER_FIELD_BY_MESSAGE,
+        fallback: USER_CREATE_FALLBACK,
+      },
+    );
+
+  test("a taken document goes under the document number", () => {
+    const message = "Ya existe un usuario con este documento.";
+    expect(map(message)).toEqual({ fieldErrors: { documentNumber: message }, formError: null });
+  });
+
+  test("a taken email goes under the email", () => {
+    const message = "Ya existe un usuario con este correo.";
+    expect(map(message)).toEqual({ fieldErrors: { email: message }, formError: null });
+  });
+
+  test("the admin-only refusal goes under the role", () => {
+    const message = "Solo la plataforma puede crear administradores.";
+    expect(map(message)).toEqual({ fieldErrors: { role: message }, formError: null });
   });
 });

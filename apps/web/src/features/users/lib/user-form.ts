@@ -30,7 +30,7 @@ export const createUserFormSchema = z.object({
 export const editUserFormSchema = z.object({
   ...profileShape,
   role: z.string(),
-  newPassword: userEditInput.shape.newPassword,
+  newPassword: userEditInput.shape.newPassword.unwrap(),
 });
 
 /** Form state: every control holds a string. */

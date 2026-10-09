@@ -12,10 +12,13 @@ import {
   type UsernamePreviewState,
 } from "../lib/username-preview";
 
+/** An answer for the same names and document stays valid while the user keeps typing around it. */
+const PREVIEW_STALE_MS = 60_000;
+
 const NO_INPUT: UsernamePreviewParts = { firstName: "", lastName: "", documentNumber: "" };
 
 /**
- * USR-02 live username (USR-R2): asks `user.previewUsername` 300 ms after the last keystroke once
+ * USR-02 live username (USR-R2): asks `user.previewUsername` `USERNAME_PREVIEW_DEBOUNCE_MS` after the last keystroke once
  * names and document are filled in. Never writes.
  */
 export function useUsernamePreview({
@@ -32,6 +35,8 @@ export function useUsernamePreview({
     ...orpc.user.previewUsername.queryOptions({ input: settled ?? NO_INPUT }),
     enabled: settled !== null,
     retry: false,
+    staleTime: PREVIEW_STALE_MS,
+    refetchOnWindowFocus: false,
   });
 
   return usernamePreviewState({

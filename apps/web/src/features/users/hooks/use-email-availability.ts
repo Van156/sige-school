@@ -10,6 +10,9 @@ import {
   type EmailAvailability,
 } from "../lib/email-availability";
 
+/** A checked address is not asked again for a minute: the endpoint is rate-limited. */
+const EMAIL_STALE_MS = 60_000;
+
 /**
  * USR-02 live email availability: asks `user.checkEmail` once the debounced address is valid.
  * The endpoint is rate-limited (30/min), so a failed call is shown, not retried.
@@ -21,6 +24,8 @@ export function useEmailAvailability(email: string): EmailAvailability {
     ...orpc.user.checkEmail.queryOptions({ input: { email: settled ?? "" } }),
     enabled: settled !== null,
     retry: false,
+    staleTime: EMAIL_STALE_MS,
+    refetchOnWindowFocus: false,
   });
 
   return emailAvailability({
