@@ -11,6 +11,8 @@ import { createTrackedImportRunner } from "./testing";
 import type { TestTenant } from "./testing";
 import {
   getImportJob,
+  IMPORT_JOB_RETENTION_DAYS,
+  purgeFinishedImportJobs,
   runUserImport,
   startUserImport,
   sweepInterruptedImports,
@@ -287,6 +289,52 @@ await sigeSuite("user import service", (fx) => {
     });
     expect(await getImportJob(fx.db, other.orgId, jobId)).toBeNull();
     expect(await getImportJob(fx.db, tenant.orgId, "missing")).toBeNull();
+  });
+
+  test("the purge removes finished and failed jobs older than 30 days and nothing else", async () => {
+    await clearJobs();
+    const now = new Date("2026-11-30T12:00:00Z");
+    const daysAgo = (days: number, extraMs = 0) =>
+      new Date(now.getTime() - days * 86_400_000 + extraMs);
+    expect(IMPORT_JOB_RETENTION_DAYS).toBe(30);
+    const make = async (
+      status: "running" | "done" | "failed",
+      orgId: string,
+      personId: string,
+      finishedAt: Date | null,
+      createdAt: Date,
+    ) => {
+      const [row] = await fx.db
+        .insert(schema.importJob)
+        .values({
+          organizationId: orgId,
+          kind: "users",
+          status,
+          createdBy: personId,
+          startedAt: createdAt,
+          createdAt,
+          finishedAt,
+        })
+        .returning();
+      return row!.id;
+    };
+    const owner = tenant.people.owner!.personId;
+    const otherOwner = other.people.owner!.personId;
+    const oldDone = await make("done", tenant.orgId, owner, daysAgo(31), daysAgo(31));
+    const oldFailed = await make("failed", tenant.orgId, owner, daysAgo(45), daysAgo(45));
+    const recentDone = await make("done", tenant.orgId, owner, daysAgo(29), daysAgo(29));
+    // Exactly at the boundary is kept: only strictly older rows are purged.
+    const boundary = await make("done", tenant.orgId, owner, daysAgo(30), daysAgo(30));
+    const oldRunning = await make("running", other.orgId, otherOwner, null, daysAgo(60));
+
+    expect(await purgeFinishedImportJobs(fx.db, now)).toBe(2);
+    const left = (await fx.db.select({ id: schema.importJob.id }).from(schema.importJob)).map(
+      (row) => row.id,
+    );
+    expect(left.toSorted()).toEqual([recentDone, boundary, oldRunning].toSorted());
+    expect(left).not.toContain(oldDone);
+    expect(left).not.toContain(oldFailed);
+    expect(await purgeFinishedImportJobs(fx.db, now)).toBe(0);
   });
 
   test("the restart sweep spares a job started after the process did", async () => {

@@ -372,3 +372,27 @@ export async function sweepInterruptedImports(
     .returning({ id: schema.importJob.id });
   return swept.length;
 }
+
+/** Finished import jobs are kept this long for the progress screen and support, then purged. */
+export const IMPORT_JOB_RETENTION_DAYS = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Deletes `done` and `failed` jobs that finished more than `IMPORT_JOB_RETENTION_DAYS` before
+ * `now` (sige/03 retention) and returns how many went. `running` jobs are never touched.
+ */
+export async function purgeFinishedImportJobs(
+  db: Database,
+  now: Date = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - IMPORT_JOB_RETENTION_DAYS * MS_PER_DAY);
+  const result = await db
+    .delete(schema.importJob)
+    .where(
+      and(
+        inArray(schema.importJob.status, ["done", "failed"]),
+        lt(schema.importJob.finishedAt, cutoff),
+      ),
+    );
+  return result.rowCount ?? 0;
+}
