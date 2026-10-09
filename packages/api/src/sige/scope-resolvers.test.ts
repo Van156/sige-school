@@ -50,7 +50,9 @@ describe("offering scope resolvers (sige/00 §4.3, D3)", () => {
 
   test("assertOffering throws NOT_FOUND when the offering is not visible", async () => {
     const policy = createScopePolicy(subject("teacher"), resolvers(false));
-    await expect(policy.assertOffering("o-1")).rejects.toBeInstanceOf(ORPCError);
+    const error = await policy.assertOffering("o-1").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ORPCError);
+    expect((error as ORPCError<string, unknown>).code).toBe("NOT_FOUND");
     await expect(
       createScopePolicy(subject("teacher"), resolvers(true)).assertOffering("o-1"),
     ).resolves.toBeUndefined();

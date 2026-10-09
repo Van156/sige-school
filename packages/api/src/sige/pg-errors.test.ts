@@ -22,6 +22,7 @@ import {
   SLOT_CLASSROOM_FK,
   SLOT_COURSE_EXCLUDE,
   SLOT_OFFERING_COURSE_FK,
+  SLOT_OFFERING_TEACHER_FK,
   SLOT_TEACHER_EXCLUDE,
   SLOT_TEACHER_SYNC_CHECK,
   SUBJECT_CODE_UNIQUE,
@@ -251,7 +252,11 @@ describe("scheduling constraints (sige/04 §4.1, §4.2, SCH-R9)", () => {
   });
 
   test("slot course and teacher mismatches fall back to the generic BAD_REQUEST", () => {
-    expect(mapped(pgError("23503", SLOT_OFFERING_COURSE_FK), "write").code).toBe("BAD_REQUEST");
+    for (const constraint of [SLOT_OFFERING_COURSE_FK, SLOT_OFFERING_TEACHER_FK]) {
+      const error = mapped(pgError("23503", constraint), "write");
+      expect(error.code).toBe("BAD_REQUEST");
+      expect(error.message).toBe("Uno de los registros referenciados no existe.");
+    }
   });
 
   test("the teacher-sync check (23514) is not mapped here", () => {

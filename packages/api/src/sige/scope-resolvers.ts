@@ -32,7 +32,7 @@ const teacherOfferingWhere: RowPredicate = (subject) =>
 export function createSigeScopeResolvers(db: Pick<Database, "select">): ScopeResolvers {
   return {
     ...DEFAULT_SCOPE_RESOLVERS,
-    offeringWhere: { teacher: teacherOfferingWhere },
+    offeringWhere: { ...DEFAULT_SCOPE_RESOLVERS.offeringWhere, teacher: teacherOfferingWhere },
     async offeringVisible(subject, offeringId, scopeWhere) {
       const [row] = await db
         .select({ id: offering.id })
