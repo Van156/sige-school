@@ -777,7 +777,7 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
           classroomId: ctx.roomA,
           dayOfWeek: 2,
         });
-      const giveTeacher = (tx: typeof handle.db) =>
+      const giveTeacher = (tx: Parameters<Parameters<typeof handle.db.transaction>[0]>[0]) =>
         tx
           .update(offering)
           .set({ teacherPersonId: ctx.teacherA })
@@ -919,7 +919,12 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       await db()
         .delete(offering)
         .where(sql`${offering.id} = ${ctx.offeringA}`);
-      expect(await db().select().from(scheduleSlot)).toHaveLength(0);
+      expect(
+        await db()
+          .select()
+          .from(scheduleSlot)
+          .where(sql`${scheduleSlot.organizationId} = ${orgA}`),
+      ).toHaveLength(0);
     });
 
     describe("exclusion constraints (D1)", () => {
@@ -992,7 +997,10 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
           .values(
             slot({ offeringId: ctx.offeringE, teacherPersonId: null, classroomId: ctx.roomB }),
           );
-        const rows = await db().select().from(scheduleSlot);
+        const rows = await db()
+          .select()
+          .from(scheduleSlot)
+          .where(sql`${scheduleSlot.organizationId} = ${orgA}`);
         expect(rows.filter((row) => row.teacherPersonId === null)).toHaveLength(2);
       });
 
