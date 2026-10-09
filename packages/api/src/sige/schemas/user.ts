@@ -102,7 +102,12 @@ export const tenantRoleSchema = z.enum(IMPORT_ROLES, {
         : "Rol inválido.",
 });
 
-const personId = z.string({ error: "Falta la persona." }).min(1, "Falta la persona.");
+export const personId = z.string({ error: "Falta la persona." }).min(1, "Falta la persona.");
+
+/** Platform callers may also provision `admin`; `owner` parses so the service refuses a second one. */
+export const platformRoleSchema = z.enum(["owner", "admin", ...IMPORT_ROLES], {
+  error: (issue) => (issue.input === undefined ? "Debes seleccionar un rol." : "Rol inválido."),
+});
 
 const profileFields = {
   firstName: requiredName("Los nombres son obligatorios."),
@@ -120,6 +125,8 @@ const profileFields = {
 };
 
 export const userCreateInput = z.object({ ...profileFields, role: tenantRoleSchema });
+
+export const platformUserCreateInput = z.object({ ...profileFields, role: platformRoleSchema });
 
 /** Edit = create minus role (immutable, OQ-USR-1) plus the optional "Nueva Contraseña" (USR-R8). */
 export const userEditInput = z.object({

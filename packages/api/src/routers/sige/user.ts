@@ -1,16 +1,27 @@
 import * as schema from "@base-template/db/schema";
-import { generateUsername, UsernameGenerationError } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
-import { and, asc, count, eq, ilike, like, or, sql } from "drizzle-orm";
+import type { Database } from "@base-template/db";
+import { and, asc, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import { z } from "zod";
 
-import { requireAnyPermission, requirePermission } from "../../index";
+import { platformProcedure, requireAnyPermission, requirePermission } from "../../index";
 import { createListInput } from "../../lib/list-input";
 import { escapeLikePattern } from "@base-template/db/lib/list-values";
-import { buildUserListQuery, hasRoleToken, userListConfig } from "../../lib/user-list-config";
+import { hasRoleToken, userListConfig } from "../../lib/user-list-config";
 import { defaultRateLimiter } from "../../rate-limit";
-import { loadUserDetail, onLogin, onMember, rowColumns, toUserRow } from "../../sige/user-queries";
 import {
+  institutionRoleCounts,
+  listUserRows,
+  loadUserDetail,
+  onLogin,
+  onMember,
+  previewUsernameFor,
+} from "../../sige/user-queries";
+import {
+  passwordSchema,
+  personId,
+  platformUserCreateInput,
   userCheckEmailInput,
   userCreateInput,
   userOptionsInput,
@@ -28,6 +39,7 @@ import {
   updateUser,
 } from "../../sige/user-service";
 import type { UserActor } from "../../sige/user-service";
+import { INSTITUTION_NOT_FOUND } from "../../sige/logo";
 import { sigeProcedure } from "../../sige/procedure";
 
 /**
@@ -64,31 +76,9 @@ export const userRouter = {
   list: sigeProcedure
     .use(requirePermission({ user: ["read"] }))
     .input(listInput)
-    .handler(async ({ context, input }) => {
-      const query = buildUserListQuery(input);
-      const scope = and(eq(schema.person.organizationId, context.org.id), query.where);
-      const [rows, [totalRow]] = await Promise.all([
-        context.db
-          .select(rowColumns)
-          .from(schema.person)
-          .innerJoin(schema.user, onLogin)
-          .innerJoin(schema.member, onMember)
-          .where(scope)
-          .orderBy(...query.orderBy)
-          .limit(query.limit)
-          .offset(query.offset),
-        context.db
-          .select({ total: count() })
-          .from(schema.person)
-          .innerJoin(schema.user, onLogin)
-          .innerJoin(schema.member, onMember)
-          .where(scope),
-      ]);
-      return {
-        rows: rows.map((row) => toUserRow(row, row.personId === context.person.id)),
-        total: totalRow?.total ?? 0,
-      };
-    }),
+    .handler(({ context, input }) =>
+      listUserRows(context.db, context.org.id, input, context.person.id),
+    ),
 
   /** KPI tiles of USR-01. */
   stats: sigeProcedure.use(requirePermission({ user: ["read"] })).handler(async ({ context }) => {
@@ -179,42 +169,7 @@ export const userRouter = {
   previewUsername: sigeProcedure
     .use(requirePermission({ user: ["create"] }))
     .input(userPreviewUsernameInput)
-    .handler(async ({ context, input }) => {
-      if (!input.firstName || !input.lastName || !input.documentNumber) {
-        return { username: null, documentTaken: false };
-      }
-      // Usernames are unique across tenants, so the check is global but reveals nothing else.
-      let base: string;
-      try {
-        base = generateUsername(input, new Set());
-      } catch (error) {
-        if (error instanceof UsernameGenerationError) {
-          return { username: null, documentTaken: false };
-        }
-        throw error;
-      }
-      const [taken, [document]] = await Promise.all([
-        context.db
-          .select({ username: schema.user.username })
-          .from(schema.user)
-          .where(like(schema.user.username, `${escapeLikePattern(base)}%`)),
-        context.db
-          .select({ id: schema.person.id })
-          .from(schema.person)
-          .where(
-            and(
-              eq(schema.person.organizationId, context.org.id),
-              eq(schema.person.documentNumber, input.documentNumber),
-            ),
-          )
-          .limit(1),
-      ]);
-      const username = generateUsername(
-        input,
-        new Set(taken.flatMap((row) => (row.username ? [row.username] : []))),
-      );
-      return { username, documentTaken: document !== undefined };
-    }),
+    .handler(({ context, input }) => previewUsernameFor(context.db, context.org.id, input)),
 
   /** Live availability of an email (USR-R5): global, answers only "taken or not". */
   checkEmail: sigeProcedure
@@ -266,4 +221,94 @@ export const userRouter = {
     .handler(({ context, input }) =>
       resetUserPassword(context, context.org.id, input, actorOf(context)),
     ),
+};
+
+/**
+ * Platform side of module 03 (sige/03 §3.4, INS-04/05): a superadmin manages one institution's
+ * users through the same services and queries as `user.*`. The institution is the explicit
+ * `institutionId` (an unknown one is `NOT_FOUND`); the actor is flagged `platform`, so `admin`
+ * members are reachable while a second `owner` is still refused by the service. The audit actor is
+ * the superadmin and `institutionId` is stored as the audit `organizationId`.
+ */
+const institutionInput = z.object({ institutionId: z.string().min(1, "Falta la institución.") });
+const platformListInput = listInput.and(institutionInput);
+
+const platformActorOf = (context: {
+  session: { user: { id: string }; session: { impersonatedBy?: string | null } };
+}): UserActor => ({ ...actorOf(context), platform: true });
+
+async function requireInstitution(db: Database, institutionId: string) {
+  const [row] = await db
+    .select({ id: schema.organization.id })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, institutionId))
+    .limit(1);
+  if (!row) {
+    throw new ORPCError("NOT_FOUND", { message: INSTITUTION_NOT_FOUND });
+  }
+}
+
+const manageUsers = () => platformProcedure({ institution: ["manage_users"] });
+
+export const platformUserRouter = {
+  list: manageUsers()
+    .input(platformListInput)
+    .handler(async ({ context, input }) => {
+      const { institutionId, ...list } = input;
+      await requireInstitution(context.db, institutionId);
+      return listUserRows(context.db, institutionId, list as never, null);
+    }),
+
+  stats: manageUsers()
+    .input(institutionInput)
+    .handler(async ({ context, input }) => {
+      await requireInstitution(context.db, input.institutionId);
+      return institutionRoleCounts(context.db, input.institutionId);
+    }),
+
+  /** `role` may be `admin` as well as the tenant roles; the service refuses a second `owner`. */
+  create: manageUsers()
+    .input(institutionInput.extend(platformUserCreateInput.shape))
+    .handler(async ({ context, input }) => {
+      const { institutionId, ...user } = input;
+      await requireInstitution(context.db, institutionId);
+      return createUser(context, institutionId, user, platformActorOf(context));
+    }),
+
+  setActive: manageUsers()
+    .input(institutionInput.extend(userSetActiveInput.shape))
+    .handler(async ({ context, input }) => {
+      await requireInstitution(context.db, input.institutionId);
+      return setUserActive(
+        context,
+        input.institutionId,
+        input.personId,
+        input.active,
+        platformActorOf(context),
+      );
+    }),
+
+  /** Custom password only (the prototype dialog); the service re-arms the forced change. */
+  resetPassword: manageUsers()
+    .input(institutionInput.extend({ personId, newPassword: passwordSchema }))
+    .handler(async ({ context, input }) => {
+      await requireInstitution(context.db, input.institutionId);
+      return resetUserPassword(
+        context,
+        input.institutionId,
+        { personId: input.personId, mode: "custom", newPassword: input.newPassword },
+        platformActorOf(context),
+      );
+    }),
+
+  /** `institutionId` is optional: INS-02 previews the rector's username before the institution exists. */
+  previewUsername: manageUsers()
+    .input(userPreviewUsernameInput.extend({ institutionId: z.string().min(1).optional() }))
+    .handler(async ({ context, input }) => {
+      const { institutionId, ...parts } = input;
+      if (institutionId !== undefined) {
+        await requireInstitution(context.db, institutionId);
+      }
+      return previewUsernameFor(context.db, institutionId, parts);
+    }),
 };

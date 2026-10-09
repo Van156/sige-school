@@ -12,7 +12,11 @@ import type { z } from "zod";
 import { hasRoleToken } from "../lib/user-list-config";
 import { changedFields, recordAudit } from "./audit";
 import { rethrowDbError } from "./pg-errors";
-import type { userCreateInput, userEditInput, userResetPasswordInput } from "./schemas/user";
+import type {
+  platformUserCreateInput,
+  userEditInput,
+  userResetPasswordInput,
+} from "./schemas/user";
 import {
   loadUserDetail,
   onLogin,
@@ -42,7 +46,7 @@ export type UserActor = {
   platform: boolean;
 };
 
-export type UserCreateInput = z.output<typeof userCreateInput>;
+export type UserCreateInput = z.output<typeof platformUserCreateInput>;
 export type UserEditInput = z.output<typeof userEditInput>;
 export type UserResetPasswordInput = z.output<typeof userResetPasswordInput>;
 
