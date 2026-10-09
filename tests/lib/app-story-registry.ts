@@ -53,5 +53,8 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/auth/components/password-strength-meter.tsx",
   "features/auth/components/forced-password-form.tsx",
   "features/institutions/components/institution-created-notice.tsx",
+  "features/users/components/user-cell.tsx",
+  "features/users/components/role-badge.tsx",
+  "features/users/components/role-select.tsx",
   "shared/components/form/password-input.tsx",
 ];
