@@ -7,10 +7,16 @@ import { join, relative } from "node:path";
  * path (via `createUser`/`createInstitution`/the import), never by inserting into `user`,
  * `member` or `person` directly. Those inserts would skip the username, role, owner and audit
  * rules. oxlint cannot express "this table from outside this module", so this scans the source.
+ *
+ * Detected: `.insert(user)` and member access on any identifier chain ending in the table name
+ * (`schema.user`, `tables.member`, ...), plus raw SQL `insert into`. Known limit: a table held in
+ * a local variable (`const t = schema.user; db.insert(t)`) or an aliased import
+ * (`import { user as u }`) is not detected. Test files are excluded by filename only, so helper
+ * modules (including `testing/` directories) are scanned.
  */
 const repoRoot = join(import.meta.dir, "..");
 const SCAN_ROOTS = ["apps", "packages"];
-const SKIPPED_DIRS = new Set(["node_modules", "dist", "migrations", "testing", ".turbo"]);
+const SKIPPED_DIRS = new Set(["node_modules", "dist", "migrations", ".turbo"]);
 
 /**
  * The only non-test source files allowed to insert into those tables, each with the reason.
@@ -23,7 +29,7 @@ export const ALLOWLIST: Record<string, string> = {
 };
 
 const TABLES = "user|member|person";
-const DRIZZLE_INSERT = new RegExp(`\\.insert\\(\\s*(?:schema\\.)?(${TABLES})\\s*,?\\s*\\)`, "g");
+const DRIZZLE_INSERT = new RegExp(`\\.insert\\(\\s*(?:[\\w$]+\\.)*(${TABLES})\\s*,?\\s*\\)`, "g");
 const SQL_INSERT = new RegExp(`insert\\s+into\\s+"?(?:public"?\\."?)?(${TABLES})"?(?![\\w])`, "gi");
 
 /** Table names a source text inserts into directly (drizzle builder or raw SQL). */
@@ -65,11 +71,22 @@ describe("rawInsertTargets", () => {
     ]);
   });
 
+  test("finds inserts through any identifier ending in the table name", () => {
+    const source = [
+      `await db.insert(tables.user).values(row);`,
+      `await db.insert(s.member).values(row);`,
+      `await db.insert(a.b.person).values(row);`,
+    ].join("\n");
+    expect(rawInsertTargets(source).toSorted()).toEqual(["member", "person", "user"]);
+  });
+
   test("ignores other tables and look-alike names", () => {
     const source = [
       `await tx.insert(schema.account).values(row);`,
       `await tx.insert(schema.userPreference).values(row);`,
       `await tx.insert(schema.personContact).values(row);`,
+      `await tx.insert(tables.userPreference).values(row);`,
+      `await tx.insert(tables.users).values(row);`,
       `insert into member_invite (id) values (1);`,
     ].join("\n");
     expect(rawInsertTargets(source)).toEqual([]);
