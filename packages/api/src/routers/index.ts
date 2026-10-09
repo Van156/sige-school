@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
+import { assignmentRouter } from "./sige/assignment";
 import { campusRouter } from "./sige/campus";
 import { classroomRouter } from "./sige/classroom";
 import { institutionRouter } from "./sige/institution";
@@ -11,6 +12,7 @@ import { courseRouter } from "./sige/course";
 import { criterionRouter } from "./sige/criterion";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
+import { offeringRouter } from "./sige/offering";
 import { periodRouter } from "./sige/period";
 import { subjectRouter } from "./sige/subject";
 import { timeBlockRouter } from "./sige/time-block";
@@ -50,6 +52,8 @@ export const appRouter = {
   level: levelRouter,
   course: courseRouter,
   subject: subjectRouter,
+  offering: offeringRouter,
+  assignment: assignmentRouter,
   classroom: classroomRouter,
   timeBlock: timeBlockRouter,
   criterion: criterionRouter,
