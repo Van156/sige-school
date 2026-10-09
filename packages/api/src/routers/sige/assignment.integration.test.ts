@@ -360,6 +360,87 @@ await sigeSuite("assignment router", (fx) => {
     expect(filled?.teacherPersonId).toBe(teacherA);
   });
 
+  test("assign to a different teacher clears the previous teacher's notes (D10)", async () => {
+    const course = await seedCourse(fx, tenant, campusId);
+    const subject = await seedSubject(fx, tenant);
+    const offering = await seedOffering(fx, tenant, course.id, subject.id, {
+      personId: teacherA,
+    });
+    await fx.db
+      .update(schema.teacherAssignment)
+      .set({ notes: "Incapacidad de A" })
+      .where(eq(schema.teacherAssignment.offeringId, offering.id));
+    const result = await call(
+      assignmentRouter.assign,
+      { courseId: course.id, subjectId: subject.id, teacherPersonId: teacherB },
+      { context: owner },
+    );
+    expect(result.assignment).toMatchObject({ teacherPersonId: teacherB, notes: null });
+    expect((await assignmentsOf(offering.id))[0]?.notes).toBeNull();
+  });
+
+  test("assign to the same teacher keeps the notes (D10)", async () => {
+    const course = await seedCourse(fx, tenant, campusId);
+    const subject = await seedSubject(fx, tenant);
+    const offering = await seedOffering(fx, tenant, course.id, subject.id, {
+      personId: teacherA,
+      status: "temporal",
+    });
+    await fx.db
+      .update(schema.teacherAssignment)
+      .set({ notes: "Reemplazo temporal" })
+      .where(eq(schema.teacherAssignment.offeringId, offering.id));
+    const result = await call(
+      assignmentRouter.assign,
+      { courseId: course.id, subjectId: subject.id, teacherPersonId: teacherA },
+      { context: owner },
+    );
+    expect(result.assignment).toMatchObject({ status: "activo", notes: "Reemplazo temporal" });
+  });
+
+  test("an inactive slot of the new teacher never causes the busy refusal (SCH-R3)", async () => {
+    const c1 = await seedCourse(fx, tenant, campusId);
+    const c2 = await seedCourse(fx, tenant, campusId);
+    const s1 = await seedSubject(fx, tenant);
+    const s2 = await seedSubject(fx, tenant);
+    const busy = await seedOffering(fx, tenant, c1.id, s1.id, { personId: teacherB });
+    const when = { dayOfWeek: 1, startTime: "13:00", endTime: "14:00" };
+    const inactive = await seedSlot(fx, tenant, campusId, busy, when);
+    await fx.db
+      .update(schema.scheduleSlot)
+      .set({ isActive: false })
+      .where(eq(schema.scheduleSlot.id, inactive.id));
+    const target = await seedOffering(fx, tenant, c2.id, s2.id, { personId: teacherA });
+    await seedSlot(fx, tenant, campusId, target, when);
+    const result = await call(
+      assignmentRouter.assign,
+      { courseId: c2.id, subjectId: s2.id, teacherPersonId: teacherB },
+      { context: owner },
+    );
+    expect(result.assignment.teacherPersonId).toBe(teacherB);
+  });
+
+  test("an inactive slot of the target offering never causes the busy refusal (SCH-R3)", async () => {
+    const c1 = await seedCourse(fx, tenant, campusId);
+    const c2 = await seedCourse(fx, tenant, campusId);
+    const s1 = await seedSubject(fx, tenant);
+    const s2 = await seedSubject(fx, tenant);
+    const busy = await seedOffering(fx, tenant, c1.id, s1.id, { personId: teacherB });
+    await seedSlot(fx, tenant, campusId, busy, { dayOfWeek: 3 });
+    const target = await seedOffering(fx, tenant, c2.id, s2.id, { personId: teacherA });
+    const inactive = await seedSlot(fx, tenant, campusId, target, { dayOfWeek: 3 });
+    await fx.db
+      .update(schema.scheduleSlot)
+      .set({ isActive: false })
+      .where(eq(schema.scheduleSlot.id, inactive.id));
+    const result = await call(
+      assignmentRouter.assign,
+      { courseId: c2.id, subjectId: s2.id, teacherPersonId: teacherB },
+      { context: owner },
+    );
+    expect(result.assignment.teacherPersonId).toBe(teacherB);
+  });
+
   test("update changes status and notes only; a left-out note clears it", async () => {
     const course = await seedCourse(fx, tenant, campusId);
     const subject = await seedSubject(fx, tenant);

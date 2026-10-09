@@ -25,7 +25,8 @@ import { lockOffering } from "./offering";
  * and the two can never diverge.
  *
  * - `assign` creates the offering (4 weekly hours) when the pair has none, otherwise changes its
- *   teacher, and upserts the assignment (`activo`, today in America/Bogota, the course's year).
+ *   teacher, and upserts the assignment (`activo`, today in America/Bogota, the course's year;
+ *   the notes are cleared when the teacher changes and kept on a same-teacher re-assign).
  *   Reassigning an offering that already has slots is refused when the new teacher is busy at
  *   any of them (`CONFLICT`, first clashing class named).
  * - `update` edits status and notes only.
@@ -297,7 +298,11 @@ export const assignmentRouter = {
           const [assignment] = await tx
             .insert(schema.teacherAssignment)
             .values({ organizationId: orgId, offeringId, ...values })
-            .onConflictDoUpdate({ target: schema.teacherAssignment.offeringId, set: values })
+            .onConflictDoUpdate({
+              target: schema.teacherAssignment.offeringId,
+              // D10: notes describe the previous teacher; a same-teacher re-assign keeps them.
+              set: from === input.teacherPersonId ? values : { ...values, notes: null },
+            })
             .returning({ id: schema.teacherAssignment.id });
           if (!assignment) throw new Error("Assignment upsert returned no row.");
           return {
