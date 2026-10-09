@@ -292,12 +292,17 @@ export async function updateUser(
           name: `${input.firstName} ${input.lastName}`,
           ...(afterEmail === null
             ? current.hasRealEmail
-              ? { email: placeholderEmail(target.username ?? "", org.slug) }
+              ? { email: placeholderEmail(target.username ?? "", org.slug), emailVerified: false }
               : {}
             : { email: afterEmail, emailVerified: true }),
         })
         .where(eq(schema.user.id, target.userId));
 
+      if (passwordHash) {
+        await applyPasswordReset(tx, { userId: target.userId, personId }, passwordHash);
+      }
+      // Audit last: it uses its own connection, so an event recorded before a failing write
+      // would outlive the rollback.
       const changedKeys = Object.keys(changes);
       if (changedKeys.length > 0) {
         await recordAudit(auditContext(deps, organizationId, actor), {
@@ -313,7 +318,6 @@ export async function updateUser(
         });
       }
       if (passwordHash) {
-        await applyPasswordReset(tx, { userId: target.userId, personId }, passwordHash);
         await recordAudit(auditContext(deps, organizationId, actor), {
           action: "user.password_reset",
           targetType: "user",

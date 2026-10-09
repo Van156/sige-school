@@ -2,7 +2,7 @@ import type { RecordingAuditLogger } from "@base-template/auth/testing";
 import * as schema from "@base-template/db/schema";
 import { call, ORPCError } from "@orpc/server";
 import { verifyPassword } from "better-auth/crypto";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { expect, test } from "bun:test";
 
 import type { Context } from "../../context";
@@ -799,6 +799,57 @@ await sigeSuite("user router (write side)", (fx) => {
         .from(schema.user)
         .where(eq(schema.user.id, teacher.userId));
       expect(after?.email).toBe(`${teacher.username}@sin-correo.${tenant.slug}.invalid`);
+    });
+
+    test("reverting to the placeholder email marks it unverified", async () => {
+      const teacher = await seedTeacher();
+      const base = {
+        personId: teacher.personId,
+        firstName: teacher.firstName,
+        lastName: teacher.lastName,
+        documentType: "CC",
+        documentNumber: (await personRow(teacher.personId))!.documentNumber,
+      };
+      await update({ ...base, email: "real@colegio.co" });
+      await update({ ...base });
+      const [stored] = await fx.db
+        .select()
+        .from(schema.user)
+        .where(eq(schema.user.id, teacher.userId));
+      expect(stored?.emailVerified).toBe(false);
+    });
+
+    test("a failed password reset leaves no user.updated event and no change", async () => {
+      const teacher = await seedTeacher();
+      const before = events(owner).length;
+      const original = await personRow(teacher.personId);
+      await fx.db.execute(
+        sql.raw(
+          `CREATE OR REPLACE FUNCTION test_fail_account_update() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'blocked by test'; END; $$ LANGUAGE plpgsql`,
+        ),
+      );
+      await fx.db.execute(
+        sql.raw(
+          `CREATE TRIGGER test_fail_account BEFORE UPDATE ON account FOR EACH ROW EXECUTE FUNCTION test_fail_account_update()`,
+        ),
+      );
+      let error: ORPCError<string, any> | null;
+      try {
+        error = await errorOf(
+          update({
+            personId: teacher.personId,
+            firstName: "Cambiado",
+            lastName: teacher.lastName,
+            documentNumber: original!.documentNumber,
+            newPassword: "Nueva-Clave-123",
+          }),
+        );
+      } finally {
+        await fx.db.execute(sql.raw(`DROP TRIGGER IF EXISTS test_fail_account ON account`));
+      }
+      expect(error).not.toBeNull();
+      expect(events(owner).slice(before)).toEqual([]);
+      expect((await personRow(teacher.personId))!.firstName).toBe(original!.firstName);
     });
 
     test("a taken document or email is a CONFLICT", async () => {
