@@ -12,7 +12,7 @@ import type { z } from "zod";
 import { hasRoleToken } from "../lib/user-list-config";
 import { changedFields, recordAudit } from "./audit";
 import { rethrowDbError } from "./pg-errors";
-import type { userCreateInput, userEditInput } from "./schemas/user";
+import type { userCreateInput, userEditInput, userResetPasswordInput } from "./schemas/user";
 import {
   loadUserDetail,
   onLogin,
@@ -44,6 +44,7 @@ export type UserActor = {
 
 export type UserCreateInput = z.output<typeof userCreateInput>;
 export type UserEditInput = z.output<typeof userEditInput>;
+export type UserResetPasswordInput = z.output<typeof userResetPasswordInput>;
 
 export const ADMIN_ROLE_MESSAGE = "Solo la plataforma puede crear administradores.";
 const NOT_FOUND_MESSAGE = "El usuario no existe.";
@@ -334,6 +335,45 @@ export async function updateUser(
     throw notFound();
   }
   return { ...detail, isSelf: detail.userId === actor.userId };
+}
+
+/**
+ * `user.resetPassword` (USR-R9): `document` resets to the person's current document number,
+ * `custom` to the given password. Both re-arm the forced change and revoke every session in one
+ * transaction; the audit event (mode only, never the secret) is the last statement. The spec does
+ * not forbid resetting yourself, so it is allowed (org callers cannot reach their own row anyway
+ * when it is `owner`/`admin`, which are the only roles holding `user:reset_password`).
+ */
+export async function resetUserPassword(
+  deps: UserServiceDeps,
+  organizationId: string,
+  input: UserResetPasswordInput,
+  actor: UserActor,
+): Promise<{ ok: true }> {
+  // Hashing is CPU-bound, so it stays outside the transaction; document mode reads the number
+  // under the row lock below and hashes it there (the lock is held for one hash only).
+  const customHash = input.mode === "custom" ? await hashPassword(input.newPassword) : undefined;
+  try {
+    await deps.db.transaction(async (tx) => {
+      const target = await lockTarget(tx, organizationId, input.personId);
+      assertManageable(target, actor);
+      const passwordHash = customHash ?? (await hashPassword(target.documentNumber));
+      await applyPasswordReset(
+        tx,
+        { userId: target.userId, personId: input.personId },
+        passwordHash,
+      );
+      await recordAudit(auditContext(deps, organizationId, actor), {
+        action: "user.password_reset",
+        targetType: "user",
+        targetId: target.userId,
+        metadata: { personId: input.personId, mode: input.mode },
+      });
+    });
+  } catch (error) {
+    rethrowDbError(error, "write");
+  }
+  return { ok: true };
 }
 
 export async function setUserActive(

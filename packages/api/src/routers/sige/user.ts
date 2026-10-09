@@ -16,10 +16,17 @@ import {
   userOptionsInput,
   userPersonInput,
   userPreviewUsernameInput,
+  userResetPasswordInput,
   userSetActiveInput,
   userUpdateInput,
 } from "../../sige/schemas/user";
-import { createUser, deleteUser, setUserActive, updateUser } from "../../sige/user-service";
+import {
+  createUser,
+  deleteUser,
+  resetUserPassword,
+  setUserActive,
+  updateUser,
+} from "../../sige/user-service";
 import type { UserActor } from "../../sige/user-service";
 import { sigeProcedure } from "../../sige/procedure";
 
@@ -251,5 +258,12 @@ export const userRouter = {
     .input(userPersonInput)
     .handler(({ context, input }) =>
       deleteUser(context, context.org.id, input.personId, actorOf(context)),
+    ),
+
+  resetPassword: sigeProcedure
+    .use(requirePermission({ user: ["reset_password"] }))
+    .input(userResetPasswordInput)
+    .handler(({ context, input }) =>
+      resetUserPassword(context, context.org.id, input, actorOf(context)),
     ),
 };

@@ -41,6 +41,8 @@ export type TestTenant = {
 
 export type SigeTestFixture = {
   db: Database;
+  /** The better-auth instance behind the fixture, for real sign-in assertions. */
+  auth: ReturnType<typeof createAuth>;
   /** Creates an institution and provisions one person per role through `provisionUser`. */
   provisionTenant(
     label: string,
@@ -96,6 +98,9 @@ export async function sigeSuite(
     const fixture: SigeTestFixture = {
       get db() {
         return handle.db;
+      },
+      get auth() {
+        return auth;
       },
       async provisionTenant(label, roles, overrides = {}) {
         tenantCounter += 1;

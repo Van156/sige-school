@@ -14,7 +14,7 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { TestTenant } from "../../sige/testing";
-import { createUser, deleteUser, setUserActive } from "../../sige/user-service";
+import { createUser, deleteUser, resetUserPassword, setUserActive } from "../../sige/user-service";
 import type { UserActor } from "../../sige/user-service";
 import { racingDb } from "../../sige/testing";
 import { userRouter } from "./user";
@@ -1209,6 +1209,254 @@ await testTenantIsolation({
       expectation: "noLeak",
       foreignIds: foreignWriteIds,
       run: ({ context }) => call(userRouter.create, newUser("teacher") as never, { context }),
+    }),
+  ],
+});
+
+await sigeSuite("user router (reset password)", (fx) => {
+  let tenant: TestTenant;
+  let other: TestTenant;
+  let owner: Context;
+  let adminCtx: Context;
+
+  const create = (input: Record<string, unknown>) =>
+    call(userRouter.create, input as never, { context: owner });
+  const reset = (input: Record<string, unknown>, context: Context = owner) =>
+    call(userRouter.resetPassword, input as never, { context });
+  const personRow = async (personId: string) =>
+    (await fx.db.select().from(schema.person).where(eq(schema.person.id, personId)))[0]!;
+  const sessionCount = async (userId: string) =>
+    (
+      await fx.db
+        .select({ n: count() })
+        .from(schema.session)
+        .where(eq(schema.session.userId, userId))
+    )[0]!.n;
+  const signIn = (username: string, password: string) =>
+    fx.auth.api.signInUsername({ body: { username, password } });
+  const signInFailure = async (username: string, password: string) => {
+    try {
+      await signIn(username, password);
+    } catch (error) {
+      return error as { body?: { code?: string; message?: string } };
+    }
+    return null;
+  };
+  const clearForcedChange = (personId: string) =>
+    fx.db
+      .update(schema.person)
+      .set({ mustChangePassword: false })
+      .where(eq(schema.person.id, personId));
+  const login = (user: { userId: string; personId: string; username: string }) =>
+    fx.contextFor({ role: "teacher", documentNumber: "", ...user }, tenant);
+
+  test("provisions tenants", async () => {
+    tenant = await fx.provisionTenant("Reinicio", ["owner", "admin"]);
+    other = await fx.provisionTenant("OtroReinicio", ["owner", "teacher"]);
+    owner = await fx.contextFor(tenant.people.owner!, tenant);
+    adminCtx = await fx.contextFor(tenant.people.admin!, tenant);
+  });
+
+  test("document mode resets to the current document, re-arms the forced change and revokes sessions", async () => {
+    const teacher = (await create(newUser("teacher"))).user;
+    await clearForcedChange(teacher.personId);
+    await signIn(teacher.username, (await personRow(teacher.personId)).documentNumber);
+    await login(teacher);
+    await login(teacher);
+    expect(await sessionCount(teacher.userId)).toBeGreaterThanOrEqual(2);
+    // A custom password first, so document mode has something to undo.
+    await reset({ personId: teacher.personId, mode: "custom", newPassword: "Otra-Clave-9" });
+    await clearForcedChange(teacher.personId);
+    await login(teacher);
+    const before = events(owner).length;
+
+    expect(await reset({ personId: teacher.personId, mode: "document" })).toEqual({ ok: true });
+
+    const document = (await personRow(teacher.personId)).documentNumber;
+    expect((await personRow(teacher.personId)).mustChangePassword).toBe(true);
+    expect(await sessionCount(teacher.userId)).toBe(0);
+    expect(await signInFailure(teacher.username, "Otra-Clave-9")).not.toBeNull();
+    const signedIn = await signIn(teacher.username, document);
+    expect(signedIn.user.id).toBe(teacher.userId);
+    const recorded = events(owner).slice(before);
+    expect(recorded.map((event) => event.action)).toEqual(["user.password_reset"]);
+    expect(recorded[0]).toMatchObject({
+      targetType: "user",
+      targetId: teacher.userId,
+      metadata: { personId: teacher.personId, mode: "document" },
+    });
+  });
+
+  test("document mode uses the edited document number (D2 follows the current value)", async () => {
+    const teacher = (await create(newUser("teacher"))).user;
+    await fx.db
+      .update(schema.person)
+      .set({ documentNumber: "NUEVO12345" })
+      .where(eq(schema.person.id, teacher.personId));
+    await reset({ personId: teacher.personId, mode: "document" });
+    expect((await signIn(teacher.username, "NUEVO12345")).user.id).toBe(teacher.userId);
+  });
+
+  test("custom mode signs in with the new password, sets the forced-change flag and revokes sessions", async () => {
+    const teacher = (await create(newUser("teacher"))).user;
+    await clearForcedChange(teacher.personId);
+    await login(teacher);
+    expect(await sessionCount(teacher.userId)).toBeGreaterThan(0);
+    await reset({ personId: teacher.personId, mode: "custom", newPassword: "Clave-Nueva-77" });
+    expect(await sessionCount(teacher.userId)).toBe(0);
+    expect((await personRow(teacher.personId)).mustChangePassword).toBe(true);
+    expect(await signInFailure(teacher.username, "Clave-Nueva-77")).toBeNull();
+    const [credential] = await fx.db
+      .select()
+      .from(schema.account)
+      .where(
+        and(eq(schema.account.userId, teacher.userId), eq(schema.account.providerId, "credential")),
+      );
+    expect(await verifyPassword({ hash: credential!.password!, password: "Clave-Nueva-77" })).toBe(
+      true,
+    );
+  });
+
+  test("a custom password shorter than 8 characters is rejected with the spec message", async () => {
+    const teacher = (await create(newUser("teacher"))).user;
+    const error = await errorOf(
+      reset({ personId: teacher.personId, mode: "custom", newPassword: "corta" }),
+    );
+    expect(error?.code).toBe("BAD_REQUEST");
+    expect(JSON.stringify(error?.data ?? error?.message)).toContain(
+      "La contraseña debe tener al menos 8 caracteres.",
+    );
+    expect(
+      await errorOf(reset({ personId: teacher.personId, mode: "custom" } as never)),
+    ).not.toBeNull();
+  });
+
+  test("a deactivated user cannot sign in, even after a reset", async () => {
+    const teacher = (await create(newUser("teacher"))).user;
+    await call(
+      userRouter.setActive,
+      { personId: teacher.personId, active: false },
+      { context: owner },
+    );
+    const document = (await personRow(teacher.personId)).documentNumber;
+    const blocked = await signInFailure(teacher.username, document);
+    expect(blocked?.body?.code).toBe("ACCOUNT_DISABLED");
+    expect(blocked?.body?.message).toBe("Su cuenta está desactivada. Contacte al administrador.");
+    await reset({ personId: teacher.personId, mode: "custom", newPassword: "Clave-Nueva-77" });
+    expect((await signInFailure(teacher.username, "Clave-Nueva-77"))?.body?.code).toBe(
+      "ACCOUNT_DISABLED",
+    );
+    expect(await sessionCount(teacher.userId)).toBe(0);
+  });
+
+  test("owner and admin rows are FORBIDDEN for org callers and untouched", async () => {
+    const [hashBefore] = await fx.db
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.userId, tenant.people.admin!.userId));
+    for (const mode of ["document", "custom"]) {
+      const error = await errorOf(
+        reset(
+          { personId: tenant.people.admin!.personId, mode, newPassword: "Clave-Nueva-77" },
+          owner,
+        ),
+      );
+      expect(error?.code).toBe("FORBIDDEN");
+      expect(error?.message).toBe(
+        "Los administradores de la institución solo los gestiona la plataforma.",
+      );
+    }
+    const ownerRow = await errorOf(
+      reset({ personId: tenant.people.owner!.personId, mode: "document" }, adminCtx),
+    );
+    expect(ownerRow?.code).toBe("FORBIDDEN");
+    const [hashAfter] = await fx.db
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.userId, tenant.people.admin!.userId));
+    expect(hashAfter!.password).toBe(hashBefore!.password);
+  });
+
+  test("a platform actor may reset an admin through the service", async () => {
+    const result = await resetUserPassword(
+      { db: fx.db, auditLogger: owner.auditLogger },
+      tenant.orgId,
+      { personId: tenant.people.admin!.personId, mode: "document" },
+      { userId: tenant.people.owner!.userId, platform: true },
+    );
+    expect(result).toEqual({ ok: true });
+    expect((await personRow(tenant.people.admin!.personId)).mustChangePassword).toBe(true);
+  });
+
+  test("an unknown person is NOT_FOUND and a foreign one is too", async () => {
+    expect((await errorOf(reset({ personId: "missing", mode: "document" })))?.code).toBe(
+      "NOT_FOUND",
+    );
+    expect(
+      (await errorOf(reset({ personId: other.people.teacher!.personId, mode: "document" })))?.code,
+    ).toBe("NOT_FOUND");
+  });
+
+  test("no user.* audit metadata across create, update and reset carries a secret", async () => {
+    const secret = "Secreto-Unico-4242";
+    const created = (await create(newUser("teacher"))).user;
+    const detail = await personRow(created.personId);
+    await call(
+      userRouter.update,
+      {
+        personId: created.personId,
+        firstName: created.firstName,
+        lastName: created.lastName,
+        documentNumber: detail.documentNumber,
+        country: "Colombia",
+        newPassword: secret,
+      } as never,
+      { context: owner },
+    );
+    await reset({ personId: created.personId, mode: "custom", newPassword: `${secret}-2` });
+    await reset({ personId: created.personId, mode: "document" });
+    const hashes = (await fx.db.select({ password: schema.account.password }).from(schema.account))
+      .map((row) => row.password)
+      .filter((value): value is string => Boolean(value));
+    const userEvents = events(owner).filter((event) => event.action.startsWith("user."));
+    expect(userEvents.length).toBeGreaterThan(0);
+    const serialized = JSON.stringify(userEvents.map((event) => event.metadata));
+    expect(serialized).not.toContain(secret);
+    expect(serialized).not.toMatch(/password|hash|token/i);
+    for (const hash of hashes) {
+      expect(serialized).not.toContain(hash);
+    }
+    for (const event of userEvents.filter((e) => e.action === "user.password_reset")) {
+      expect(Object.keys(event.metadata ?? {}).sort()).toEqual(["mode", "personId"]);
+    }
+  });
+});
+
+await testPermissionMatrix({
+  name: "user.resetPassword",
+  procedures: [
+    {
+      name: "user.resetPassword",
+      permissions: { user: ["reset_password"] },
+      run: (context) =>
+        call(userRouter.resetPassword, { personId: "missing", mode: "document" }, { context }),
+    },
+  ],
+});
+
+await testTenantIsolation({
+  name: "user.resetPassword",
+  cases: [
+    isolationCase({
+      name: "user.resetPassword of a foreign person is NOT_FOUND",
+      seed: writeSeed,
+      expectation: "notFound",
+      run: ({ context, foreign }) =>
+        call(
+          userRouter.resetPassword,
+          { personId: foreign.teacher.personId, mode: "document" },
+          { context },
+        ),
     }),
   ],
 });
