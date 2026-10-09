@@ -32,7 +32,8 @@ type AuditEventBase = {
 export type AuditEvent =
   | (AuditEventBase & {
       scope: "organization";
-      organizationId: string;
+      /** `null` only for an event recorded after its organization was deleted (the FK would null it anyway). */
+      organizationId: string | null;
       action: OrganizationAuditAction;
     })
   | (AuditEventBase & {

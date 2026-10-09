@@ -1,21 +1,40 @@
-import { Button } from "@base-template/ui/components/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { authClient } from "@/app/auth-client";
+import { orpc } from "@/app/orpc";
 import { betterAuthErrorMessage } from "@/features/auth";
-import { shouldShowImpersonationBanner } from "../lib/impersonation-banner";
+import { INSTITUTION_SELECTOR_PATH } from "@/features/institution";
+
+import {
+  impersonationBannerMessage,
+  institutionQueryKeyFor,
+  shouldShowImpersonationBanner,
+} from "../lib/impersonation-banner";
+import ImpersonationBannerView from "./impersonation-banner-view";
 
 /**
- * App-wide banner (R6.4) while the session has `impersonatedBy`. Stop restores the superadmin's
- * session through better-auth's client, invalidates every cached query and returns to
- * `/admin/users`. See docs/architecture/web-app.md#impersonation.
+ * App-wide banner (R6.4) while the session has `impersonatedBy`. "Dejar de gestionar" restores
+ * the superadmin's session through better-auth's client, invalidates every cached query and
+ * returns to the institution selector (sige/02 INS-03). The institution name comes from
+ * `institution.get`, which needs an active organization, so it waits for one (the tenant route
+ * guard activates it right after an impersonation starts). See
+ * docs/architecture/web-app.md#impersonation.
  */
 export default function ImpersonationBanner() {
   const { data: session } = authClient.useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const visible = shouldShowImpersonationBanner(session?.session.impersonatedBy);
+
+  const activeOrganizationId = session?.session.activeOrganizationId;
+  const institutionOptions = orpc.institution.get.queryOptions();
+  const institutionQuery = useQuery({
+    ...institutionOptions,
+    queryKey: institutionQueryKeyFor(institutionOptions.queryKey, activeOrganizationId),
+    enabled: visible && Boolean(activeOrganizationId),
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -26,31 +45,26 @@ export default function ImpersonationBanner() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries();
-      navigate({ to: "/admin/users" });
+      navigate({ to: INSTITUTION_SELECTOR_PATH });
     },
     onError: (error) => {
-      toast.error(betterAuthErrorMessage(error, "Could not stop impersonating."));
+      toast.error(betterAuthErrorMessage(error, "No se pudo dejar de gestionar."));
     },
   });
 
-  if (!shouldShowImpersonationBanner(session?.session.impersonatedBy)) {
+  if (!visible) {
     return null;
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 bg-amber-500 px-4 py-2 text-sm font-medium text-black">
-      <span>
-        You are impersonating {session?.user.name} ({session?.user.email}).
-      </span>
-      <Button
-        size="sm"
-        variant="outline"
-        className="border-black/30 bg-transparent text-black hover:bg-black/10"
-        disabled={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        {mutation.isPending ? "Stopping..." : "Stop impersonating"}
-      </Button>
-    </div>
+    <ImpersonationBannerView
+      message={impersonationBannerMessage({
+        institutionName: institutionQuery.data?.name,
+        userName: session?.user.name,
+        userEmail: session?.user.email,
+      })}
+      isStopping={mutation.isPending}
+      onStop={() => mutation.mutate()}
+    />
   );
 }

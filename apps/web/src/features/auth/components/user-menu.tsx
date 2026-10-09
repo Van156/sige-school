@@ -10,11 +10,13 @@ import {
 } from "@base-template/ui/components/dropdown-menu";
 import { Skeleton } from "@base-template/ui/components/skeleton";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { UserRoundIcon } from "lucide-react";
+import { LayoutDashboardIcon, UserRoundIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { authClient } from "@/app/auth-client";
-import SidebarUserMenu from "@/shared/components/layout/sidebar-user-menu";
+import { clearSigeMeCache } from "@/app/sige-me";
+import SidebarUserMenu, { type SidebarUser } from "@/shared/components/layout/sidebar-user-menu";
 
 import { handleSignOut } from "../lib/sign-out";
 
@@ -22,13 +24,25 @@ import { handleSignOut } from "../lib/sign-out";
  * `variant="sidebar"` renders the shell's footer menu; the default outline-button
  * variant stays for `PublicHeader` (R1.9).
  */
-export default function UserMenu({ variant = "header" }: { variant?: "header" | "sidebar" }) {
+export default function UserMenu({
+  variant = "header",
+  role,
+  showDashboard = false,
+}: {
+  variant?: "header" | "sidebar";
+  /** Sidebar variant: the role badge shown with the user (sige/01 §5.2). */
+  role?: SidebarUser["role"];
+  /** Sidebar variant: adds the "Dashboard" entry (users with an institution). */
+  showDashboard?: boolean;
+}) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session, isPending } = authClient.useSession();
 
   const signOut = () =>
     handleSignOut({
       signOut: () => authClient.signOut(),
+      clearUserCaches: () => clearSigeMeCache(queryClient),
       onSignedOut: () => navigate({ to: "/" }),
       showError: (message) => toast.error(message),
     });
@@ -46,10 +60,20 @@ export default function UserMenu({ variant = "header" }: { variant?: "header" | 
           name: session?.user.name ?? "",
           email: session?.user.email ?? "",
           image: session?.user.image,
+          role,
         }}
         onSignOut={signOut}
         extraItems={[
-          { label: "Account settings", icon: <UserRoundIcon />, onSelect: openAccountSettings },
+          ...(showDashboard
+            ? [
+                {
+                  label: "Dashboard",
+                  icon: <LayoutDashboardIcon />,
+                  onSelect: () => navigate({ to: "/dashboard" }),
+                },
+              ]
+            : []),
+          { label: "Mi Perfil", icon: <UserRoundIcon />, onSelect: openAccountSettings },
         ]}
       />
     );

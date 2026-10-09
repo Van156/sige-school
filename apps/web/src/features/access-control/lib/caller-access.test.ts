@@ -20,10 +20,17 @@ describe("resolveCallerAccess", () => {
     });
   });
 
-  test("an owner may assign every role in the catalog", () => {
+  test("an owner may assign every role whose permissions it holds", () => {
     const { callerPermission, assignable } = resolveCallerAccess(catalog, "owner");
     expect(callerPermission).not.toBeNull();
-    expect(assignable.map((role) => role.name)).toEqual(catalog.map((role) => role.name));
+    // SIGE spec §4.2 gives owner/admin no `portal` and no `metric:read_own`, so the UX-only
+    // no-escalation check hides `teacher`, `student` and `parent`. Those users are created by
+    // provisioning (sige/03), not by role assignment from this screen.
+    expect(assignable.map((role) => role.name)).toEqual(
+      catalog
+        .map((role) => role.name)
+        .filter((name) => !["teacher", "student", "parent"].includes(name)),
+    );
   });
 
   test("a member may only assign roles within their own permissions", () => {

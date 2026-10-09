@@ -6,9 +6,11 @@ import type { BetterAuthPlugin } from "better-auth";
 import { getOAuthState } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { organization } from "better-auth/plugins/organization";
+import { username } from "better-auth/plugins/username";
+import { MAX_USERNAME_LENGTH } from "@base-template/sige-core";
 import { and, eq, inArray, ne } from "drizzle-orm";
 
-import { createAccountSecurity } from "./account-security";
+import { clearMustChangePassword, createAccountSecurity } from "./account-security";
 import type { AccountSecurityEvents } from "./account-security";
 import { createAuditAfterHook } from "./audit/after-hooks";
 import { createUserAuditEvents } from "./audit/user-events";
@@ -28,6 +30,7 @@ import { hasOwnerRole } from "./owner-role";
 import { isBuiltInOrgRole, orgAc, orgRoles, platformAc, platformRoles } from "./permissions";
 import type { PermissionsRecord } from "./permissions";
 import { invitationSignUpPlugin } from "./plugins/invitation-sign-up";
+import { createSessionGuard, sigeSignInPlugin } from "./plugins/sige-sign-in";
 import { resolveGoogleCredentials } from "./social-providers";
 import type { SocialProviderEnv } from "./social-providers";
 
@@ -259,12 +262,23 @@ export function createAuth(
           },
         },
       },
+      // sige/01 AUTH-R7: no session for an inactive person, whatever route issues it.
+      session: {
+        create: {
+          before: createSessionGuard(database),
+        },
+      },
     },
     emailAndPassword: {
       enabled: true,
       // R0.1: sign-in is refused until the email is verified.
       requireEmailVerification: true,
       ...accountSecurity.emailAndPassword,
+      // sige/01 AUTH-R9: completing a password reset also ends the forced-change state.
+      onPasswordReset: async (data) => {
+        await accountSecurity.emailAndPassword.onPasswordReset(data);
+        await clearMustChangePassword(database, data.user.id);
+      },
     },
     emailVerification: {
       // R0.1: send a verification email on sign-up.
@@ -488,7 +502,10 @@ export function createAuth(
               action: "invitation.cancelled",
               targetType: "invitation",
               targetId: invitation.id,
-              metadata: { organizationName: organization.name, invitedEmail: invitation.email },
+              metadata: {
+                organizationName: organization.name,
+                invitedEmail: invitation.email,
+              },
             });
           },
           // Also recorded directly by `invitation-sign-up.ts`, which has no native hook (R2.4).
@@ -515,7 +532,10 @@ export function createAuth(
               action: "invitation.rejected",
               targetType: "invitation",
               targetId: invitation.id,
-              metadata: { organizationName: organization.name, actorEmail: user.email },
+              metadata: {
+                organizationName: organization.name,
+                actorEmail: user.email,
+              },
             });
           },
         },
@@ -528,6 +548,10 @@ export function createAuth(
         // R6.4: 1h, matching better-auth's default but pinned against upstream drift.
         impersonationSessionDuration: 60 * 60,
       }),
+      // sige/00 R1.19: username sign-in. Generated usernames are `[a-z0-9_]` and can exceed the
+      // 30-char default (whole last name), hence the larger bound.
+      username({ maxUsernameLength: MAX_USERNAME_LENGTH }),
+      sigeSignInPlugin(database),
       invitationSignUpPlugin(auditLogger),
       accountSecurity.plugin,
       ...extraPlugins,

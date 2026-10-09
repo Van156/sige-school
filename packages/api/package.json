@@ -13,10 +13,12 @@
   "dependencies": {
     "@base-template/auth": "workspace:*",
     "@base-template/db": "workspace:*",
+    "@base-template/sige-core": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
+    "exceljs": "^4.4.0",
     "zod": "catalog:"
   },
   "devDependencies": {

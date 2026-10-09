@@ -57,3 +57,6 @@ coverage
 .cache
 tmp
 temp
+
+# Local file-storage adapter output (apps/server default FILE_STORAGE_DIR)
+apps/server/storage

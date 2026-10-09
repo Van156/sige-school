@@ -64,6 +64,17 @@ export const WithExtraItems: Story = {
   args: { extraItems: [{ label: "Account settings", icon: <SettingsIcon />, onSelect: noop }] },
 };
 
+export const WithRoleBadge: Story = {
+  args: {
+    user: {
+      name: "María Gómez",
+      email: "maria@colegio.edu.co",
+      role: { label: "Administrador", tone: "success" },
+    },
+    extraItems: [{ label: "Mi Perfil", icon: <SettingsIcon />, onSelect: noop }],
+  },
+};
+
 export const Loading: Story = {
   args: { isLoading: true },
 };

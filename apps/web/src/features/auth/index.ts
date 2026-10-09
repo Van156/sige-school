@@ -3,6 +3,7 @@ export { default as AuthCard } from "./components/auth-card";
 export { default as AuthFormError } from "./components/auth-form-error";
 export { default as AuthStatusNotice } from "./components/auth-status-notice";
 export { default as AuthLayout } from "./components/auth-layout";
+export { default as ForcedPasswordPage } from "./components/forced-password-page";
 export { default as ForgotPasswordPage } from "./components/forgot-password-page";
 export { default as ResetPasswordPage } from "./components/reset-password-page";
 export { default as SocialSignInButtons } from "./components/social-sign-in-buttons";

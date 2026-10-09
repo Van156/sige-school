@@ -346,7 +346,7 @@ Each app owns its own `.env.schema` (see "Environment Configuration" above); the
 
 `apps/web/.env.schema` has no auth-specific variables beyond `VITE_SERVER_URL` (the API base URL, already documented above).
 
-Integration tests use a separate variable, `TEST_DATABASE_URL` (not part of any `.env.schema` — read directly by `packages/db/src/testing.ts`, `DATABASE_URL` is deliberately ignored by tests). It defaults to `postgresql://postgres:password@localhost:5436/base_template_test` if unset; see "Local Development & Testing" below.
+Integration tests use a separate variable, `TEST_DATABASE_URL` (not part of any `.env.schema` — read directly by `packages/db/src/testing.ts`, `DATABASE_URL` is deliberately ignored by tests). It defaults to `postgresql://postgres:password@localhost:5438/sige_school_test` if unset; see "Local Development & Testing" below.
 
 ### Google sign-in (optional)
 
@@ -376,6 +376,25 @@ Behaviour worth knowing:
 
 The command (`apps/server/scripts/seed-admins.ts`, logic in `packages/auth/src/admin-seed.ts`) is idempotent: re-running it skips anyone already `superadmin` and reports (without failing) any email with no matching account yet, so it's safe to run again after new admins sign up. There is no endpoint for this — promoting to `superadmin` is only ever done through this command (R6.1).
 
+### Seeding the SIGE demo institution
+
+`pnpm db:seed:sige` (script `apps/server/scripts/seed-sige.ts`, logic in `packages/api/src/sige/seed.ts`) creates the root platform admin, the demo institution "Colegio San José" (`colegio-san-jose`) and one login per SIGE kind, all through `provisionUser` with the forced password change off (sige/00 §9, R4). It is idempotent (root by email, institution by slug, people by document number) and refuses `NODE_ENV=production` unless `--force-demo` is passed. Later phases extend it with the academic dataset.
+
+Root credentials are set with `SEED_ROOT_EMAIL` / `SEED_ROOT_PASSWORD`. `SEED_ROOT_PASSWORD` is **required** unless `NODE_ENV` is `development`/`test` or `--force-demo` is passed; only then does the seed fall back to `root@sige.local` / `Root-Demo-2026!` (printed, labelled as the built-in demo password). A password from `SEED_ROOT_PASSWORD` is never printed. If a user with the root email already exists but is not a superadmin with a credential account, the seed fails with an error instead of reporting it as present (it never auto-promotes). Demo people sign in with their username and the document number as the initial password (OD-2):
+
+| Kind           | Username (sign-in) | Password          |
+| -------------- | ------------------ | ----------------- |
+| root           | `root@sige.local`  | `Root-Demo-2026!` |
+| owner (rector) | `cmendoza0001`     | `1000000001`      |
+| admin          | `lpardo0002`       | `1000000002`      |
+| coordinator    | `acastillo0003`    | `1000000003`      |
+| teacher        | `mortiz0004`       | `1000000004`      |
+| student        | `jlopez0005`       | `1000000005`      |
+| parent         | `pgomez0006`       | `1000000006`      |
+| viewer         | `drojas0007`       | `1000000007`      |
+
+These are demo credentials for local development only. The seed prints the actual usernames when it runs.
+
 ### Known limitations
 
 See `docs/specs/auth-multitenant-rbac.md` §8 for the full write-up. In short:
@@ -388,11 +407,11 @@ See `docs/specs/auth-multitenant-rbac.md` §8 for the full write-up. In short:
 ## Local Development & Testing
 
 - **Node version**: this repo pins Node 26 in `.nvmrc` — run `nvm use` before any `node`/`pnpm`/`bun` command.
-- **Postgres for tests**: integration tests use a _dedicated_ database, never the app's dev database. Start Postgres on port 5436 (matching `TEST_DATABASE_URL`'s default) and prepare the test database once:
+- **Postgres for tests**: integration tests use a _dedicated_ database, never the app's dev database. Start Postgres on port 5438 (matching `TEST_DATABASE_URL`'s default) and prepare the test database once:
 
   ```bash
-  POSTGRES_PORT=5436 pnpm db:start   # docker compose up -d postgres, mapped to :5436
-  pnpm db:test:prepare               # creates base_template_test (if missing) and runs migrations
+  POSTGRES_PORT=5438 pnpm db:start   # docker compose up -d postgres, mapped to :5438
+  pnpm db:test:prepare               # creates sige_school_test (if missing) and runs migrations
   ```
 
   `pnpm db:test:prepare` (`packages/db/scripts/prepare-test-db.ts`) refuses to run against any database whose name doesn't end in `_test`, so it can never target a real database by mistake.

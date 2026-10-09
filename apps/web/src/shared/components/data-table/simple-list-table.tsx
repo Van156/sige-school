@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
+import type { DataTableSearchChange, UseDataTableProps } from "@/shared/hooks/use-data-table";
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 import type { DataTableSearch, DataTableSearchConfig } from "@/shared/lib/data-table/search";
 
@@ -21,6 +21,8 @@ type SimpleListTableProps<
   columns: DataTableColumnDef<TRow, any>[];
   emptyTitle: string;
   emptyIcon?: ReactNode;
+  /** Initial column visibility/pinning, e.g. to hide filter-only columns. */
+  initialState?: UseDataTableProps<TRow>["initialState"];
   /** The list query's state; `total` is the row count for the current filters, not the page. */
   list: {
     rows: TRow[] | undefined;
@@ -49,6 +51,7 @@ export function SimpleListTable<
   columns,
   emptyTitle,
   emptyIcon,
+  initialState,
   list,
 }: SimpleListTableProps<TRow, TColumnId, TFilterKey>) {
   const total = list.total ?? 0;
@@ -60,6 +63,7 @@ export function SimpleListTable<
     search,
     searchConfig,
     onSearchChange,
+    initialState,
     enableRowSelection: false,
   });
 

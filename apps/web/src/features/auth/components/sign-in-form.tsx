@@ -3,56 +3,63 @@ import { FieldGroup } from "@base-template/ui/components/field";
 import { Input } from "@base-template/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { authClient } from "@/app/auth-client";
+import { clearSigeMeCache } from "@/app/sige-me";
 import FormField from "@/shared/components/form/form-field";
+import PasswordInput from "@/shared/components/form/password-input";
 
-import { useSocialSignIn } from "../hooks/use-social-sign-in";
-import { oauthErrorMessage } from "../lib/oauth-error";
-import { runAuthAction } from "../lib/run-auth-action";
-import { signInSchema } from "../lib/auth-form-schemas";
 import {
-  authLinkSearch,
-  postSignInPath,
-  socialSignInTargets,
-  type AuthSearch,
-} from "../lib/auth-search";
+  SIGN_IN_FALLBACK_MESSAGE,
+  SIGN_IN_REQUIRED_MESSAGE,
+  firstNameOf,
+  signInErrorMessage,
+  signInWithIdentifier,
+} from "../lib/sige-sign-in";
+import { postSignInPath, type AuthSearch } from "../lib/auth-search";
 import AuthFormError from "./auth-form-error";
-import AuthSwitchPrompt from "./auth-switch-prompt";
-import SocialSignInButtons from "./social-sign-in-buttons";
 
 /**
- * Sign-in form (container): TanStack Form + `authClient.signIn.email`, plus the Google
- * button below submit. Server errors (including an OAuth `?error=` return and a network
- * failure) render inline above the submit button.
+ * AUTH-01 sign-in form (container, sige/01 §4.1): one identifier field (username or email, routed
+ * by `signInWithIdentifier`) and the password. On success it lands on the dashboard route; the
+ * `_org` guard then activates the institution and enforces the forced password change (AUTH-03).
+ * Failures render inline above the submit button.
  */
 export default function SignInForm({ search }: { search?: AuthSearch }) {
   const navigate = useNavigate({ from: "/" });
-  const [serverError, setServerError] = useState<string | null>(() =>
-    oauthErrorMessage(search?.error),
+  const queryClient = useQueryClient();
+  const [formError, setFormError] = useState<{ tone: "warning" | "error"; message: string } | null>(
+    null,
   );
-  const social = useSocialSignIn({
-    ...socialSignInTargets({ origin: window.location.origin, errorPath: "/sign-in", search }),
-    onError: setServerError,
-  });
 
   const form = useForm({
-    defaultValues: { email: "", password: "" },
+    defaultValues: { identifier: "", password: "" },
     onSubmit: async ({ value }) => {
-      setServerError(null);
-      const result = await runAuthAction(() =>
-        authClient.signIn.email({ email: value.email, password: value.password }),
-      );
-      if (result.ok) {
-        navigate({ to: postSignInPath(search) });
-        toast.success("Sign in successful");
-      } else {
-        setServerError(result.message);
+      if (value.identifier.trim() === "" || value.password === "") {
+        setFormError({ tone: "warning", message: SIGN_IN_REQUIRED_MESSAGE });
+        return;
+      }
+      setFormError(null);
+      try {
+        const result = await signInWithIdentifier(
+          authClient.signIn,
+          value.identifier,
+          value.password,
+        );
+        if (result.error) {
+          setFormError({ tone: "error", message: signInErrorMessage(result.error) });
+          return;
+        }
+        clearSigeMeCache(queryClient);
+        toast.success(`Bienvenido/a, ${firstNameOf(result.data?.user.name)}!`);
+        void navigate({ to: postSignInPath(search) });
+      } catch {
+        setFormError({ tone: "error", message: SIGN_IN_FALLBACK_MESSAGE });
       }
     },
-    validators: { onSubmit: signInSchema },
   });
 
   return (
@@ -65,17 +72,25 @@ export default function SignInForm({ search }: { search?: AuthSearch }) {
       }}
       className="flex flex-col gap-6"
     >
+      {formError?.tone === "warning" ? (
+        <p
+          role="alert"
+          className="rounded-md bg-warning/15 px-3 py-2 text-sm text-warning-foreground"
+        >
+          {formError.message}
+        </p>
+      ) : null}
       <FieldGroup className="gap-6">
-        <form.Field name="email">
+        <form.Field name="identifier">
           {(field) => (
-            <FormField field={field} label="Email">
+            <FormField field={field} label="Usuario o Correo">
               {(control) => (
                 <Input
                   size="lg"
                   {...control}
-                  type="email"
-                  placeholder="m@example.com"
-                  autoComplete="email"
+                  autoFocus
+                  placeholder="Ingrese su usuario"
+                  autoComplete="username"
                 />
               )}
             </FormField>
@@ -85,19 +100,18 @@ export default function SignInForm({ search }: { search?: AuthSearch }) {
           {(field) => (
             <FormField
               field={field}
-              label="Password"
+              label="Contraseña"
               description={
                 <Link to="/forgot-password" className="underline underline-offset-4">
-                  Forgot your password?
+                  ¿Olvidó su contraseña?
                 </Link>
               }
             >
               {(control) => (
-                <Input
-                  size="lg"
+                <PasswordInput
                   {...control}
-                  type="password"
-                  placeholder="********"
+                  large
+                  placeholder="Ingrese su contraseña"
                   autoComplete="current-password"
                 />
               )}
@@ -105,37 +119,17 @@ export default function SignInForm({ search }: { search?: AuthSearch }) {
           )}
         </form.Field>
       </FieldGroup>
-      {serverError ? <AuthFormError message={serverError} /> : null}
-      <form.Subscribe
-        selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
-      >
-        {({ canSubmit, isSubmitting }) => (
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            disabled={!canSubmit || isSubmitting || social.pendingProvider !== null}
-          >
-            Sign in
+      {formError?.tone === "error" ? <AuthFormError message={formError.message} /> : null}
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => (
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
         )}
       </form.Subscribe>
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(isSubmitting) => (
-          <SocialSignInButtons
-            providers={social.providers}
-            onSelect={social.select}
-            pendingProvider={social.pendingProvider}
-            disabled={isSubmitting}
-          />
-        )}
-      </form.Subscribe>
-      <AuthSwitchPrompt
-        prompt="Don't have an account?"
-        to="/sign-up"
-        label="Sign up"
-        search={authLinkSearch(search)}
-      />
+      <p className="text-center text-[13px] text-muted-foreground">
+        ¿Problemas para acceder? Contacte al administrador
+      </p>
     </form>
   );
 }

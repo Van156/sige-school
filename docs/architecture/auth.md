@@ -24,8 +24,10 @@ Plugins, in order:
 
 1. `organization`: static roles plus dynamic access control (custom roles, max 25 per organization, R4.8), 48h invitation expiry, and `organizationHooks`.
 2. `admin`: platform roles, `defaultRole: "user"`, `adminRoles: ["superadmin"]`, 1h impersonation sessions (R6.4). The duration equals better-auth's default but is set explicitly so it cannot drift upstream.
-3. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
-4. `extraPlugins` (tests).
+3. `username`: `POST /sign-in/username`, `user.username` (unique, lowercase) and `user.displayUsername` (sige/00 R1.19). `maxUsernameLength` is `MAX_USERNAME_LENGTH` (64, `sige-core`; `generateUsername` truncates long surnames to fit) because generated usernames contain the whole last name. Sign-in by username does not check password length, so a short document number works as the initial password; new passwords keep better-auth's default minimum of 8 (R1.24; `minPasswordLength` is not overridden).
+4. `sigeSignInPlugin` (`plugins/sige-sign-in.ts`): see [SIGE sign-in hooks](#sige-sign-in-hooks).
+5. `invitationSignUpPlugin`: the custom `POST /invitation/sign-up` endpoint.
+6. `extraPlugins` (tests).
 
 Other hooks:
 
@@ -37,6 +39,19 @@ Organization rules enforced in `organizationHooks` and options:
 - Only verified users can create organizations (R1.1a).
 - `organizationLimit` counts only organizations where the user is `owner`, and returns `true` when the limit is reached (R1.1b). It is best-effort under concurrency: the read-then-decide check can race (spec §8).
 - `beforeCreateInvitation` (R2.2): an inviter cannot assign a role whose permissions exceed their own. Custom roles are resolved from `organizationRole`, the same way `hasOrgPermission` does. better-auth's invite route only special-cases the owner role.
+
+## SIGE provisioning
+
+`provisionUser(deps, input)` in `provision-user.ts` is the only code path that writes `user`, credential `account`, `member` and `person` rows (sige/00 R1.18, sige/03 §3.1). It writes them in one Drizzle transaction, bypassing better-auth's create hooks on purpose (the adapter is not transactional with Drizzle). Rules: username from `generateUsername` in `@base-template/sige-core` (R1.19, OD-25) checked globally with a retry when it loses a race; placeholder email `<username>@sin-correo.<org-slug>.invalid` with `emailVerified = true` and `has_real_email = false` when no email is given (OD-1); initial password is the document number hashed with better-auth's hasher (OD-2); `must_change_password = true` unless the seed overrides it. The `user.created` audit event is written after commit; if that write fails the rows are deleted. Caller rules (who may create `owner`/`admin`) belong to the calling procedure.
+
+## SIGE sign-in hooks
+
+Sign-in and password hooks of sige/01 AUTH-R7..R9. They only touch users that have a `person`; platform admins pass through.
+
+- **Inactive block** (`sigeSignInPlugin`, before `/sign-in/email` and `/sign-in/username`): the identifier (email lowercased, or username) is resolved to a `person`; `is_active = false` throws `FORBIDDEN` with `code: "ACCOUNT_DISABLED"` and the message "Su cuenta está desactivada. Contacte al administrador." No session is created. Because other routes issue sessions too (Google sign-in, invitation sign-up, impersonation), `createSessionGuard` is also wired as `databaseHooks.session.create.before`: it is the single choke point that refuses a session for an inactive person with the same `ACCOUNT_DISABLED` error, so a new route cannot forget the check. Like better-auth's own banned-user check, this reveals the account state before the password is verified, as the spec requires (§4.1).
+- **`last_login_at`** (`sigeSignInPlugin`, after both sign-in paths): a successful sign-in stamps `person.last_login_at`. Best-effort: a failed write is logged and never fails the sign-in.
+- **Forced change** (`account-security.ts`, `/change-password`): the before-hook rejects a new password equal to the current one (`BAD_REQUEST`, `code: "PASSWORD_UNCHANGED"`, "La nueva contraseña debe ser diferente a la actual.") and remembers whether the caller was under the gate; the after-hook sets `person.must_change_password = false` (retried once; not silent) and records `user.password_changed` with `metadata.forced = true` for a forced change. A successful change issues a new session cookie (other sessions are revoked), so clients must keep the response cookie. The password change and the flag clear are not atomic. If the clear still fails after the retry, the notice and the audit row are sent anyway (the password did change) and the request then fails with `code: "PASSWORD_CHANGED_GATE_NOT_CLEARED"`. The error response still carries the `Set-Cookie` of the replacement session (better-auth 1.7.x `dispatchAuthEndpoint` keeps the endpoint's accumulated response headers when an after-hook throws an `APIError`; covered by an integration test), so the client ends with a valid session and the old one is revoked. Clients must therefore treat this code as "password changed, session valid, gate still armed", not as a sign-out. The user is not stuck: the new password is now their current one, so changing it again (to a third value; the same-password rule still applies) clears the gate, and so does a password reset.
+- **Reset completion**: `emailAndPassword.onPasswordReset` also clears `must_change_password`. An administrator reset (module 03) sets it back to true.
 
 ## Invitation email match
 
@@ -141,4 +156,4 @@ Specifics:
 - `cookieHeaderFromSetCookie` rebuilds a `Cookie` header from `set-cookie`. `Headers.get("set-cookie")` comma-joins entries, and `/admin/impersonate-user` sets five cookies, clearing some first. Taking the first pair would pick a cleared cookie and fail authentication. The helper uses better-auth's `splitSetCookieHeader`, keeps the last value per name and drops cleared cookies.
 - `truncateAllTables` derives the table list from the db schema at call time, so new tables are never missed. It refuses to run unless the database name ends with the test suffix.
 - `resolveTestDatabaseUrl` is re-exported from `@base-template/db/testing`.
-- `@base-template/db/testing` owns the database side: the default test URL (port 5436, database name ending in `_test`, never the dev database), `requireTestDatabaseOrSkip` (throws in CI when the database is unreachable, warns and skips locally) and `isDatabaseReachable` (never throws, bounded connect timeout). `DATABASE_URL` is ignored on purpose so an app `.env` cannot redirect tests to a real database.
+- `@base-template/db/testing` owns the database side: the default test URL (port 5438, database `sige_school_test`, name ending in `_test`, never the dev database), `requireTestDatabaseOrSkip` (throws in CI when the database is unreachable, warns and skips locally) and `isDatabaseReachable` (never throws, bounded connect timeout). `DATABASE_URL` is ignored on purpose so an app `.env` cannot redirect tests to a real database.

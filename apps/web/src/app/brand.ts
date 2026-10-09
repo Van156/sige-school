@@ -4,8 +4,10 @@
  * it must stay free of browser-only imports.
  */
 export const brand = {
-  name: "Base Template",
-  tagline: "Manage your organization's members, roles and activity in one place.",
+  name: "SIGE",
+  subtitle: "Sistema de Gestión Escolar",
+  tagline:
+    "Gestione su institución educativa: usuarios, matrículas, notas y boletines en un solo lugar.",
   logo: { src: "/logo.png" },
   /** sRGB hex of the light-mode `--sidebar` token, `oklch(0.22 0.015 225)`; used as the PWA `theme_color`. */
   themeColor: "#131c20",

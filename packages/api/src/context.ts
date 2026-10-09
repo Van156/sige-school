@@ -4,6 +4,10 @@ import type { Database } from "@base-template/db";
 
 import type { AuthorizationPort } from "./authorization";
 import type { PlatformAdminPort } from "./platform-admin";
+import type { RateLimiterPort } from "./rate-limit";
+import type { GradeRecalculationPort } from "./sige/grade-recalculation";
+import type { ImportJobRunnerPort } from "./sige/import-runner";
+import type { FileStoragePort } from "./storage/port";
 
 export type Context = {
   session: Session | null;
@@ -21,4 +25,12 @@ export type Context = {
   auditLogger: AuditLogger;
   /** `DEFAULT_MAX_ORGS_PER_USER` (R1.1b), shown as the fallback when a user's override is cleared (R6.6). */
   defaultMaxOrganizationsPerUser: number;
+  /** Module 06 port (sige/02 §3.4); absent means the no-op default until that module ships. */
+  gradeRecalculation?: GradeRecalculationPort;
+  /** Rate limiting (sige/03 `user.checkEmail`); absent means the in-memory process-wide limiter. */
+  rateLimiter?: RateLimiterPort;
+  /** Background import execution (sige/03 USR-R12); absent means the in-process runner. */
+  importRunner?: ImportJobRunnerPort;
+  /** Logo storage (sige/02 §2.2); absent means uploads fail with a configuration error. */
+  fileStorage?: FileStoragePort;
 };

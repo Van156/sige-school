@@ -1,3 +1,7 @@
+import {
+  SIGE_PLATFORM_GRANTS,
+  SIGE_PLATFORM_STATEMENTS,
+} from "@base-template/sige-core/permissions";
 import { createAccessControl } from "better-auth/plugins/access";
 import {
   adminAc as platformBuiltInAdminAc,
@@ -14,6 +18,7 @@ export const platformStatements = {
   ...adminDefaultStatements,
   audit: ["read"],
   organization: ["list"],
+  ...SIGE_PLATFORM_STATEMENTS,
 } as const;
 
 export const platformAc = createAccessControl(platformStatements);
@@ -22,12 +27,13 @@ export const platformAc = createAccessControl(platformStatements);
  * Built-in platform role: better-auth's built-in admin permissions, which
  * withhold `user:impersonate-admins` so a superadmin can only impersonate
  * non-superadmin users (spec R6.4), plus `audit:read` (R7.5) and
- * `organization:list` (R6.2).
+ * `organization:list` (R6.2), plus `institution` and `qr:simulate` (SIGE spec §4.2).
  */
 export const superadmin = platformAc.newRole({
   ...platformBuiltInAdminAc.statements,
   audit: ["read"],
   organization: ["list"],
+  ...SIGE_PLATFORM_GRANTS,
 });
 
 /** Built-in platform role: an ordinary user, no platform permissions. */

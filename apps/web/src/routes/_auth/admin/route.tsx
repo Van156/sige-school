@@ -28,13 +28,18 @@ function AdminLayout() {
     return <Loader />;
   }
   if (!isSuperadminRole(session?.user.role)) {
-    return <NoPermission message="Platform administration is restricted to superadmins." />;
+    return (
+      <NoPermission message="La administración de la plataforma es solo para superadministradores." />
+    );
   }
 
   return (
     <div className="mx-auto w-full max-w-4xl p-6">
-      <PageHeader title="Platform administration" />
-      <SectionNav label="Platform administration" items={getSectionItems("admin", navContext)} />
+      <PageHeader title="Administración de la plataforma" />
+      <SectionNav
+        label="Administración de la plataforma"
+        items={getSectionItems("admin", navContext)}
+      />
       <Outlet />
     </div>
   );

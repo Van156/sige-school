@@ -1,12 +1,16 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@base-template/ui/components/avatar";
+import { Badge } from "@base-template/ui/components/badge";
 import type { ReactNode } from "react";
 
 import { getInitials } from "@/shared/lib/initials";
+import type { RoleBadgeTone } from "@/shared/lib/role-label";
 
 export type SidebarUser = {
   name: string;
   email: string;
   image?: string | null;
+  /** Role badge under the name (sige/01 §5.2); omitted when the role is unknown. */
+  role?: { label: string; tone: RoleBadgeTone };
 };
 
 export type SidebarUserMenuExtraItem = {
@@ -39,6 +43,11 @@ export function UserIdentity({ user }: { user: SidebarUser }) {
     <span className="grid min-w-0 flex-1 text-left text-[13px] leading-tight">
       <span className="truncate font-medium">{user.name}</span>
       <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+      {user.role ? (
+        <Badge variant={user.role.tone} className="mt-1 w-fit">
+          {user.role.label}
+        </Badge>
+      ) : null}
     </span>
   );
 }

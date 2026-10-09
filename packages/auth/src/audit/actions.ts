@@ -1,3 +1,5 @@
+import { SIGE_AUDIT_ACTIONS } from "@base-template/sige-core/audit-actions";
+
 /**
  * The R7.1 action catalogue as runtime values (pure: no drizzle or better-auth import, so the
  * browser can import it through `@base-template/auth/audit/actions`). `types.ts` derives the
@@ -20,6 +22,9 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   "role.created",
   "role.updated",
   "role.deleted",
+  // SIGE (spec sige/00 §6.9, R3.26). `user.deleted` and `user.password_reset` also exist in the
+  // user scope: the scope column tells them apart, and the allowlists are per scope.
+  ...SIGE_AUDIT_ACTIONS,
 ] as const;
 
 /** Platform-scoped R7.1 actions. */

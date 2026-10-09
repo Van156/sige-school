@@ -15,6 +15,7 @@
   "dependencies": {
     "@base-template/api": "workspace:*",
     "@base-template/auth": "workspace:*",
+    "@base-template/sige-core": "workspace:*",
     "@base-template/ui": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",

@@ -1,4 +1,5 @@
 import { appRouter } from "@base-template/api/routers/index";
+import { sweepInterruptedImports } from "@base-template/api/sige/user-import-service";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
@@ -13,8 +14,10 @@ import { cors } from "hono/cors";
 
 import { createContext } from "./context";
 import { ENV } from "./env.server";
+import { createFileRoutes } from "./file-routes";
+import { recoverInterruptedImports } from "./import-recovery";
 import { createPublicRoutes } from "./public-routes";
-import { auth, startBackgroundJobs } from "./services";
+import { auth, db, fileStorage, startBackgroundJobs } from "./services";
 
 initLogger({
   env: { service: "base-template-server" },
@@ -45,6 +48,7 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
 app.route("/api/public", createPublicRoutes(ENV));
+app.route("/", createFileRoutes(fileStorage));
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [
@@ -94,6 +98,12 @@ app.use("/*", async (c, next) => {
 app.get("/", (c) => {
   return c.text("OK");
 });
+
+// Imports run in this process (D7): any job still `running` at boot belongs to a previous one. The
+// sweep is awaited (it never throws) so the server does not accept requests until it is done. Its
+// cutoff is the database's own `now()` (the clock that writes `import_job.started_at`), not the
+// app clock, so skew between the two cannot fail a live job or spare a dead one.
+await recoverInterruptedImports(() => sweepInterruptedImports(db), console);
 
 // Only the real server process starts the background jobs, and stops them on shutdown.
 const backgroundJobs = startBackgroundJobs();

@@ -1,6 +1,6 @@
 import { orgAc, orgRoles, platformAc, platformRoles } from "@base-template/auth/permissions";
 import { createAuthClient } from "better-auth/react";
-import { adminClient, organizationClient } from "better-auth/client/plugins";
+import { adminClient, organizationClient, usernameClient } from "better-auth/client/plugins";
 import type { AccessControl } from "better-auth/plugins/access";
 
 import { ENV } from "../env.public";
@@ -21,5 +21,7 @@ export const authClient = createAuthClient({
       ac: platformAc as AccessControl,
       roles: platformRoles,
     }),
+    // SIGE sign-in by username (sige/01 AUTH-R6).
+    usernameClient(),
   ],
 });

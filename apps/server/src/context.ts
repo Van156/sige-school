@@ -2,7 +2,7 @@ import type { Context as ApiContext } from "@base-template/api/context";
 import type { Context as HonoContext } from "hono";
 
 import { ENV } from "./env.server";
-import { auditLogger, auth, authorization, db, platformAdmin } from "./services";
+import { auditLogger, auth, authorization, db, fileStorage, platformAdmin } from "./services";
 
 export type CreateContextOptions = {
   context: HonoContext;
@@ -18,6 +18,7 @@ export async function createContext({ context }: CreateContextOptions): Promise<
     authorization,
     platformAdmin,
     auditLogger,
+    fileStorage,
     defaultMaxOrganizationsPerUser: ENV.DEFAULT_MAX_ORGS_PER_USER,
   };
 }

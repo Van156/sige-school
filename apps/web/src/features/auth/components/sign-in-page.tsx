@@ -9,7 +9,7 @@ import SignInForm from "./sign-in-form";
 export default function SignInPage({ search }: { search?: AuthSearch }) {
   const { isPending } = authClient.useSession();
   return (
-    <AuthCard title="Welcome back" description="Sign in to your account">
+    <AuthCard title="SIGE" description="Sistema Integral de Gestión Escolar">
       {isPending ? <Loader /> : <SignInForm search={search} />}
     </AuthCard>
   );
