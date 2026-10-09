@@ -25,3 +25,6 @@ export type UserStats = {
   students: number;
   active: number;
 };
+
+/** A `user.list` row as the data table keys it (`id` is the person id). */
+export type UserTableRow = UserRow & { id: string };

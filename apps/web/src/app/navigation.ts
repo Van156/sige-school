@@ -11,6 +11,7 @@ import {
   Settings,
   ShieldCheck,
   UserRound,
+  Users,
 } from "lucide-react";
 
 import {
@@ -133,6 +134,12 @@ export const navGroups: NavGroup<NavContext>[] = [
         visible: can("criterion:read"),
       },
     ],
+  },
+  {
+    id: "users",
+    label: "Usuarios",
+    visible: hasOrganization,
+    items: [{ label: "Usuarios", to: "/usuarios", icon: Users, visible: can("user:read") }],
   },
   {
     id: "settings",

@@ -163,6 +163,17 @@ describe("navGroups visibility", () => {
     ).toEqual(["/asignaturas", "/criterios"]);
   });
 
+  test("the users group lists Usuarios only for holders of user:read", () => {
+    const usersGroup = (kind: NavContext["kind"], permissions: Record<string, string[]>) =>
+      filterNavGroups(navGroups, { ...member, kind, permissions }).find(
+        (group) => group.id === "users",
+      );
+    expect(usersGroup("owner", { user: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/usuarios",
+    ]);
+    expect(usersGroup("coordinator", { campus: ["read"] })).toBeUndefined();
+  });
+
   test("breadcrumbs resolve through the real config", () => {
     expect(getBreadcrumbs(filterNavGroups(navGroups, member), "/settings/roles")).toEqual([
       { label: "Gestión" },
