@@ -63,11 +63,13 @@ await sigeSuite("platformUser router", (fx) => {
     };
   });
 
+  // Own tenant: list/stats assertions must not depend on users the create tests add to `tenant`.
   test("list returns the institution's users only, with total", async () => {
-    const result = await run("list", { institutionId: inst() });
+    const own = await fx.provisionTenant("Plataforma listado", SIGE_TEST_ROLES);
+    const result = await run("list", { institutionId: own.orgId });
     expect(result.total).toBe(SIGE_TEST_ROLES.length);
     expect(result.rows.map((row: any) => row.personId).sort()).toEqual(
-      Object.values(tenant.people)
+      Object.values(own.people)
         .map((person) => person.personId)
         .sort(),
     );
@@ -77,15 +79,17 @@ await sigeSuite("platformUser router", (fx) => {
   });
 
   test("list honours the shared filters (role token)", async () => {
+    const own = await fx.provisionTenant("Plataforma filtro", SIGE_TEST_ROLES);
     const result = await run("list", {
-      institutionId: inst(),
+      institutionId: own.orgId,
       filters: [{ id: "role", variant: "select", operator: "eq", value: "teacher" }],
     });
-    expect(result.rows.map((row: any) => row.personId)).toEqual([tenant.people.teacher!.personId]);
+    expect(result.rows.map((row: any) => row.personId)).toEqual([own.people.teacher!.personId]);
   });
 
   test("stats counts admins (owner + admin), coordinators, teachers and students", async () => {
-    expect(await run("stats", { institutionId: inst() })).toEqual({
+    const own = await fx.provisionTenant("Plataforma KPI", SIGE_TEST_ROLES);
+    expect(await run("stats", { institutionId: own.orgId })).toEqual({
       admins: 2,
       coordinators: 1,
       teachers: 1,
@@ -130,9 +134,36 @@ await sigeSuite("platformUser router", (fx) => {
   });
 
   test("create never provisions a second owner", async () => {
-    const error = await errorOf(run("create", { ...newUser("4", "owner") }));
+    const input = newUser("4", "owner");
+    const created = () =>
+      (root.auditLogger as RecordingAuditLogger).events.filter(
+        (event) => event.action === "user.created",
+      ).length;
+    const countRows = async (table: typeof schema.person | typeof schema.member) =>
+      (await fx.db.select({ id: table.id }).from(table).where(eq(table.organizationId, inst())))
+        .length;
+    const before = {
+      events: created(),
+      people: await countRows(schema.person),
+      members: await countRows(schema.member),
+    };
+    const error = await errorOf(run("create", input));
     expect(error?.code).toBe("BAD_REQUEST");
     expect(error?.message).toBe("La institución ya tiene un propietario.");
+    // The refusal happens before any write: no person/user/member for the submitted document.
+    const documents = await fx.db
+      .select({ id: schema.person.id })
+      .from(schema.person)
+      .where(eq(schema.person.documentNumber, input.documentNumber));
+    expect(documents).toEqual([]);
+    const users = await fx.db
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(eq(schema.user.name, `${input.firstName} ${input.lastName}`));
+    expect(users).toEqual([]);
+    expect(await countRows(schema.person)).toBe(before.people);
+    expect(await countRows(schema.member)).toBe(before.members);
+    expect(created()).toBe(before.events);
   });
 
   test("setActive deactivates and reactivates an admin; the owner stays protected by the last-owner rule", async () => {

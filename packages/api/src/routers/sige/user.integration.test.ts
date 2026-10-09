@@ -666,16 +666,35 @@ await sigeSuite("user router (write side)", (fx) => {
         const error = await errorOf(create(newUser(role)));
         expect(error?.code).toBe("BAD_REQUEST");
       }
-      const service = await errorOf(
-        createUser(
-          { db: fx.db, auditLogger: owner.auditLogger },
-          tenant.orgId,
-          newUser("admin") as never,
-          { userId: tenant.people.owner!.userId, platform: false },
-        ),
-      );
-      expect(service?.code).toBe("BAD_REQUEST");
-      expect(service?.message).toBe("Solo la plataforma puede crear administradores.");
+    });
+
+    // `UserCreateInput` admits both roles; the service must refuse them for a non-platform actor
+    // even when a future caller passes a wider input than the org router's schema.
+    test("the service refuses admin and owner for a non-platform actor without writing", async () => {
+      const documents = [];
+      for (const role of ["admin", "owner"]) {
+        const input = newUser(role);
+        documents.push(input.documentNumber);
+        const service = await errorOf(
+          createUser({ db: fx.db, auditLogger: owner.auditLogger }, tenant.orgId, input as never, {
+            userId: tenant.people.owner!.userId,
+            platform: false,
+          }),
+        );
+        expect([role, service?.code, service?.message]).toEqual([
+          role,
+          "BAD_REQUEST",
+          "Solo la plataforma puede crear administradores.",
+        ]);
+      }
+      for (const documentNumber of documents) {
+        expect(
+          await fx.db
+            .select({ id: schema.person.id })
+            .from(schema.person)
+            .where(eq(schema.person.documentNumber, documentNumber)),
+        ).toEqual([]);
+      }
     });
 
     test("a platform actor may create an admin", async () => {
