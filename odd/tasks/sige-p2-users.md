@@ -94,3 +94,21 @@ Web (react-staff):
 - T13-fix in 9b91b7a (+26, API) and 8720238 (+350/−71, web): `course.get`/rows expose `directorActive: boolean | null` (RED 86/1 → GREEN 87); `DirectorCombobox` on the shared Combobox with server-side search (`useDirectorTeachers(search)`, 300 ms debounce, limit 20, `keepPreviousData`), explicit "Sin director asignado", current/picked director always selectable, "(inactivo)" only when `directorActive === false`; `user.options` failure disables the field with "No se pudo cargar la lista de profesores; el director no se puede cambiar por ahora." and no longer blocks the form. Pure helpers `directorItems`/`directorSelection` tested; stories updated. No interactive typing test (repo has server-render tests only). Writer added Co-Authored-By trailers; the parent stripped them before review (tree unchanged). Checks: course 87, api 1138, root 35, web 1054, check-types/lint 0, build-storybook ok. Parent spot check: institution feature tests pass.
 - Review T13-fix (e244af6..82593a3, 451 lines): medium, 1 lens (reliability), approved and acknowledged (lineage review-50b6df768c43a337). Warning + suggestion → T13-fix2. Next boundary: 82593a3.
 - T13-fix2 in 333c1a8 (+41/−6, API) and 763bf1b (+130/−32, web): shared `isActiveTeacher` SQL predicate in `sige/course-director.ts` used by `assertCourseDirector` and `directorActive` (person active AND teacher role; RED 87/1 → GREEN 88); pure `directorStatus(query, term)` (`unavailable` on a failed first load disables with notice + "Reintentar" → `refetch()`; `search-failed` keeps the input usable with "No se pudo buscar profesores. Cambia el término o reintenta."; recovery via `searching` → `ready`), tested; `SearchFailed` story. No interactive test. Checks: course 88, api 1139, root 35, web 1059, check-types/lint 0, build-storybook ok. Parent spot check: course 88 pass; no attribution trailers.
+- Review T13-fix2 (82593a3..4535f14, 212 lines): medium, 1 lens (reliability), approved and acknowledged (lineage review-e80277e87c5b1067). Suggestions logged as follow-ups. Final boundary: 4535f14.
+- **P2 status: every task done and reviewed.** Branch `feat/sige-p2-users` (stacked on P1 `665619c`), not pushed. Final checks: api 1139, web 1059, root tests 35, check-types/lint 0, build-storybook ok. Exit criterion (spec §8 P2) covered by integration tests (create per role, import row errors, deactivated sign-in blocked, reset re-arms forced change, audit on every action); not exercised end to end in a browser.
+
+## Follow-ups (not scheduled)
+
+- `directorStatus` should map to `unavailable` only when there is no data (a failed background refetch with cached teachers should not lock the field); server-render test that `DirectorNotice` shows "Reintentar" for `unavailable`/`search-failed` only.
+- A lost `importStart` response is not recovered (retry hits CONFLICT); a "current running job" lookup would close it.
+- Rate limiter is per process (multi-instance deployments do not share counts); the restart sweep assumes one server instance.
+- No browser smoke test of USR-01..04, INS-04/05 or INS-12 yet.
+
+## Open product questions (for the user)
+
+1. Spec's in-form "Usuario activo" switch replaced by the side-card action (`user.update` has no `active`). Add the switch too?
+2. "Nuevo {Rol}" renders "Nuevo Consulta". Different label?
+3. Self-edit is allowed (spec hides only delete/deactivate on self). Intended?
+4. "Creado"/"Último acceso" render in the browser time zone, not the institution's. Acceptable?
+5. INS-04 hides "Editar" on owner/admin rows (USR-03 would block them). Show it anyway?
+6. `course.update` keeps an unchanged, since-deactivated director (only new assignments are validated). Intended reading of D9?
