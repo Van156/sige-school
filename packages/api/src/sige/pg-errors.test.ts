@@ -117,3 +117,35 @@ describe("error unwrapping and passthrough", () => {
     expect(() => rethrowDbError(own, "write")).toThrow(own);
   });
 });
+
+describe("user constraints (sige/03 USR-R7)", () => {
+  test.each([
+    ["person_organizationId_documentNumber_unique", "Ya existe un usuario con este documento."],
+    ["user_email_key", "Ya existe un usuario con este correo."],
+    ["user_username_key", "Ya existe un usuario con este nombre de usuario."],
+  ])("unique %s -> CONFLICT", (constraint, message) => {
+    const error = mapped(pgError("23505", constraint), "write");
+    expect(error.code).toBe("CONFLICT");
+    expect(error.message).toBe(message);
+  });
+
+  test.each([
+    ["teacher", COURSE_DIRECTOR_FK, "El profesor tiene asignaturas o grupos a cargo."],
+    [
+      "student",
+      "some_future_fk",
+      "El estudiante tiene un perfil académico con notas y matrículas.",
+    ],
+    ["parent", "some_future_fk", "El acudiente tiene estudiantes vinculados."],
+    ["viewer", "some_future_fk", "El usuario tiene registros asociados. Desactívelo en su lugar."],
+    [
+      "teacher",
+      "import_job_creator_fk",
+      "El usuario tiene registros asociados. Desactívelo en su lugar.",
+    ],
+  ])("deleting a %s blocked by %s -> HAS_DEPENDENTS with the role message", (role, fk, message) => {
+    const error = mapDbError(pgError("23001", fk), "delete", { personRole: role });
+    expect(error?.code).toBe("HAS_DEPENDENTS");
+    expect(error?.message).toBe(message);
+  });
+});

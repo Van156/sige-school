@@ -9,12 +9,18 @@ import { createListInput } from "../../lib/list-input";
 import { escapeLikePattern } from "@base-template/db/lib/list-values";
 import { buildUserListQuery, hasRoleToken, userListConfig } from "../../lib/user-list-config";
 import { defaultRateLimiter } from "../../rate-limit";
+import { loadUserDetail, onLogin, onMember, rowColumns, toUserRow } from "../../sige/user-queries";
 import {
   userCheckEmailInput,
+  userCreateInput,
   userOptionsInput,
   userPersonInput,
   userPreviewUsernameInput,
+  userSetActiveInput,
+  userUpdateInput,
 } from "../../sige/schemas/user";
+import { createUser, deleteUser, setUserActive, updateUser } from "../../sige/user-service";
+import type { UserActor } from "../../sige/user-service";
 import { sigeProcedure } from "../../sige/procedure";
 
 /**
@@ -37,77 +43,14 @@ const tooManyRequests = () =>
     message: "Demasiadas verificaciones. Intenta de nuevo en un momento.",
   });
 
-/** First role name of a (possibly comma-separated) `member.role`. */
-const primaryRole = (role: string) => role.split(",")[0]?.trim() ?? role;
-
-const rowColumns = {
-  personId: schema.person.id,
-  userId: schema.person.userId,
-  username: schema.user.username,
-  email: schema.user.email,
-  hasRealEmail: schema.person.hasRealEmail,
-  firstName: schema.person.firstName,
-  lastName: schema.person.lastName,
-  role: schema.member.role,
-  isActive: schema.person.isActive,
-  mustChangePassword: schema.person.mustChangePassword,
-  lastLoginAt: schema.person.lastLoginAt,
-  createdAt: schema.person.createdAt,
-};
-
-const detailColumns = {
-  ...rowColumns,
-  documentType: schema.person.documentType,
-  documentNumber: schema.person.documentNumber,
-  birthDate: schema.person.birthDate,
-  gender: schema.person.gender,
-  phone: schema.person.phone,
-  address: schema.person.address,
-  country: schema.person.country,
-  department: schema.person.department,
-  municipality: schema.person.municipality,
-};
-
-type RowRecord = {
-  personId: string;
-  userId: string;
-  username: string | null;
-  email: string;
-  hasRealEmail: boolean;
-  firstName: string;
-  lastName: string;
-  role: string;
-  isActive: boolean;
-  mustChangePassword: boolean;
-  lastLoginAt: Date | null;
-  createdAt: Date;
-};
-
-function toUserRow(row: RowRecord, selfPersonId: string) {
-  return {
-    personId: row.personId,
-    userId: row.userId,
-    username: row.username ?? "",
-    // Placeholder addresses (`...@sin-correo.<slug>.invalid`) are internal (OD-1).
-    email: row.hasRealEmail ? row.email : null,
-    firstName: row.firstName,
-    lastName: row.lastName,
-    name: `${row.firstName} ${row.lastName}`,
-    role: primaryRole(row.role),
-    isActive: row.isActive,
-    mustChangePassword: row.mustChangePassword,
-    lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    isSelf: row.personId === selfPersonId,
-  };
-}
-
-/** Join conditions that attach the login (`user`) and role (`member`) to each person. */
-const onLogin = eq(schema.user.id, schema.person.userId);
-const onMember = and(
-  eq(schema.member.organizationId, schema.person.organizationId),
-  eq(schema.member.userId, schema.person.userId),
-);
+/** Org callers never reach `owner`/`admin` members (USR-R4); the service enforces it. */
+const actorOf = (context: {
+  session: { user: { id: string }; session: { impersonatedBy?: string | null } };
+}): UserActor => ({
+  userId: context.session.user.id,
+  impersonatorUserId: context.session.session.impersonatedBy ?? null,
+  platform: false,
+});
 
 export const userRouter = {
   /** Server-list mode (R3.8): `{ rows, total }`; `total` ignores paging. */
@@ -135,7 +78,7 @@ export const userRouter = {
           .where(scope),
       ]);
       return {
-        rows: rows.map((row) => toUserRow(row, context.person.id)),
+        rows: rows.map((row) => toUserRow(row, row.personId === context.person.id)),
         total: totalRow?.total ?? 0,
       };
     }),
@@ -165,36 +108,16 @@ export const userRouter = {
     .use(requirePermission({ user: ["read"] }))
     .input(userPersonInput)
     .handler(async ({ context, input }) => {
-      const [row] = await context.db
-        .select(detailColumns)
-        .from(schema.person)
-        .innerJoin(schema.user, onLogin)
-        .innerJoin(schema.member, onMember)
-        .where(
-          and(
-            eq(schema.person.organizationId, context.org.id),
-            eq(schema.person.id, input.personId),
-          ),
-        )
-        .limit(1);
-      if (!row) {
+      const detail = await loadUserDetail(
+        context.db,
+        context.org.id,
+        input.personId,
+        context.person.id,
+      );
+      if (!detail) {
         throw notFound();
       }
-      return {
-        ...toUserRow(row, context.person.id),
-        documentType: row.documentType,
-        documentNumber: row.documentNumber,
-        birthDate: row.birthDate,
-        gender: row.gender,
-        phone: row.phone,
-        address: row.address,
-        country: row.country,
-        department: row.department,
-        municipality: row.municipality,
-        hasRealEmail: row.hasRealEmail,
-        // No student profile exists until module 05 (D4).
-        studentId: null as string | null,
-      };
+      return detail;
     }),
 
   /**
@@ -302,4 +225,31 @@ export const userRouter = {
         .limit(1);
       return { available: owner === undefined };
     }),
+
+  create: sigeProcedure
+    .use(requirePermission({ user: ["create"] }))
+    .input(userCreateInput)
+    .handler(({ context, input }) => createUser(context, context.org.id, input, actorOf(context))),
+
+  update: sigeProcedure
+    .use(requirePermission({ user: ["update"] }))
+    .input(userUpdateInput)
+    .handler(({ context, input }) => {
+      const { personId, ...edit } = input;
+      return updateUser(context, context.org.id, personId, edit, actorOf(context));
+    }),
+
+  setActive: sigeProcedure
+    .use(requirePermission({ user: ["update"] }))
+    .input(userSetActiveInput)
+    .handler(({ context, input }) =>
+      setUserActive(context, context.org.id, input.personId, input.active, actorOf(context)),
+    ),
+
+  delete: sigeProcedure
+    .use(requirePermission({ user: ["delete"] }))
+    .input(userPersonInput)
+    .handler(({ context, input }) =>
+      deleteUser(context, context.org.id, input.personId, actorOf(context)),
+    ),
 };

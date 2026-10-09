@@ -1,6 +1,8 @@
+import type { RecordingAuditLogger } from "@base-template/auth/testing";
 import * as schema from "@base-template/db/schema";
 import { call, ORPCError } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { verifyPassword } from "better-auth/crypto";
+import { and, count, eq } from "drizzle-orm";
 import { expect, test } from "bun:test";
 
 import type { Context } from "../../context";
@@ -12,6 +14,9 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { TestTenant } from "../../sige/testing";
+import { createUser, deleteUser, setUserActive } from "../../sige/user-service";
+import type { UserActor } from "../../sige/user-service";
+import { racingDb } from "../../sige/testing";
 import { userRouter } from "./user";
 
 /** `user.*` read side (sige/03 USR-01, §3.3): list, stats, get, options, previews, email check. */
@@ -583,6 +588,576 @@ await testTenantIsolation({
       },
       expectation: "noLeak",
       foreignIds,
+    }),
+  ],
+});
+
+const events = (context: Context) => (context.auditLogger as RecordingAuditLogger).events;
+const eventsFor = (context: Context, action: string) =>
+  events(context).filter((event) => event.action === action);
+
+let documentSeq = 0;
+const newDocument = () => `9${String(Date.now() % 100_000_000).padStart(8, "0")}${documentSeq++}`;
+const newUser = (role: string, overrides: Record<string, unknown> = {}) => ({
+  firstName: "Nuevo",
+  lastName: "Usuario",
+  documentType: "CC",
+  documentNumber: newDocument(),
+  role,
+  ...overrides,
+});
+
+await sigeSuite("user router (write side)", (fx) => {
+  let tenant: TestTenant;
+  let other: TestTenant;
+  let owner: Context;
+  let adminCtx: Context;
+  let platform: UserActor;
+
+  const create = (input: Record<string, unknown>, context: Context = owner) =>
+    call(userRouter.create, input as never, { context });
+  const update = (input: Record<string, unknown>, context: Context = owner) =>
+    call(userRouter.update, input as never, { context });
+  const setActive = (personId: string, active: boolean, context: Context = owner) =>
+    call(userRouter.setActive, { personId, active }, { context });
+  const remove = (personId: string, context: Context = owner) =>
+    call(userRouter.delete, { personId }, { context });
+  const sessionCount = async (userId: string) =>
+    (
+      await fx.db
+        .select({ n: count() })
+        .from(schema.session)
+        .where(eq(schema.session.userId, userId))
+    )[0]!.n;
+  const personRow = async (personId: string) =>
+    (await fx.db.select().from(schema.person).where(eq(schema.person.id, personId)))[0];
+
+  test("provisions tenants", async () => {
+    tenant = await fx.provisionTenant("Escritura", ["owner", "admin", "teacher", "coordinator"]);
+    other = await fx.provisionTenant("Otra", ["owner"]);
+    owner = await fx.contextFor(tenant.people.owner!, tenant);
+    adminCtx = await fx.contextFor(tenant.people.admin!, tenant);
+    platform = { userId: tenant.people.owner!.userId, platform: true };
+  });
+
+  {
+    test("creates one user per tenant role; student gets next STU-03", async () => {
+      for (const role of ["coordinator", "teacher", "student", "parent", "viewer"] as const) {
+        const result = await create(newUser(role, { firstName: "María", lastName: "Peña" }));
+        expect(result.user.role).toBe(role);
+        expect(result.user.name).toBe("María Peña");
+        expect(result.username).toBe(result.user.username);
+        expect(result.user.isActive).toBe(true);
+        expect(result.user.mustChangePassword).toBe(true);
+        expect(result.next).toEqual(
+          role === "student" ? { screen: "STU-03", personId: result.user.personId } : null,
+        );
+      }
+      expect(eventsFor(owner, "user.created").length).toBeGreaterThanOrEqual(5);
+    });
+
+    test("an admin caller can create too, and a real email is stored lowercase", async () => {
+      const result = await create(newUser("teacher", { email: "Profe@Colegio.CO" }), adminCtx);
+      expect(result.user.email).toBe("profe@colegio.co");
+    });
+
+    test("org callers cannot create admin or owner", async () => {
+      for (const role of ["admin", "owner"]) {
+        const error = await errorOf(create(newUser(role)));
+        expect(error?.code).toBe("BAD_REQUEST");
+      }
+      const service = await errorOf(
+        createUser(
+          { db: fx.db, auditLogger: owner.auditLogger },
+          tenant.orgId,
+          newUser("admin") as never,
+          { userId: tenant.people.owner!.userId, platform: false },
+        ),
+      );
+      expect(service?.code).toBe("BAD_REQUEST");
+      expect(service?.message).toBe("Solo la plataforma puede crear administradores.");
+    });
+
+    test("a platform actor may create an admin", async () => {
+      const result = await createUser(
+        { db: fx.db, auditLogger: owner.auditLogger },
+        tenant.orgId,
+        newUser("admin") as never,
+        platform,
+      );
+      expect(result.user.role).toBe("admin");
+    });
+
+    test("a duplicate document or email is a CONFLICT with the spec message", async () => {
+      const first = newUser("teacher", { email: "dup@colegio.co" });
+      await create(first);
+      const sameDocument = await errorOf(
+        create(newUser("teacher", { documentNumber: first.documentNumber })),
+      );
+      expect(sameDocument?.code).toBe("CONFLICT");
+      expect(sameDocument?.message).toBe("Ya existe un usuario con este documento.");
+      const sameEmail = await errorOf(create(newUser("teacher", { email: "DUP@colegio.co" })));
+      expect(sameEmail?.code).toBe("CONFLICT");
+      expect(sameEmail?.message).toBe("Ya existe un usuario con este correo.");
+    });
+
+    test("the same document in another institution is allowed", async () => {
+      const input = newUser("teacher");
+      await create(input);
+      const otherCtx = await fx.contextFor(other.people.owner!, other);
+      expect((await create(input, otherCtx)).user.role).toBe("teacher");
+    });
+  }
+
+  {
+    const seedTeacher = async () => (await create(newUser("teacher"))).user;
+
+    test("edits the profile, syncs user.name, keeps username and role, audits before/after", async () => {
+      const teacher = await seedTeacher();
+      const before = events(owner).length;
+      const updated = await update({
+        personId: teacher.personId,
+        firstName: "Ana",
+        lastName: "Gómez",
+        documentType: "CE",
+        documentNumber: "AB12345",
+        phone: "3001112222",
+        role: "admin",
+      });
+      expect(updated).toMatchObject({
+        firstName: "Ana",
+        lastName: "Gómez",
+        name: "Ana Gómez",
+        username: teacher.username,
+        role: "teacher",
+        documentType: "CE",
+        documentNumber: "AB12345",
+        phone: "3001112222",
+      });
+      const [userRow] = await fx.db
+        .select()
+        .from(schema.user)
+        .where(eq(schema.user.id, teacher.userId));
+      expect(userRow?.name).toBe("Ana Gómez");
+      const [event] = events(owner).slice(before);
+      expect(event).toMatchObject({
+        action: "user.updated",
+        targetType: "user",
+        targetId: teacher.userId,
+      });
+      const metadata = event!.metadata as {
+        changed: string[];
+        before: Record<string, unknown>;
+        after: Record<string, unknown>;
+      };
+      expect(metadata.changed).toContain("documentNumber");
+      expect(metadata.before.firstName).toBe(teacher.firstName);
+      expect(metadata.after.firstName).toBe("Ana");
+      expect(
+        eventsFor(owner, "user.updated").filter((e) => e.targetId === teacher.userId),
+      ).toHaveLength(1);
+    });
+
+    test("an unchanged edit writes no audit event", async () => {
+      const teacher = await seedTeacher();
+      const detail = await call(userRouter.get, { personId: teacher.personId }, { context: owner });
+      const before = events(owner).length;
+      await update({
+        personId: teacher.personId,
+        firstName: detail.firstName,
+        lastName: detail.lastName,
+        documentType: detail.documentType,
+        documentNumber: detail.documentNumber,
+        country: detail.country ?? undefined,
+      });
+      expect(events(owner).length).toBe(before);
+    });
+
+    test("email: set marks it real and verified; clearing reverts to the placeholder", async () => {
+      const teacher = await seedTeacher();
+      const base = {
+        personId: teacher.personId,
+        firstName: teacher.firstName,
+        lastName: teacher.lastName,
+        documentType: "CC",
+        documentNumber: (await personRow(teacher.personId))!.documentNumber,
+      };
+      const withEmail = await update({ ...base, email: "Nuevo@Colegio.co" });
+      expect(withEmail.email).toBe("nuevo@colegio.co");
+      expect(withEmail.hasRealEmail).toBe(true);
+      const [stored] = await fx.db
+        .select()
+        .from(schema.user)
+        .where(eq(schema.user.id, teacher.userId));
+      expect(stored).toMatchObject({ email: "nuevo@colegio.co", emailVerified: true });
+
+      const cleared = await update({ ...base });
+      expect(cleared.email).toBeNull();
+      expect(cleared.hasRealEmail).toBe(false);
+      const [after] = await fx.db
+        .select()
+        .from(schema.user)
+        .where(eq(schema.user.id, teacher.userId));
+      expect(after?.email).toBe(`${teacher.username}@sin-correo.${tenant.slug}.invalid`);
+    });
+
+    test("a taken document or email is a CONFLICT", async () => {
+      const a = await seedTeacher();
+      const b = await seedTeacher();
+      await update({
+        personId: a.personId,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        documentNumber: (await personRow(a.personId))!.documentNumber,
+        email: "ocupado2@colegio.co",
+      });
+      const base = {
+        personId: b.personId,
+        firstName: b.firstName,
+        lastName: b.lastName,
+        documentNumber: (await personRow(b.personId))!.documentNumber,
+      };
+      const document = await errorOf(
+        update({ ...base, documentNumber: (await personRow(a.personId))!.documentNumber }),
+      );
+      expect(document?.code).toBe("CONFLICT");
+      expect(document?.message).toBe("Ya existe un usuario con este documento.");
+      const email = await errorOf(update({ ...base, email: "ocupado2@colegio.co" }));
+      expect(email?.code).toBe("CONFLICT");
+      expect(email?.message).toBe("Ya existe un usuario con este correo.");
+      expect((await personRow(b.personId))!.hasRealEmail).toBe(false);
+    });
+
+    test("owner and admin rows are FORBIDDEN for org callers; unknown and foreign ids are NOT_FOUND", async () => {
+      const edit = (personId: string, context: Context = owner) =>
+        update({ personId, firstName: "X", lastName: "Y", documentNumber: "12345678" }, context);
+      for (const target of [tenant.people.owner!, tenant.people.admin!]) {
+        for (const context of [owner, adminCtx]) {
+          expect((await errorOf(edit(target.personId, context)))?.code).toBe("FORBIDDEN");
+        }
+      }
+      expect((await errorOf(edit("missing")))?.code).toBe("NOT_FOUND");
+      expect((await errorOf(edit(other.people.owner!.personId)))?.code).toBe("NOT_FOUND");
+    });
+
+    test("newPassword behaves as a custom reset: hash, forced change, sessions revoked, audited without secrets", async () => {
+      const teacher = await seedTeacher();
+      const teacherTenantPerson = {
+        role: "teacher" as const,
+        userId: teacher.userId,
+        personId: teacher.personId,
+        username: teacher.username,
+        documentNumber: "",
+      };
+      await fx.db
+        .update(schema.person)
+        .set({ mustChangePassword: false })
+        .where(eq(schema.person.id, teacher.personId));
+      await fx.contextFor(teacherTenantPerson, tenant);
+      expect(await sessionCount(teacher.userId)).toBeGreaterThan(0);
+      const before = events(owner).length;
+      await update({
+        personId: teacher.personId,
+        firstName: teacher.firstName,
+        lastName: teacher.lastName,
+        documentNumber: (await personRow(teacher.personId))!.documentNumber,
+        country: "Colombia",
+        newPassword: "Nueva-Clave-123",
+      });
+      const [credential] = await fx.db
+        .select()
+        .from(schema.account)
+        .where(
+          and(
+            eq(schema.account.userId, teacher.userId),
+            eq(schema.account.providerId, "credential"),
+          ),
+        );
+      expect(
+        await verifyPassword({ hash: credential!.password!, password: "Nueva-Clave-123" }),
+      ).toBe(true);
+      expect((await personRow(teacher.personId))!.mustChangePassword).toBe(true);
+      expect(await sessionCount(teacher.userId)).toBe(0);
+      const recorded = events(owner).slice(before);
+      expect(recorded.map((event) => event.action)).toEqual(["user.password_reset"]);
+      expect(recorded[0]!.metadata).toEqual({ personId: teacher.personId, mode: "custom" });
+      expect(JSON.stringify(events(owner))).not.toContain("Nueva-Clave-123");
+    });
+  }
+
+  {
+    test("deactivation revokes every session and audits; reactivation audits and restores", async () => {
+      const teacher = (await create(newUser("teacher"))).user;
+      const person = {
+        role: "teacher" as const,
+        userId: teacher.userId,
+        personId: teacher.personId,
+        username: teacher.username,
+        documentNumber: "",
+      };
+      await fx.contextFor(person, tenant);
+      await fx.contextFor(person, tenant);
+      expect(await sessionCount(teacher.userId)).toBe(2);
+      const off = await setActive(teacher.personId, false);
+      expect(off.isActive).toBe(false);
+      expect(await sessionCount(teacher.userId)).toBe(0);
+      const deactivated = eventsFor(owner, "user.deactivated").at(-1)!;
+      expect(deactivated.metadata).toEqual({ personId: teacher.personId, role: "teacher" });
+      const on = await setActive(teacher.personId, true);
+      expect(on.isActive).toBe(true);
+      expect(eventsFor(owner, "user.reactivated").at(-1)!.metadata).toEqual({
+        personId: teacher.personId,
+        role: "teacher",
+      });
+    });
+
+    test("repeating the current state writes no audit", async () => {
+      const teacher = (await create(newUser("teacher"))).user;
+      const before = events(owner).length;
+      await setActive(teacher.personId, true);
+      expect(events(owner).length).toBe(before);
+    });
+
+    test("self-deactivation and protected rows are FORBIDDEN", async () => {
+      const self = await errorOf(setActive(tenant.people.owner!.personId, false));
+      expect(self?.code).toBe("FORBIDDEN");
+      expect(self?.message).toBe("No puede desactivar su propia cuenta.");
+      const adminSelf = await errorOf(setActive(tenant.people.admin!.personId, false, adminCtx));
+      expect(adminSelf?.message).toBe("No puede desactivar su propia cuenta.");
+      const protectedRow = await errorOf(setActive(tenant.people.admin!.personId, false));
+      expect(protectedRow?.code).toBe("FORBIDDEN");
+      expect((await errorOf(setActive("missing", false)))?.code).toBe("NOT_FOUND");
+      expect((await personRow(tenant.people.admin!.personId))!.isActive).toBe(true);
+    });
+
+    test("the institution keeps at least one active owner", async () => {
+      const solo = await fx.provisionTenant("Solo", ["owner"]);
+      const deps = { db: fx.db, auditLogger: owner.auditLogger };
+      const error = await errorOf(
+        setUserActive(deps, solo.orgId, solo.people.owner!.personId, false, platform),
+      );
+      expect(error?.code).toBe("CONFLICT");
+      expect(error?.message).toBe(
+        "La institución debe conservar al menos un administrador activo.",
+      );
+      expect((await personRow(solo.people.owner!.personId))!.isActive).toBe(true);
+    });
+
+    test("two concurrent deactivations of the last two owners leave one active", async () => {
+      const duo = await fx.provisionTenant("Duo", ["owner", "admin"]);
+      await fx.db
+        .update(schema.member)
+        .set({ role: "owner" })
+        .where(
+          and(
+            eq(schema.member.organizationId, duo.orgId),
+            eq(schema.member.userId, duo.people.admin!.userId),
+          ),
+        );
+      // Each statement is delayed, so without a lock both checks would pass before either write.
+      const slow = racingDb(fx.db, () => new Promise((resolve) => setTimeout(resolve, 150)));
+      const deps = { db: slow, auditLogger: owner.auditLogger };
+      const results = await Promise.allSettled([
+        setUserActive(deps, duo.orgId, duo.people.owner!.personId, false, platform),
+        setUserActive(deps, duo.orgId, duo.people.admin!.personId, false, platform),
+      ]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+      expect((rejected.reason as ORPCError<string, unknown>).message).toBe(
+        "La institución debe conservar al menos un administrador activo.",
+      );
+      const active = await fx.db
+        .select()
+        .from(schema.person)
+        .where(and(eq(schema.person.organizationId, duo.orgId), eq(schema.person.isActive, true)));
+      expect(active).toHaveLength(1);
+    });
+  }
+
+  {
+    test("removes user, account, member, person and sessions; audits a name and role snapshot", async () => {
+      const created = (
+        await create(newUser("coordinator", { firstName: "Luis", lastName: "Mora" }))
+      ).user;
+      await fx.contextFor(
+        {
+          role: "coordinator",
+          userId: created.userId,
+          personId: created.personId,
+          username: created.username,
+          documentNumber: "",
+        },
+        tenant,
+      );
+      expect(await remove(created.personId)).toEqual({ deleted: true });
+      for (const [table, column] of [
+        [schema.user, schema.user.id],
+        [schema.account, schema.account.userId],
+        [schema.member, schema.member.userId],
+        [schema.person, schema.person.userId],
+        [schema.session, schema.session.userId],
+      ] as const) {
+        const rows = await fx.db.select().from(table).where(eq(column, created.userId));
+        expect(rows).toHaveLength(0);
+      }
+      const event = eventsFor(owner, "user.deleted").at(-1)!;
+      expect(event.targetId).toBe(created.userId);
+      expect(event.metadata).toMatchObject({
+        personId: created.personId,
+        name: "Luis Mora",
+        role: "coordinator",
+      });
+    });
+
+    test("a course director cannot be deleted: HAS_DEPENDENTS with the teacher message, nothing removed", async () => {
+      const teacher = (await create(newUser("teacher"))).user;
+      const [campus] = await fx.db
+        .insert(schema.campus)
+        .values({ organizationId: tenant.orgId, name: `Sede ${crypto.randomUUID()}` })
+        .returning();
+      await fx.db.insert(schema.course).values({
+        organizationId: tenant.orgId,
+        campusId: campus!.id,
+        directorPersonId: teacher.personId,
+        name: "6A",
+        academicYear: "2026",
+        shift: "Mañana",
+      });
+      const error = await errorOf(remove(teacher.personId));
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe("El profesor tiene asignaturas o grupos a cargo.");
+      expect(await personRow(teacher.personId)).toBeDefined();
+      expect(
+        await fx.db.select().from(schema.user).where(eq(schema.user.id, teacher.userId)),
+      ).toHaveLength(1);
+    });
+
+    test("any other reference gets the generic message", async () => {
+      const coordinator = (await create(newUser("coordinator"))).user;
+      await fx.db.insert(schema.importJob).values({
+        organizationId: tenant.orgId,
+        kind: "users",
+        status: "done",
+        createdBy: coordinator.personId,
+      });
+      const error = await errorOf(remove(coordinator.personId));
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe("El usuario tiene registros asociados. Desactívelo en su lugar.");
+    });
+
+    test("self, protected rows, unknown and foreign ids", async () => {
+      const self = await errorOf(remove(tenant.people.owner!.personId));
+      expect(self?.code).toBe("FORBIDDEN");
+      expect(self?.message).toBe("No puede eliminar su propia cuenta.");
+      expect((await errorOf(remove(tenant.people.admin!.personId)))?.code).toBe("FORBIDDEN");
+      expect((await errorOf(remove("missing")))?.code).toBe("NOT_FOUND");
+      expect((await errorOf(remove(other.people.owner!.personId)))?.code).toBe("NOT_FOUND");
+    });
+
+    test("the last active owner cannot be deleted", async () => {
+      const solo = await fx.provisionTenant("Solo2", ["owner"]);
+      const error = await errorOf(
+        deleteUser(
+          { db: fx.db, auditLogger: owner.auditLogger },
+          solo.orgId,
+          solo.people.owner!.personId,
+          platform,
+        ),
+      );
+      expect(error?.code).toBe("CONFLICT");
+      expect(error?.message).toBe(
+        "La institución debe conservar al menos un administrador activo.",
+      );
+    });
+  }
+
+  test("no audit event carries a secret", () => {
+    const serialized = JSON.stringify(events(owner).map((event) => event.metadata));
+    expect(serialized).not.toMatch(/password|hash|token/i);
+  });
+});
+
+await testPermissionMatrix({
+  name: "user (write side)",
+  procedures: [
+    {
+      name: "user.create",
+      permissions: { user: ["create"] },
+      run: (context) => call(userRouter.create, newUser("teacher") as never, { context }),
+    },
+    {
+      name: "user.update",
+      permissions: { user: ["update"] },
+      run: (context) =>
+        call(
+          userRouter.update,
+          { personId: "missing", firstName: "A", lastName: "B", documentNumber: "12345" } as never,
+          { context },
+        ),
+    },
+    {
+      name: "user.setActive",
+      permissions: { user: ["update"] },
+      run: (context) =>
+        call(userRouter.setActive, { personId: "missing", active: false }, { context }),
+    },
+    {
+      name: "user.delete",
+      permissions: { user: ["delete"] },
+      run: (context) => call(userRouter.delete, { personId: "missing" }, { context }),
+    },
+  ],
+});
+
+const writeSeed = async (t: TestTenant) => ({ teacher: t.people.teacher!, owner: t.people.owner! });
+type WriteSeed = Awaited<ReturnType<typeof writeSeed>>;
+const foreignWriteIds = (foreign: WriteSeed) => [
+  foreign.teacher.personId,
+  foreign.teacher.username,
+];
+await testTenantIsolation({
+  name: "user (write side)",
+  cases: [
+    isolationCase({
+      name: "user.update of a foreign person is NOT_FOUND",
+      seed: writeSeed,
+      expectation: "notFound",
+      run: ({ context, foreign }) =>
+        call(
+          userRouter.update,
+          {
+            personId: foreign.teacher.personId,
+            firstName: "Hack",
+            lastName: "Er",
+            documentNumber: "99999999",
+          } as never,
+          { context },
+        ),
+    }),
+    isolationCase({
+      name: "user.setActive of a foreign person is NOT_FOUND",
+      seed: writeSeed,
+      expectation: "notFound",
+      run: ({ context, foreign }) =>
+        call(
+          userRouter.setActive,
+          { personId: foreign.teacher.personId, active: false },
+          { context },
+        ),
+    }),
+    isolationCase({
+      name: "user.delete of a foreign person is NOT_FOUND",
+      seed: writeSeed,
+      expectation: "notFound",
+      run: ({ context, foreign }) =>
+        call(userRouter.delete, { personId: foreign.teacher.personId }, { context }),
+    }),
+    isolationCase({
+      name: "user.create never lands in the other tenant",
+      seed: writeSeed,
+      expectation: "noLeak",
+      foreignIds: foreignWriteIds,
+      run: ({ context }) => call(userRouter.create, newUser("teacher") as never, { context }),
     }),
   ],
 });
