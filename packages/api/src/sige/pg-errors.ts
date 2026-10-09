@@ -1,5 +1,9 @@
 import {
+  ASSIGNMENT_OFFERING_FK,
+  ASSIGNMENT_OFFERING_UNIQUE,
   CAMPUS_CODE_UNIQUE,
+  CLASSROOM_CAMPUS_FK,
+  CLASSROOM_CODE_UNIQUE,
   CAMPUS_MAIN_UNIQUE,
   COURSE_CAMPUS_FK,
   COURSE_DIRECTOR_FK,
@@ -10,11 +14,21 @@ import {
   INSTITUTION_NIT_UNIQUE,
   LEVEL_CAMPUS_FK,
   LEVEL_NAME_UNIQUE,
+  OFFERING_COURSE_FK,
+  OFFERING_SUBJECT_FK,
+  OFFERING_TEACHER_FK,
+  OFFERING_UNIQUE,
   PERIOD_ACTIVE_UNIQUE,
   PERIOD_ORDER_UNIQUE,
   PERIOD_SHORT_NAME_UNIQUE,
   PERSON_DOCUMENT_UNIQUE,
+  SLOT_CLASSROOM_EXCLUDE,
+  SLOT_CLASSROOM_FK,
+  SLOT_COURSE_EXCLUDE,
+  SLOT_TEACHER_EXCLUDE,
   SUBJECT_CODE_UNIQUE,
+  TIME_BLOCK_CAMPUS_FK,
+  TIME_BLOCK_UNIQUE,
 } from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
 
@@ -26,6 +40,7 @@ import { ORPCError } from "@orpc/server";
  * - `23505` unique_violation -> `CONFLICT` (409), message per constraint.
  * - `23001` restrict_violation / `23503` foreign_key_violation on **delete** -> `HAS_DEPENDENTS`
  *   (409). `ON DELETE RESTRICT` raises 23001; 23503 covers `NO ACTION` FKs added by later modules.
+ * - `23P01` exclusion_violation (schedule double-booking, SCH-R9) -> `CONFLICT` (409).
  * - `23503` on **insert/update** -> `BAD_REQUEST` or `NOT_FOUND` (a referenced row is missing).
  * Anything else is left to the caller (rethrown unchanged).
  */
@@ -35,6 +50,7 @@ export type DbOperation = "write" | "delete";
 const SQLSTATE_UNIQUE_VIOLATION = "23505";
 const SQLSTATE_RESTRICT_VIOLATION = "23001";
 const SQLSTATE_FOREIGN_KEY_VIOLATION = "23503";
+const SQLSTATE_EXCLUSION_VIOLATION = "23P01";
 
 /** Declared next to the other SIGE codes (foundation R3.5); the web maps it to a toast. */
 export const HAS_DEPENDENTS = "HAS_DEPENDENTS";
@@ -61,13 +77,49 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   [PERIOD_ACTIVE_UNIQUE]: "Ya existe un periodo activo en esta institución.",
   [PERIOD_SHORT_NAME_UNIQUE]: "Ya existe un periodo con este nombre corto en el año.",
   [PERIOD_ORDER_UNIQUE]: "Ya existe un periodo con este orden en el año.",
+  // sige/04 §4.1.
+  [CLASSROOM_CODE_UNIQUE]: "Ya existe un salón con este código en la sede.",
+  [TIME_BLOCK_UNIQUE]: "Ya existe un bloque con este nombre en la sede y jornada.",
+  // Not in spec §4.1 (writer-authored).
+  [OFFERING_UNIQUE]: "La materia ya está asignada a este grado.",
+  [ASSIGNMENT_OFFERING_UNIQUE]: "La materia del grado ya tiene una asignación.",
 };
+
+/**
+ * SCH-R9 double-booking (23P01), keyed by exclusion constraint. Only the teacher text is in the
+ * spec (SCH-R3: "... ({curso}, {día} {hora})."); the DB error cannot name the clashing course,
+ * day and hour, so the generic form without the parenthesis is used until a service that has the
+ * clashing slot at hand composes the full message. Classroom and course texts are writer-authored
+ * by analogy (the spec states no exact copy for them).
+ */
+const EXCLUSION_MESSAGES: Record<string, string> = {
+  [SLOT_TEACHER_EXCLUDE]: "El profesor ya tiene clases en el mismo horario.",
+  [SLOT_CLASSROOM_EXCLUDE]: "El salón ya está ocupado en el mismo horario.",
+  [SLOT_COURSE_EXCLUDE]: "El grado ya tiene clases en el mismo horario.",
+};
+
+/**
+ * HAS_DEPENDENTS copy that no FK can raise on its own, exported for the services (T4/T5) that
+ * pre-check it inside the delete transaction: a slot cascades from its offering, and a block is
+ * "in use" by start and end time rather than by an FK (sige/04 §4.2).
+ */
+export const OFFERING_HAS_SLOTS_MESSAGE =
+  "La materia del grado tiene clases programadas en el horario.";
+export const TIME_BLOCK_IN_USE_MESSAGE = "El bloque tiene clases programadas en el horario.";
 
 /** Spec §4.2 messages, keyed by the `restrict` FK that fired. */
 const DEPENDENTS_MESSAGES: Record<string, string> = {
   [LEVEL_CAMPUS_FK]: "La sede tiene niveles o grados asociados.",
   [COURSE_CAMPUS_FK]: "La sede tiene niveles o grados asociados.",
   [COURSE_LEVEL_CAMPUS_FK]: "El nivel tiene cursos asociados.",
+  // sige/02 §4.2: a course or subject that still has offerings.
+  [OFFERING_COURSE_FK]: "El grado tiene asignaturas asignadas.",
+  [OFFERING_SUBJECT_FK]: "La asignatura está asignada a uno o más grados.",
+  [OFFERING_TEACHER_FK]: "El profesor tiene asignaturas o grupos a cargo.",
+  // sige/02 §4.2 (campus) and sige/04 §4.2 (classroom).
+  [CLASSROOM_CAMPUS_FK]: "La sede tiene salones o bloques horarios asociados.",
+  [TIME_BLOCK_CAMPUS_FK]: "La sede tiene salones o bloques horarios asociados.",
+  [SLOT_CLASSROOM_FK]: "El salón tiene clases programadas en el horario.",
 };
 const DEPENDENTS_FALLBACK = "El registro tiene elementos asociados.";
 
@@ -106,6 +158,17 @@ const FK_WRITE_RULES: Record<string, FkWriteRule> = {
     code: "BAD_REQUEST",
     message: "El director debe ser un profesor activo de la institución.",
   },
+  // Writer-authored (sige/04 §4.1 only covers the client-side "Debes seleccionar ..." copy).
+  [CLASSROOM_CAMPUS_FK]: { code: "NOT_FOUND", message: "La sede no existe." },
+  [TIME_BLOCK_CAMPUS_FK]: { code: "NOT_FOUND", message: "La sede no existe." },
+  [OFFERING_SUBJECT_FK]: { code: "NOT_FOUND", message: "La materia no existe." },
+  [OFFERING_COURSE_FK]: { code: "NOT_FOUND", message: "El grado no existe." },
+  [OFFERING_TEACHER_FK]: { code: "NOT_FOUND", message: "El profesor no existe." },
+  [SLOT_CLASSROOM_FK]: { code: "NOT_FOUND", message: "El salón no existe." },
+  [ASSIGNMENT_OFFERING_FK]: {
+    code: "BAD_REQUEST",
+    message: "La asignación debe corresponder a la materia del grado y a su profesor.",
+  },
 };
 const FK_WRITE_FALLBACK: FkWriteRule = {
   code: "BAD_REQUEST",
@@ -139,6 +202,11 @@ export function mapDbError(
 
   if (pg.code === SQLSTATE_UNIQUE_VIOLATION) {
     const message = UNIQUE_MESSAGES[constraint];
+    return message ? new ORPCError("CONFLICT", { status: CONFLICT_STATUS, message }) : null;
+  }
+
+  if (pg.code === SQLSTATE_EXCLUSION_VIOLATION) {
+    const message = EXCLUSION_MESSAGES[constraint];
     return message ? new ORPCError("CONFLICT", { status: CONFLICT_STATUS, message }) : null;
   }
 
