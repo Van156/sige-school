@@ -2,7 +2,7 @@ import { call, ORPCError } from "@orpc/server";
 import * as schema from "@base-template/db/schema";
 import type { RecordingAuditLogger } from "@base-template/auth/testing";
 import { eq } from "drizzle-orm";
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import type { Context } from "../../context";
 import {
@@ -233,6 +233,136 @@ await sigeSuite("course router", (fx) => {
     const metadata = audit.events[0]?.metadata as { changes: Record<string, unknown> };
     expect(metadata.changes).toEqual({
       director: { from: null, to: teacher.personId },
+    });
+  });
+
+  describe("director must be an active teacher of the institution (D9, sige/02 §4)", () => {
+    const DIRECTOR_MESSAGE = "El director debe ser un profesor activo de la institución.";
+    let staff: TestTenant;
+    let admin: Context;
+    let campusId: string;
+
+    test("provisions staff, a foreign teacher and a campus", async () => {
+      staff = await fx.provisionTenant("Directores", ["owner", "coordinator", "teacher", "parent"]);
+      admin = await fx.contextFor(staff.people.owner!, staff);
+      campusId = (await seedCampus(fx, staff)).id;
+    });
+
+    const rejectsAsDirector = async (directorPersonId: string) => {
+      const created = await errorOf(
+        call(courseRouter.create, courseInput(campusId, { name: "Rechazado", directorPersonId }), {
+          context: admin,
+        }),
+      );
+      expect(created?.code).toBe("BAD_REQUEST");
+      expect(created?.message).toBe(DIRECTOR_MESSAGE);
+      const rows = await fx.db
+        .select()
+        .from(schema.course)
+        .where(eq(schema.course.campusId, campusId));
+      expect(rows.filter((row) => row.name === "Rechazado")).toHaveLength(0);
+
+      const course = await seedCourse(fx, staff, campusId);
+      const updated = await errorOf(
+        call(
+          courseRouter.update,
+          { id: course.id, ...courseInput(campusId, { name: course.name, directorPersonId }) },
+          { context: admin },
+        ),
+      );
+      expect(updated?.code).toBe("BAD_REQUEST");
+      expect(updated?.message).toBe(DIRECTOR_MESSAGE);
+      const [after] = await fx.db
+        .select()
+        .from(schema.course)
+        .where(eq(schema.course.id, course.id));
+      expect(after?.directorPersonId).toBeNull();
+    };
+
+    test("accepts an active teacher of the same institution", async () => {
+      const created = await call(
+        courseRouter.create,
+        courseInput(campusId, {
+          name: "Con director",
+          directorPersonId: staff.people.teacher!.personId,
+        }),
+        { context: admin },
+      );
+      expect(created.directorPersonId).toBe(staff.people.teacher!.personId);
+    });
+
+    test("rejects a person who is not a teacher", async () => {
+      await rejectsAsDirector(staff.people.coordinator!.personId);
+      await rejectsAsDirector(staff.people.parent!.personId);
+    });
+
+    test("rejects an unknown person id", async () => {
+      await rejectsAsDirector("nope");
+    });
+
+    test("rejects a teacher of another institution exactly like an unknown id (no leak)", async () => {
+      const other = await fx.provisionTenant("Ajeno", ["teacher"]);
+      await rejectsAsDirector(other.people.teacher!.personId);
+    });
+
+    test("rejects a deactivated teacher", async () => {
+      const inactive = await fx.provisionTenant("Inactivo", ["owner", "teacher"]);
+      const ctx = await fx.contextFor(inactive.people.owner!, inactive);
+      const campus = await seedCampus(fx, inactive);
+      await fx.db
+        .update(schema.person)
+        .set({ isActive: false })
+        .where(eq(schema.person.id, inactive.people.teacher!.personId));
+      const error = await errorOf(
+        call(
+          courseRouter.create,
+          courseInput(campus.id, { directorPersonId: inactive.people.teacher!.personId }),
+          { context: ctx },
+        ),
+      );
+      expect(error?.code).toBe("BAD_REQUEST");
+      expect(error?.message).toBe(DIRECTOR_MESSAGE);
+    });
+
+    test("update keeps a director who was deactivated after being assigned", async () => {
+      const t = await fx.provisionTenant("Conserva", ["owner", "teacher"]);
+      const ctx = await fx.contextFor(t.people.owner!, t);
+      const campus = await seedCampus(fx, t);
+      const course = await seedCourse(fx, t, campus.id, {
+        name: "Antes",
+        directorPersonId: t.people.teacher!.personId,
+      });
+      await fx.db
+        .update(schema.person)
+        .set({ isActive: false })
+        .where(eq(schema.person.id, t.people.teacher!.personId));
+      const updated = await call(
+        courseRouter.update,
+        {
+          id: course.id,
+          ...courseInput(campus.id, {
+            name: "Después",
+            directorPersonId: t.people.teacher!.personId,
+          }),
+        },
+        { context: ctx },
+      );
+      expect(updated).toMatchObject({
+        name: "Después",
+        directorPersonId: t.people.teacher!.personId,
+      });
+    });
+
+    test("update can still clear the director", async () => {
+      const course = await seedCourse(fx, staff, campusId, {
+        directorPersonId: staff.people.teacher!.personId,
+      });
+      const updated = await call(
+        courseRouter.update,
+        { id: course.id, ...courseInput(campusId, { name: course.name }) },
+        { context: admin },
+      );
+      expect(updated.directorPersonId).toBeNull();
     });
   });
 

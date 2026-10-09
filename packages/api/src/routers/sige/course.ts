@@ -11,6 +11,7 @@ import { requirePermission } from "../../index";
 import { courseListConfig } from "../../lib/course-list-config";
 import { createListInput } from "../../lib/list-input";
 import { changedFields, recordAudit } from "../../sige/audit";
+import { assertCourseDirector } from "../../sige/course-director";
 import { rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import { courseInput } from "../../sige/schemas/institution";
@@ -20,7 +21,8 @@ import { courseInput } from "../../sige/schemas/institution";
  * allowlists of `course-list-config.ts`. The tenant comes from `context.org`; another tenant's id
  * is `NOT_FOUND`. The composite FKs are the arbiter for the campus (`NOT_FOUND`) and for "the
  * level belongs to the course's campus" (`BAD_REQUEST`, §4.1); uniqueness is the unique
- * constraint (`CONFLICT`). Deletes rely on the `restrict` FKs later modules add (students,
+ * constraint (`CONFLICT`). The director must be an active teacher of the institution
+ * (`BAD_REQUEST`, D9; `sige/course-director.ts`). Deletes rely on the `restrict` FKs later modules add (students,
  * offerings; §4.2), never on a racy pre-check.
  */
 
@@ -211,6 +213,7 @@ export const courseRouter = {
     .input(courseInput)
     .handler(async ({ context, input }) => {
       const values = columnsFrom(input);
+      await assertCourseDirector(context.db, context.org.id, values.directorPersonId);
       let id: string;
       try {
         const [row] = await context.db
@@ -237,6 +240,12 @@ export const courseRouter = {
     .handler(async ({ context, input }) => {
       const before = await toRow(context.db, context.org.id, input.id);
       const values = columnsFrom(input);
+      await assertCourseDirector(
+        context.db,
+        context.org.id,
+        values.directorPersonId,
+        before.directorPersonId,
+      );
       try {
         const affected = await context.db
           .update(schema.course)
