@@ -3,7 +3,12 @@ import { useEffect, useEffectEvent, useState } from "react";
 
 import { orpc } from "@/app/orpc";
 
-import { resetImport, selectImportFile } from "../lib/import-flow";
+import {
+  leaveMissingJob,
+  recordStartedJob,
+  resetImport,
+  selectImportFile,
+} from "../lib/import-flow";
 import {
   IMPORT_PREVIEW_FALLBACK,
   IMPORT_START_FALLBACK,
@@ -21,7 +26,7 @@ import { useImportJob } from "./use-import-job";
  * `lib/import-flow`.
  */
 export function useUserImport({
-  jobId: urlJobId,
+  jobId,
   onJobChange,
 }: {
   jobId: string | null;
@@ -32,9 +37,8 @@ export function useUserImport({
   const previewMutation = useMutation(orpc.user.importPreview.mutationOptions());
   const startMutation = useMutation({
     ...orpc.user.importStart.mutationOptions(),
-    onSuccess: (started) => onJobChange(started.jobId),
+    onSuccess: (started) => recordStartedJob(started, onJobChange),
   });
-  const jobId = urlJobId;
   const jobState = useImportJob(jobId);
 
   const effects = {
@@ -49,18 +53,16 @@ export function useUserImport({
 
   // The URL points at a job the server no longer has: back to the picker.
   const { notFound } = jobState;
-  const backToPicker = useEffectEvent(() => resetImport(effects));
+  const backToPicker = useEffectEvent(() => leaveMissingJob(notFound, effects));
   useEffect(() => {
-    if (notFound) {
-      backToPicker();
-    }
+    backToPicker();
   }, [notFound]);
 
   const phase = importPhase({
     jobId,
     jobStatus: jobState.job?.status,
     // The job id reaches the URL a moment after `importStart` resolves: stay in "running".
-    startPending: startMutation.isPending || (startMutation.isSuccess && urlJobId === null),
+    startPending: startMutation.isPending || (startMutation.isSuccess && jobId === null),
     previewPending: previewMutation.isPending,
     hasPreview: previewMutation.isSuccess,
   });

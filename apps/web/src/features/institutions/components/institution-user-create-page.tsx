@@ -10,11 +10,8 @@ import { LiveUsernamePreview } from "@/features/users";
 import PageHeader from "@/shared/components/layout/page-header";
 
 import { platformUsernamePreview } from "../hooks/platform-username-preview";
-import {
-  emptyPlatformUserForm,
-  platformCreatedNotice,
-  toPlatformUserCreateInput,
-} from "../lib/platform-user";
+import { emptyPlatformUserForm, toPlatformUserCreateInput } from "../lib/platform-user";
+import { runPlatformUserCreate } from "../lib/platform-user-flow";
 import type { InstitutionDetail } from "../types";
 import InstitutionLoader from "./institution-loader";
 import PlatformUserForm from "./platform-user-form";
@@ -74,18 +71,19 @@ function CreateInstitutionUser({ institution }: { institution: InstitutionDetail
         renderUsernamePreview={(parts) => (
           <LiveUsernamePreview {...parts} queryFor={platformUsernamePreview(institutionId)} />
         )}
-        onSubmit={async (values) => {
-          const created = await createMutation.mutateAsync(
-            toPlatformUserCreateInput(institutionId, values),
-          );
-          const notice = platformCreatedNotice(created);
-          toast.success(notice.title, { description: notice.description });
-          await queryClient.invalidateQueries({ queryKey: orpc.platformUser.key() });
-          await navigate({
-            to: "/admin/instituciones/$institutionId/usuarios",
-            params: { institutionId },
-          });
-        }}
+        onSubmit={(values) =>
+          runPlatformUserCreate({
+            create: () =>
+              createMutation.mutateAsync(toPlatformUserCreateInput(institutionId, values)),
+            notifySuccess: ({ title, description }) => toast.success(title, { description }),
+            refresh: () => queryClient.invalidateQueries({ queryKey: orpc.platformUser.key() }),
+            goToList: () =>
+              navigate({
+                to: "/admin/instituciones/$institutionId/usuarios",
+                params: { institutionId },
+              }),
+          })
+        }
       />
     </div>
   );

@@ -2,8 +2,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 
 import { orpc } from "@/app/orpc";
+import { isNotFoundError } from "@/shared/lib/orpc-error";
 
-import { createFinishNotifier, isJobNotFound } from "../lib/import-flow";
+import { createFinishNotifier } from "../lib/import-flow";
 import { importPollInterval } from "../lib/user-import";
 import type { ImportJob } from "../types";
 
@@ -36,8 +37,8 @@ export function useImportJob(jobId: string | null) {
   const failed = query.isError && job === undefined;
   return {
     job,
-    isError: failed && !isJobNotFound(query.error),
-    notFound: failed && isJobNotFound(query.error),
+    isError: failed && !isNotFoundError(query.error),
+    notFound: failed && isNotFoundError(query.error),
     refetch: query.refetch,
   };
 }

@@ -12,6 +12,7 @@ import {
   mapSubmitError,
   type ProfileInput,
 } from "@/features/institution";
+import type { UsernamePreviewParts } from "@/features/users";
 import FormField from "@/shared/components/form/form-field";
 
 import {
@@ -28,9 +29,6 @@ import {
 
 export type CreateInstitutionInput = ReturnType<typeof toCreateInstitutionInput>;
 export type UpdateInstitutionInput = ProfileInput;
-
-/** What the rector's live username preview needs from the form (INS-02). */
-export type RectorNameParts = { firstName: string; lastName: string; documentNumber: string };
 
 const SELECT_CLASS =
   "h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive dark:bg-input/30";
@@ -57,7 +55,7 @@ export default function InstitutionForm({
   initialValues: InstitutionFormValues;
   logoField?: ReactNode;
   onInvalid?: () => void;
-  renderRectorUsernamePreview?: (parts: RectorNameParts) => ReactNode;
+  renderRectorUsernamePreview?: (parts: UsernamePreviewParts) => ReactNode;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
   const isCreate = submit.mode === "create";
@@ -292,7 +290,8 @@ export default function InstitutionForm({
               </form.Subscribe>
             ) : null}
             <p className="text-sm text-muted-foreground">
-              El username se genera automáticamente al escribir los datos
+              Contraseña inicial: Nº de documento. El username se genera automáticamente al escribir
+              los datos.
             </p>
           </CardContent>
         </Card>

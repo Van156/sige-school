@@ -13,6 +13,7 @@ export {
 } from "./components/users-columns";
 export { useActivationConfirm } from "./hooks/use-user-activation";
 export type { UsernamePreviewQuery } from "./hooks/use-username-preview";
+export type { UsernamePreviewParts } from "./lib/username-preview";
 export { userImportSearchSchema } from "./lib/import-flow";
 export { createdUserNotice, type CreatedUser } from "./lib/user-create-flow";
 export {

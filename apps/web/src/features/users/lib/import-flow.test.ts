@@ -2,7 +2,8 @@ import { describe, expect, mock, test } from "bun:test";
 
 import {
   createFinishNotifier,
-  isJobNotFound,
+  leaveMissingJob,
+  recordStartedJob,
   resetImport,
   selectImportFile,
   userImportSearchSchema,
@@ -85,12 +86,25 @@ describe("createFinishNotifier", () => {
   });
 });
 
-describe("isJobNotFound", () => {
-  test("recognises the NOT_FOUND code only", () => {
-    expect(isJobNotFound({ code: "NOT_FOUND" })).toBe(true);
-    expect(isJobNotFound({ code: "INTERNAL_SERVER_ERROR" })).toBe(false);
-    expect(isJobNotFound(new Error("x"))).toBe(false);
-    expect(isJobNotFound(null)).toBe(false);
+describe("recordStartedJob", () => {
+  test("writes the started job id to the URL", () => {
+    const onJobChange = mock((_jobId: string | null) => undefined);
+    recordStartedJob({ jobId: "job-9" }, onJobChange);
+    expect(onJobChange).toHaveBeenCalledWith("job-9");
+  });
+});
+
+describe("leaveMissingJob", () => {
+  test("returns to the empty picker and clears the URL job when the job is gone", () => {
+    const { fx, calls } = effects();
+    leaveMissingJob(true, fx);
+    expect(calls).toEqual(["resetStart", "resetPreview", "setFile null", "setFileError null"]);
+  });
+
+  test("does nothing while the job exists or is loading", () => {
+    const { fx, calls } = effects();
+    leaveMissingJob(false, fx);
+    expect(calls).toEqual([]);
   });
 });
 

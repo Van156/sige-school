@@ -27,19 +27,21 @@ describe("platformStatTiles", () => {
     expect(
       platformStatTiles({ admins: 2, coordinators: 1, teachers: 30, students: 400 }, false),
     ).toEqual([
-      { label: "Administradores", value: "2" },
-      { label: "Coordinadores", value: "1" },
-      { label: "Profesores", value: "30" },
-      { label: "Estudiantes", value: "400" },
+      { id: "admins", label: "Administradores", value: "2" },
+      { id: "coordinators", label: "Coordinadores", value: "1" },
+      { id: "teachers", label: "Profesores", value: "30" },
+      { id: "students", label: "Estudiantes", value: "400" },
     ]);
   });
 
   test("shows a dash while pending and a hint when failed, never a 0", () => {
     expect(platformStatTiles(undefined, false)[0]).toEqual({
+      id: "admins",
       label: "Administradores",
       value: "—",
     });
     expect(platformStatTiles(undefined, true)[3]).toEqual({
+      id: "students",
       label: "Estudiantes",
       value: "—",
       hint: "No disponible",

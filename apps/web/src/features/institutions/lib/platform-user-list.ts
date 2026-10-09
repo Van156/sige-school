@@ -23,20 +23,26 @@ export type PlatformUserStats = {
   students: number;
 };
 
+/** Identifies a KPI tile, so the view can pair it with its icon. */
+export type PlatformStatId = "admins" | "coordinators" | "teachers" | "students";
+
+export type PlatformStatTile = { id: PlatformStatId; label: string; value: string; hint?: string };
+
 /** The four KPI tiles of INS-04 in display order; a count is a dash until it is known. */
 export function platformStatTiles(
   stats: PlatformUserStats | undefined,
   isError: boolean,
-): { label: string; value: string; hint?: string }[] {
-  const tile = (label: string, count: number | undefined) => ({
+): PlatformStatTile[] {
+  const tile = (id: PlatformStatId, label: string): PlatformStatTile => ({
+    id,
     label,
-    ...statTileDisplay(count, isError),
+    ...statTileDisplay(stats?.[id], isError),
   });
   return [
-    tile("Administradores", stats?.admins),
-    tile("Coordinadores", stats?.coordinators),
-    tile("Profesores", stats?.teachers),
-    tile("Estudiantes", stats?.students),
+    tile("admins", "Administradores"),
+    tile("coordinators", "Coordinadores"),
+    tile("teachers", "Profesores"),
+    tile("students", "Estudiantes"),
   ];
 }
 

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   UserRound,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 
@@ -37,13 +38,19 @@ import {
   hasNoPlatformUsers,
   platformStatTiles,
   PLATFORM_USERS_LOAD_ERROR,
+  type PlatformStatId,
   toPlatformUserListInput,
 } from "../lib/platform-user-list";
 import type { InstitutionDetail } from "../types";
 import InstitutionLoader from "./institution-loader";
 import PlatformUsersTable from "./platform-users-table";
 
-const STAT_ICONS = [ShieldCheck, ClipboardList, UserRound, GraduationCap] as const;
+const STAT_ICONS: Record<PlatformStatId, LucideIcon> = {
+  admins: ShieldCheck,
+  coordinators: ClipboardList,
+  teachers: UserRound,
+  students: GraduationCap,
+};
 
 /**
  * INS-04 `/admin/instituciones/$institutionId/usuarios` (container, root only): the users of one
@@ -150,8 +157,8 @@ function InstitutionUsers({
         }
         stats={
           <StatGrid>
-            {tiles.map((tile, index) => (
-              <StatTile key={tile.label} {...tile} icon={STAT_ICONS[index]} />
+            {tiles.map(({ id, ...tile }) => (
+              <StatTile key={id} {...tile} icon={STAT_ICONS[id]} />
             ))}
           </StatGrid>
         }

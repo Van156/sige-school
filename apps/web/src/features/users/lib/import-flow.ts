@@ -5,7 +5,9 @@ import { isImportTerminal, validateImportFile } from "./user-import";
 
 /**
  * Search params of `/usuarios/importar`: `job` is the running import, kept in the URL so a reload
- * or a lost `importStart` response resumes polling it. A malformed value is dropped.
+ * or a navigation back resumes polling it. A malformed value is dropped. A lost `importStart`
+ * response is not recovered: the job id never reached the client, so a retry meets the running
+ * job's CONFLICT.
  */
 export const userImportSearchSchema = z.object({
   job: z.string().min(1).optional().catch(undefined),
@@ -52,13 +54,22 @@ export function resetImport(effects: ResetImportEffects): void {
   effects.setFileError(null);
 }
 
-/** Whether `importJob.get` failed because the job no longer exists (purged or never started). */
-export function isJobNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "NOT_FOUND"
-  );
+/** `importStart` resolved: the job id goes to the URL, from where a reload resumes it. */
+export function recordStartedJob(
+  started: { jobId: string },
+  onJobChange: (jobId: string | null) => void,
+): void {
+  onJobChange(started.jobId);
+}
+
+/**
+ * The URL's job no longer exists (purged, or a stale link): back to the empty picker, which also
+ * clears the URL job. Does nothing while the job is found or still loading.
+ */
+export function leaveMissingJob(notFound: boolean, effects: ResetImportEffects): void {
+  if (notFound) {
+    resetImport(effects);
+  }
 }
 
 /**

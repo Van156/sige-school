@@ -8,6 +8,7 @@ import { orpc } from "@/app/orpc";
 import EmptyState from "@/shared/components/feedback/empty-state";
 import LoadError from "@/shared/components/feedback/load-error";
 import Loader from "@/shared/components/feedback/loader";
+import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import type { InstitutionDetail } from "../types";
 
@@ -29,7 +30,7 @@ export default function InstitutionLoader({
     return <Loader />;
   }
   if (query.data === undefined) {
-    return (query.error as { code?: unknown } | null)?.code === "NOT_FOUND" ? (
+    return isNotFoundError(query.error) ? (
       <EmptyState
         icon={<Building2 />}
         title="Institución no encontrada"

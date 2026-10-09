@@ -10,6 +10,7 @@ import { useState, type ReactNode } from "react";
 
 import { AuthFormError } from "@/features/auth";
 import { mapSubmitError } from "@/features/institution";
+import type { UsernamePreviewParts } from "@/features/users";
 import FormField from "@/shared/components/form/form-field";
 import SubmitButton from "@/shared/components/form/submit-button";
 
@@ -22,13 +23,6 @@ import {
   type PlatformUserFormValues,
 } from "../lib/platform-user";
 import PlatformRoleSelect from "./platform-role-select";
-
-/** What the live preview needs from the form. */
-export type PlatformUserNameParts = {
-  firstName: string;
-  lastName: string;
-  documentNumber: string;
-};
 
 /**
  * INS-05 form (sige/02 §5.1): the data of the new user and its role. Presentational: `onSubmit`
@@ -47,7 +41,7 @@ export default function PlatformUserForm({
   initialValues: PlatformUserFormValues;
   onSubmit: (values: PlatformUserFormValues) => Promise<void>;
   onInvalid?: () => void;
-  renderUsernamePreview?: (parts: PlatformUserNameParts) => ReactNode;
+  renderUsernamePreview?: (parts: UsernamePreviewParts) => ReactNode;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
 
