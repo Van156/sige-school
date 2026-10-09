@@ -823,33 +823,41 @@ await sigeSuite("user router (write side)", (fx) => {
       const teacher = await seedTeacher();
       const before = events(owner).length;
       const original = await personRow(teacher.personId);
+      // Full valid update input (update is full-replace), so a failure cannot be input validation.
+      const input = {
+        personId: teacher.personId,
+        firstName: "Cambiado",
+        lastName: teacher.lastName,
+        documentType: "CC",
+        documentNumber: original!.documentNumber,
+        country: "Colombia",
+        newPassword: "Nueva-Clave-123",
+      };
+      // Scoped to the target user so parallel suites are unaffected.
       await fx.db.execute(
         sql.raw(
-          `CREATE OR REPLACE FUNCTION test_fail_account_update() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'blocked by test'; END; $$ LANGUAGE plpgsql`,
-        ),
-      );
-      await fx.db.execute(
-        sql.raw(
-          `CREATE TRIGGER test_fail_account BEFORE UPDATE ON account FOR EACH ROW EXECUTE FUNCTION test_fail_account_update()`,
+          `CREATE OR REPLACE FUNCTION test_fail_account_update() RETURNS trigger AS $$ BEGIN IF NEW."user_id" = '${teacher.userId}' THEN RAISE EXCEPTION 'blocked by test'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`,
         ),
       );
       let error: ORPCError<string, any> | null;
       try {
-        error = await errorOf(
-          update({
-            personId: teacher.personId,
-            firstName: "Cambiado",
-            lastName: teacher.lastName,
-            documentNumber: original!.documentNumber,
-            newPassword: "Nueva-Clave-123",
-          }),
+        await fx.db.execute(
+          sql.raw(
+            `CREATE TRIGGER test_fail_account BEFORE UPDATE ON account FOR EACH ROW EXECUTE FUNCTION test_fail_account_update()`,
+          ),
         );
+        error = await errorOf(update(input));
       } finally {
         await fx.db.execute(sql.raw(`DROP TRIGGER IF EXISTS test_fail_account ON account`));
+        await fx.db.execute(sql.raw(`DROP FUNCTION IF EXISTS test_fail_account_update()`));
       }
       expect(error).not.toBeNull();
+      expect(error?.code).not.toBe("BAD_REQUEST");
       expect(events(owner).slice(before)).toEqual([]);
       expect((await personRow(teacher.personId))!.firstName).toBe(original!.firstName);
+      // Without the trigger the very same input succeeds.
+      await update(input);
+      expect((await personRow(teacher.personId))!.firstName).toBe("Cambiado");
     });
 
     test("a taken document or email is a CONFLICT", async () => {
