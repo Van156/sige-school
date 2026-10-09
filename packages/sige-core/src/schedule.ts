@@ -50,11 +50,11 @@ export type WeeklySchedule = {
 };
 
 export type GridBlock = { startTime: string; endTime: string; isBreak: boolean };
-export type GridEntry = { dayOfWeek: number; startTime: string; cell: SlotCell };
+export type GridEntry = { dayOfWeek: number; startTime: string; endTime: string; cell: SlotCell };
 
 /**
  * One row per distinct `(start, end)` pair of `blocks`, sorted by start time (then end), with the
- * entry that starts at the row start on each weekday.
+ * entry that matches the row's start AND end on each weekday (rows may share a start time).
  */
 export function buildScheduleRows(
   blocks: readonly GridBlock[],
@@ -77,7 +77,10 @@ export function buildScheduleRows(
         { length: SCHEDULE_DAYS },
         (_, day) =>
           entries.find(
-            (entry) => entry.dayOfWeek === day && formatTime(entry.startTime) === row.start,
+            (entry) =>
+              entry.dayOfWeek === day &&
+              formatTime(entry.startTime) === row.start &&
+              formatTime(entry.endTime) === row.end,
           )?.cell ?? null,
       ),
     }));
@@ -231,7 +234,12 @@ export function generateSchedule(input: SolverInput): ScheduleResult {
           block.academicYear === course.academicYear &&
           !block.isBreak,
       )
-      .sort((a, b) => a.orderNum - b.orderNum || compare(a.startTime, b.startTime));
+      .sort(
+        (a, b) =>
+          a.orderNum - b.orderNum ||
+          compare(a.startTime, b.startTime) ||
+          compare(a.endTime, b.endTime),
+      );
 
     if (blocks.length === 0) {
       skipped.push({
@@ -249,7 +257,7 @@ export function generateSchedule(input: SolverInput): ScheduleResult {
     const aulas = rooms.filter((room) => room.classroomType === "aula");
     const homeRoom = aulas.length > 0 ? aulas[course.campusRank % aulas.length] : undefined;
 
-    const courseCells = new Set<string>();
+    const courseBusy: Busy = new Map();
     const daysUsed = new Map<string, Set<number>>();
     const maxHours = Math.max(0, ...items.map((item) => item.hoursPerWeek));
 
@@ -278,10 +286,10 @@ export function generateSchedule(input: SolverInput): ScheduleResult {
           for (let offset = 0; offset < blocks.length && !placed; offset += 1) {
             const block = blocks[(index + day + offset) % blocks.length];
             if (!block) continue;
-            const cell = `${day}-${block.startTime}-${block.endTime}`;
-            if (courseCells.has(cell)) continue;
             const start = toMinutes(block.startTime);
             const end = toMinutes(block.endTime);
+            // Interval check like rooms and teachers: blocks may overlap (SCH-R9).
+            if (!isFree(courseBusy, course.id, day, start, end)) continue;
             if (item.teacherPersonId && !isFree(teacherBusy, item.teacherPersonId, day, start, end))
               continue;
             const room = candidates.find((candidate) =>
@@ -291,7 +299,7 @@ export function generateSchedule(input: SolverInput): ScheduleResult {
 
             if (item.teacherPersonId) markBusy(teacherBusy, item.teacherPersonId, day, start, end);
             markBusy(roomBusy, room.id, day, start, end);
-            courseCells.add(cell);
+            markBusy(courseBusy, course.id, day, start, end);
             used.add(day);
             daysUsed.set(item.id, used);
             slots.push({

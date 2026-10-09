@@ -72,10 +72,23 @@ describe("buildScheduleRows", () => {
     );
     expect(rows[0]?.isBreak).toBe(true);
   });
+  test("matches cells by start and end when rows share a start time", () => {
+    const shared = [
+      { startTime: "08:00", endTime: "08:30", isBreak: false },
+      { startTime: "08:00", endTime: "09:00", isBreak: false },
+    ];
+    const rows = buildScheduleRows(shared, [
+      { dayOfWeek: 1, startTime: "08:00:00", endTime: "09:00:00", cell: cell("long") },
+      { dayOfWeek: 1, startTime: "08:00", endTime: "08:30", cell: cell("short") },
+    ]);
+    expect(rows.map((row) => row.time)).toEqual(["08:00 - 08:30", "08:00 - 09:00"]);
+    expect(rows[0]?.cells[1]?.slotId).toBe("short");
+    expect(rows[1]?.cells[1]?.slotId).toBe("long");
+  });
   test("places each entry in the row it starts at, on its weekday", () => {
     const rows = buildScheduleRows(blocks, [
-      { dayOfWeek: 2, startTime: "08:00:00", cell: cell("s1") },
-      { dayOfWeek: 0, startTime: "07:00", cell: cell("s2") },
+      { dayOfWeek: 2, startTime: "08:00:00", endTime: "09:00:00", cell: cell("s1") },
+      { dayOfWeek: 0, startTime: "07:00", endTime: "08:00", cell: cell("s2") },
     ]);
     expect(rows[1]?.cells.map((c) => c?.slotId ?? null)).toEqual([null, null, "s1", null, null]);
     expect(rows[0]?.cells[0]?.slotId).toBe("s2");
@@ -213,9 +226,48 @@ describe("generateSchedule", () => {
     const result = generateSchedule(input);
     const total = input.offerings.reduce((sum, o) => sum + o.hoursPerWeek, 0);
     expect(result.conflicts).toBe(total - result.assigned);
+    // The seed-sized fixture has room for everything: every offering gets all of its hours.
+    expect(result.conflicts).toBe(0);
+    expect(result.assigned).toBe(total);
+    for (const offering of input.offerings) {
+      const placed = result.slots.filter((slot) => slot.offeringId === offering.id).length;
+      expect([offering.id, placed]).toEqual([offering.id, offering.hoursPerWeek]);
+    }
     for (const slot of result.slots) {
       expect(input.blocks.some((b) => b.startTime === slot.startTime && !b.isBreak)).toBe(true);
     }
+  });
+
+  test("checks course overlap by interval, not by exact block", () => {
+    // Two overlapping blocks: a course can use only one of them per day.
+    const input: SolverInput = {
+      courses: [
+        {
+          id: "g",
+          name: "6-01",
+          campusId: "c",
+          campusName: "Sede",
+          shift: "Mañana",
+          academicYear: "2026",
+          campusRank: 0,
+        },
+      ],
+      offerings: [
+        { id: "o1", courseId: "g", subjectName: "Mat", teacherPersonId: null, hoursPerWeek: 10 },
+      ],
+      blocks: [
+        block("c", "Mañana", 1, "07:00", "08:00"),
+        block("c", "Mañana", 2, "07:30", "08:30"),
+      ],
+      classrooms: [
+        { id: "r1", campusId: "c", code: "A", classroomType: "aula" },
+        { id: "r2", campusId: "c", code: "B", classroomType: "aula" },
+      ],
+    };
+    const result = generateSchedule(input);
+    expect(result.assigned).toBe(5);
+    expect(result.conflicts).toBe(5);
+    assertNoOverlaps(input, result.slots);
   });
 
   test("property: holds across many generated variants", () => {
