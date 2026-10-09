@@ -5,6 +5,7 @@ import {
   COURSE_DIRECTOR_FK,
   COURSE_LEVEL_CAMPUS_FK,
   COURSE_UNIQUE,
+  IMPORT_JOB_RUNNING_UNIQUE,
   INSTITUTION_NIT_UNIQUE,
   LEVEL_CAMPUS_FK,
   LEVEL_NAME_UNIQUE,
@@ -36,6 +37,7 @@ describe("unique violations (23505) -> CONFLICT", () => {
     [COURSE_UNIQUE, "Ya existe un grado con la misma sede, nombre, año y jornada."],
     [SUBJECT_CODE_UNIQUE, "Ya existe una asignatura con este código."],
     [INSTITUTION_NIT_UNIQUE, "Ya existe una institución con este NIT."],
+    [IMPORT_JOB_RUNNING_UNIQUE, "Ya hay una importación en curso."],
   ])("%s", (constraint, message) => {
     const error = mapped(pgError("23505", constraint), "write");
     expect(error.code).toBe("CONFLICT");

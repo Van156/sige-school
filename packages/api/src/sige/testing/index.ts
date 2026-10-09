@@ -10,3 +10,4 @@ export type {
   TenantIsolationConfig,
 } from "./tenant-isolation";
 export { racingDb } from "./racing-db";
+export { createTrackedImportRunner } from "./tracked-import-runner";

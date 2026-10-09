@@ -6,6 +6,7 @@ import {
   COURSE_LEVEL_CAMPUS_FK,
   COURSE_UNIQUE,
   IMPORT_JOB_CREATOR_FK,
+  IMPORT_JOB_RUNNING_UNIQUE,
   INSTITUTION_NIT_UNIQUE,
   LEVEL_CAMPUS_FK,
   LEVEL_NAME_UNIQUE,
@@ -54,6 +55,8 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   [COURSE_UNIQUE]: "Ya existe un grado con la misma sede, nombre, año y jornada.",
   [SUBJECT_CODE_UNIQUE]: "Ya existe una asignatura con este código.",
   [INSTITUTION_NIT_UNIQUE]: "Ya existe una institución con este NIT.",
+  // USR-R12: one running import per institution and kind (D7).
+  [IMPORT_JOB_RUNNING_UNIQUE]: "Ya hay una importación en curso.",
   // Not in spec §4.1 (writer-authored).
   [PERIOD_ACTIVE_UNIQUE]: "Ya existe un periodo activo en esta institución.",
   [PERIOD_SHORT_NAME_UNIQUE]: "Ya existe un periodo con este nombre corto en el año.",
