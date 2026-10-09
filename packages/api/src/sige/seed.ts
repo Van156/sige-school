@@ -234,7 +234,13 @@ export async function seedSige(
     .where(eq(schema.person.organizationId, organizationId));
   const personByDocument = new Map(teacherRows.map((row) => [row.documentNumber, row.id]));
   const teacherIds = new Map(
-    DEMO_TEACHERS.map((t) => [t.key, personByDocument.get(t.documentNumber) ?? ""] as const),
+    DEMO_TEACHERS.map((t) => {
+      const personId = personByDocument.get(t.documentNumber);
+      if (!personId) {
+        throw new Error(`Demo teacher ${t.key} has no person with document ${t.documentNumber}`);
+      }
+      return [t.key, personId] as const;
+    }),
   );
   const { generation } = await seedSchedule(database, organizationId, teacherIds);
 

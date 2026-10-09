@@ -135,6 +135,7 @@ export const scheduleRouter = {
                 and(
                   eq(schema.teacherAssignment.organizationId, schema.offering.organizationId),
                   eq(schema.teacherAssignment.offeringId, schema.offering.id),
+                  eq(schema.teacherAssignment.teacherPersonId, context.person.id),
                   inArray(schema.teacherAssignment.status, [...TEACHER_SCOPE_STATUSES]),
                 ),
               ),
