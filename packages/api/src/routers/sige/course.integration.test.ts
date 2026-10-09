@@ -353,6 +353,30 @@ await sigeSuite("course router", (fx) => {
       });
     });
 
+    test("get exposes whether the director is active, from the person row", async () => {
+      const t = await fx.provisionTenant("Activo", ["owner", "teacher"]);
+      const ctx = await fx.contextFor(t.people.owner!, t);
+      const campus = await seedCampus(fx, t);
+      const without = await seedCourse(fx, t, campus.id, { name: "Sin" });
+      const course = await seedCourse(fx, t, campus.id, {
+        name: "Con",
+        directorPersonId: t.people.teacher!.personId,
+      });
+      expect(
+        (await call(courseRouter.get, { id: without.id }, { context: ctx })).directorActive,
+      ).toBeNull();
+      expect(
+        (await call(courseRouter.get, { id: course.id }, { context: ctx })).directorActive,
+      ).toBe(true);
+      await fx.db
+        .update(schema.person)
+        .set({ isActive: false })
+        .where(eq(schema.person.id, t.people.teacher!.personId));
+      expect(
+        (await call(courseRouter.get, { id: course.id }, { context: ctx })).directorActive,
+      ).toBe(false);
+    });
+
     test("update can still clear the director", async () => {
       const course = await seedCourse(fx, staff, campusId, {
         directorPersonId: staff.people.teacher!.personId,

@@ -50,6 +50,8 @@ const rowColumns = {
   levelName: schema.gradeLevel.name,
   directorPersonId: schema.course.directorPersonId,
   directorName,
+  // Null without a director; false once the person was deactivated (the form labels it "(inactivo)").
+  directorActive: sql<boolean | null>`${schema.person.isActive}`,
   academicYear: schema.course.academicYear,
   shift: schema.course.shift,
   maxStudents: schema.course.maxStudents,
