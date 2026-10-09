@@ -112,3 +112,31 @@ Web (react-staff):
 4. "Creado"/"Último acceso" render in the browser time zone, not the institution's. Acceptable?
 5. INS-04 hides "Editar" on owner/admin rows (USR-03 would block them). Show it anyway?
 6. `course.update` keeps an unchanged, since-deactivated director (only new assignments are validated). Intended reading of D9?
+
+## Delivery slices (stacked-to-main, planned 2026-10-09; not pushed)
+
+Each slice is a contiguous commit range, stacked on the previous one; the first P2 slice stacks on the last P1 slice (P0 → P1 → P2 all still unpushed). Each slice also carries its interleaved `docs(odd)` commits. Lines = authored additions + deletions, excluding `pnpm-lock.yaml`, generated migration snapshots and `odd/`. One slicing pass by commit boundaries; single commits over budget get `size:exception` (splitting them would mean rewriting reviewed history).
+
+| #     | Range            | Unit                                   | Lines | Note                                        |
+| ----- | ---------------- | -------------------------------------- | ----- | ------------------------------------------- |
+| P2-1  | b6c1047          | sige-core import rules + user schemas  | 1038  | size:exception (one commit, mostly tests)   |
+| P2-2  | 207b554          | import_job table                       | 305   | +3893 generated snapshot                    |
+| P2-3  | 6eabd29          | import cell/email/birthDate hardening  | 236   |                                             |
+| P2-4  | 2a1acfa          | user read side                         | 1241  | size:exception                              |
+| P2-5  | 7e08c52          | user write side + shared service       | 1325  | size:exception                              |
+| P2-6  | dbfbbe9..96e58b9 | audit ordering + resetPassword         | 410   |                                             |
+| P2-7  | 9f1a6cb..663f093 | platformUser.*                         | 653   | size:exception (feature + its review tests) |
+| P2-8  | 5f7816f          | xlsx reader + zip guards               | 402   | +lockfile (exceljs)                         |
+| P2-9  | c95ccfb          | import job service + sweep             | 772   | size:exception                              |
+| P2-10 | f92e493          | import routers + server wiring         | 544   | size:exception                              |
+| P2-11 | 4d2bb04..631e43b | inflate cap, sweep cutoff, purge       | 423   |                                             |
+| P2-12 | be19f84..b0dcc30 | raw-insert guard + DB-clock sweep      | 192   |                                             |
+| P2-13 | 087d162..d826a61 | users kit + stale registry fix         | 305   |                                             |
+| P2-14 | 913987e..177d463 | USR-01 list                            | 1059  | size:exception                              |
+| P2-15 | a8e61b8..4378d74 | USR-02/03 forms + reset dialog         | 2585  | size:exception (~half stories/tests)        |
+| P2-16 | 4f556ef..3dd3ea9 | USR-04 import UI                       | 1755  | size:exception                              |
+| P2-17 | bd9d7c2..e8ff9fc | INS-04/05 platform pages               | 1987  | size:exception                              |
+| P2-18 | 8500ac9..2780b6e | course director (API + select)         | 394   |                                             |
+| P2-19 | 9b91b7a..763bf1b | director search, inactive truth, retry | 656   | size:exception                              |
+
+Blockers before any push: `git fetch origin` fails (SSH access to `git@github.com:Van156/sige-school.git`), and the `gh` CLI is not installed. P0 and P1 slices must land (or be opened) first.
