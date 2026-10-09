@@ -13,6 +13,11 @@ export const ASSIGNABLE_ROLES = [
 
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
+/** The assignable role a free-form value names, e.g. the `?role=` preselect; else `undefined`. */
+export function toAssignableRole(value: string | undefined): AssignableRole | undefined {
+  return ASSIGNABLE_ROLES.find((role) => role === value);
+}
+
 /** Roles of the USR-01 "Rol" filter: the assignable ones plus `admin` (owner and admin, D3). */
 export const ROLE_FILTER_TOKENS = [
   "admin",

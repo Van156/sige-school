@@ -13,7 +13,12 @@ import {
 import { roleKindLabel } from "@/shared/lib/role-label";
 
 import type { UserRow, UserStats } from "../types";
-import { ROLE_FILTER_TOKENS, isProtectedRole } from "./user-roles";
+import {
+  ROLE_FILTER_TOKENS,
+  isProtectedRole,
+  toAssignableRole,
+  type AssignableRole,
+} from "./user-roles";
 
 /** Server list input, built from the same allowlists as `user.list` (R3.8). */
 export const userListInput = createListInput(userListConfig);
@@ -116,22 +121,24 @@ export function hasActiveFilters(search: UserSearch) {
 /** Row-action permissions of the caller (`user:update`, `user:delete`); UX only. */
 export type UserRowPermissions = { canUpdate: boolean; canDelete: boolean };
 
-export type UserRowAccess = { canActivate: boolean; canDelete: boolean };
+export type UserRowAccess = { canEdit: boolean; canActivate: boolean; canDelete: boolean };
 
 /** Shown by the USR-01 list when `user.list` fails. */
 export const USERS_LOAD_ERROR = "No se pudieron cargar los usuarios.";
 
 /**
- * Which row actions to offer (sige/03 §5.1, USR-R4): none on the caller's own row for delete and
- * deactivation, none on `owner`/`admin` rows. UX only; the procedures re-check and the API messages
+ * Which row actions to offer (sige/03 §5.1, USR-R4): none on `owner`/`admin` rows, and no delete
+ * or deactivation on the caller's own row. UX only; the procedures re-check and the API messages
  * stay authoritative.
  */
 export function userRowAccess(
   row: Pick<UserRow, "role" | "isSelf">,
   permissions: UserRowPermissions,
 ): UserRowAccess {
-  const manageable = !row.isSelf && !isProtectedRole(row.role);
+  const editable = !isProtectedRole(row.role);
+  const manageable = editable && !row.isSelf;
   return {
+    canEdit: permissions.canUpdate && editable,
     canActivate: permissions.canUpdate && manageable,
     canDelete: permissions.canDelete && manageable,
   };
@@ -151,4 +158,18 @@ export function statTileDisplay(
     return { value: String(count) };
   }
   return isError ? { value: STAT_PLACEHOLDER, hint: "No disponible" } : { value: STAT_PLACEHOLDER };
+}
+
+/**
+ * The USR-01 create action for the active role filter (sige/03 §5.1): "Nuevo {Rol}" preselecting
+ * that role in USR-02, or "Nuevo Usuario" for no filter or the `admin` filter (platform-managed).
+ */
+export function newUserAction(role: string | undefined): {
+  label: string;
+  role: AssignableRole | undefined;
+} {
+  const assignable = toAssignableRole(role);
+  return assignable
+    ? { label: `Nuevo ${roleKindLabel(assignable)}`, role: assignable }
+    : { label: "Nuevo Usuario", role: undefined };
 }

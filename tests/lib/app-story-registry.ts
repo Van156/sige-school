@@ -56,5 +56,12 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/users/components/user-cell.tsx",
   "features/users/components/role-badge.tsx",
   "features/users/components/role-select.tsx",
+  "features/users/components/user-form.tsx",
+  "features/users/components/reset-password-dialog.tsx",
+  "features/users/components/username-preview-box.tsx",
+  "features/users/components/email-availability-line.tsx",
+  "features/users/components/user-help-cards.tsx",
+  "features/users/components/user-summary-strip.tsx",
+  "features/users/components/user-edit-cards.tsx",
   "shared/components/form/password-input.tsx",
 ];

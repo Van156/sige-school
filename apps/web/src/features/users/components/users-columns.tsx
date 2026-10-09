@@ -1,6 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
-import { Button } from "@base-template/ui/components/button";
-import { Trash2, UserCheck, UserX } from "lucide-react";
+import { Button, buttonVariants } from "@base-template/ui/components/button";
+import { Link } from "@tanstack/react-router";
+import { Pencil, Trash2, UserCheck, UserX } from "lucide-react";
 
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 
@@ -106,6 +107,16 @@ export function getUserColumns({
         const access = userRowAccess(user, permissions);
         return (
           <div className="flex justify-end gap-1 whitespace-nowrap">
+            {access.canEdit ? (
+              <Link
+                to="/usuarios/$personId/editar"
+                params={{ personId: user.personId }}
+                aria-label={`Editar usuario ${user.username}`}
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              >
+                <Pencil />
+              </Link>
+            ) : null}
             {access.canActivate ? (
               <Button
                 variant="ghost"

@@ -7,6 +7,7 @@ import {
   toUserListInput,
   userListDescription,
   userListTitle,
+  newUserAction,
   statTileDisplay,
   userRowAccess,
   userSearchConfig,
@@ -94,28 +95,39 @@ describe("userRowAccess", () => {
 
   test("a regular row gets every permitted action", () => {
     expect(userRowAccess({ role: "teacher", isSelf: false }, all)).toEqual({
+      canEdit: true,
       canActivate: true,
       canDelete: true,
     });
   });
 
-  test("owner, admin and own rows get none (USR-R4)", () => {
-    for (const row of [
-      { role: "owner", isSelf: false },
-      { role: "admin", isSelf: false },
-      { role: "teacher", isSelf: true },
-    ]) {
-      expect(userRowAccess(row, all)).toEqual({ canActivate: false, canDelete: false });
+  test("owner and admin rows get none (USR-R4)", () => {
+    for (const role of ["owner", "admin"]) {
+      expect(userRowAccess({ role, isSelf: false }, all)).toEqual({
+        canEdit: false,
+        canActivate: false,
+        canDelete: false,
+      });
     }
+  });
+
+  test("the caller's own row can be edited but not deactivated or deleted", () => {
+    expect(userRowAccess({ role: "teacher", isSelf: true }, all)).toEqual({
+      canEdit: true,
+      canActivate: false,
+      canDelete: false,
+    });
   });
 
   test("missing permissions hide the matching action only", () => {
     const row = { role: "student", isSelf: false };
     expect(userRowAccess(row, { canUpdate: false, canDelete: true })).toEqual({
+      canEdit: false,
       canActivate: false,
       canDelete: true,
     });
     expect(userRowAccess(row, { canUpdate: true, canDelete: false })).toEqual({
+      canEdit: true,
       canActivate: true,
       canDelete: false,
     });
@@ -134,5 +146,17 @@ describe("statTileDisplay", () => {
 
   test("shows a placeholder with a hint when the query failed", () => {
     expect(statTileDisplay(undefined, true)).toEqual({ value: "—", hint: "No disponible" });
+  });
+});
+
+describe("newUserAction", () => {
+  test("a role filter names the role and preselects it", () => {
+    expect(newUserAction("teacher")).toEqual({ label: "Nuevo Profesor", role: "teacher" });
+    expect(newUserAction("viewer")).toEqual({ label: "Nuevo Consulta", role: "viewer" });
+  });
+
+  test("no filter or the admin filter offers a generic action", () => {
+    expect(newUserAction(undefined)).toEqual({ label: "Nuevo Usuario", role: undefined });
+    expect(newUserAction("admin")).toEqual({ label: "Nuevo Usuario", role: undefined });
   });
 });

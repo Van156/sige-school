@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { ASSIGNABLE_ROLES, ROLE_FILTER_TOKENS, isProtectedRole, toRoleKind } from "./user-roles";
+import {
+  ASSIGNABLE_ROLES,
+  ROLE_FILTER_TOKENS,
+  isProtectedRole,
+  toAssignableRole,
+  toRoleKind,
+} from "./user-roles";
 
 describe("toRoleKind", () => {
   test("keeps built-in kinds", () => {
@@ -30,5 +36,14 @@ describe("role lists", () => {
 
   test("the filter adds the admin token to the assignable roles", () => {
     expect([...ROLE_FILTER_TOKENS]).toEqual(["admin", ...ASSIGNABLE_ROLES]);
+  });
+});
+
+describe("toAssignableRole", () => {
+  test("accepts only the roles an institution admin can create", () => {
+    expect(toAssignableRole("teacher")).toBe("teacher");
+    expect(toAssignableRole("admin")).toBeUndefined();
+    expect(toAssignableRole("owner")).toBeUndefined();
+    expect(toAssignableRole(undefined)).toBeUndefined();
   });
 });

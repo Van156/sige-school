@@ -18,6 +18,7 @@ export default function RoleSelect({
   disabled,
   invalid,
   "aria-label": ariaLabel,
+  "aria-describedby": describedBy,
 }: {
   id?: string;
   value: AssignableRole | "";
@@ -27,11 +28,13 @@ export default function RoleSelect({
   disabled?: boolean;
   invalid?: boolean;
   "aria-label"?: string;
+  "aria-describedby"?: string;
 }) {
   return (
     <NativeSelect
       id={id}
       aria-label={ariaLabel}
+      aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
       disabled={disabled}
       value={value}

@@ -1,3 +1,5 @@
+import type { DocumentType } from "@base-template/sige-core";
+
 /** A row of `user.list` (sige/03 §3.3, `UserRow`). */
 export type UserRow = {
   personId: string;
@@ -28,3 +30,19 @@ export type UserStats = {
 
 /** A `user.list` row as the data table keys it (`id` is the person id). */
 export type UserTableRow = UserRow & { id: string };
+
+/** `user.get` (sige/03 §3.3, `UserDetail`): a row plus the editable profile. */
+export type UserDetail = UserRow & {
+  documentType: DocumentType;
+  documentNumber: string;
+  birthDate: string | null;
+  gender: "M" | "F" | "Otro" | null;
+  phone: string | null;
+  address: string | null;
+  country: string | null;
+  department: string | null;
+  municipality: string | null;
+  hasRealEmail: boolean;
+  /** Academic profile id; `null` until module 05 (D4). */
+  studentId: string | null;
+};

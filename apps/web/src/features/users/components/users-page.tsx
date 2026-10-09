@@ -1,7 +1,8 @@
 import { Badge } from "@base-template/ui/components/badge";
+import { buttonVariants } from "@base-template/ui/components/button";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Activity, GraduationCap, UserRound, Users } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Activity, GraduationCap, Plus, UserRound, Users } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
@@ -23,6 +24,7 @@ import { useUserActivation } from "../hooks/use-user-activation";
 import {
   hasActiveFilters,
   hasNoUsers,
+  newUserAction,
   statTileDisplay,
   toUserListInput,
   userListDescription,
@@ -41,8 +43,8 @@ import UsersTable from "./users-table";
 type DeleteTarget = { id: string; name: string };
 
 /**
- * USR-01 `/usuarios`: the institution's users. Create, edit and import entry points belong to
- * USR-02…04 and are added with those routes.
+ * USR-01 `/usuarios`: the institution's users. Links to USR-02 (create) and USR-03 (edit); the
+ * import entry point belongs to USR-04.
  */
 export default function UsersPage({ search }: { search: UserSearch }) {
   return (
@@ -56,6 +58,7 @@ function UsersContent({ search }: { search: UserSearch }) {
   const navigate = useNavigate({ from: "/usuarios/" });
   const canUpdate = useCan("user:update").can;
   const canDelete = useCan("user:delete").can;
+  const canCreate = useCan("user:create").can;
   const permissions = useMemo(() => ({ canUpdate, canDelete }), [canUpdate, canDelete]);
 
   const listQuery = useQuery({
@@ -91,12 +94,20 @@ function UsersContent({ search }: { search: UserSearch }) {
   const stats = statsQuery.data;
   const total = listQuery.data?.total;
   const tile = (count: number | undefined) => statTileDisplay(count, statsQuery.isError);
+  const createAction = newUserAction(search.role);
+  const createLink = (label: string) => (
+    <Link to="/usuarios/nuevo" search={{ role: createAction.role }} className={buttonVariants()}>
+      <Plus data-icon="inline-start" />
+      {label}
+    </Link>
+  );
 
   return (
     <>
       <ListPageShell
         title={userListTitle(search.role)}
         description={userListDescription(search.role, institutionQuery.data?.name)}
+        actions={canCreate ? createLink(createAction.label) : undefined}
         banner={<ActiveInstitutionBanner />}
         stats={
           <StatGrid>
@@ -116,6 +127,7 @@ function UsersContent({ search }: { search: UserSearch }) {
             icon={<Users />}
             title="No hay usuarios registrados"
             description="No hay usuarios en tu institución. Crea el primer usuario."
+            action={canCreate ? createLink("Crear Primer Usuario") : undefined}
           />
         ) : (
           <UsersTable
