@@ -169,8 +169,11 @@ await sigeSuite("timeBlock router", (fx) => {
     const t = await fx.provisionTenant("OtroAnio", ["owner"]);
     const ctx = await fx.contextFor(t.people.owner!, t);
     const campus = await seedCampus(fx, t);
+    // Sampled around the call so a New Year's Eve run still has exactly one right answer set.
+    const yearBefore = new Date().getFullYear();
     const fallback = await call(timeBlockRouter.create, blockInput(campus.id), { context: ctx });
-    expect(fallback.academicYear).toBe(String(new Date().getFullYear()));
+    const yearAfter = new Date().getFullYear();
+    expect([...new Set([yearBefore, yearAfter])].map(String)).toContain(fallback.academicYear);
     await setYear(fx, t, "2031");
     const created = await call(
       timeBlockRouter.create,

@@ -54,13 +54,8 @@ const seedClassroom = async (
   return row!;
 };
 
-/** A class in `classroomId`: course, subject, offering and one slot. */
-const seedSlot = async (
-  fx: SigeTestFixture,
-  tenant: TestTenant,
-  campusId: string,
-  classroomId: string,
-) => {
+/** Course, subject and offering to hang a slot on. */
+const seedOffering = async (fx: SigeTestFixture, tenant: TestTenant, campusId: string) => {
   const [course] = await fx.db
     .insert(schema.course)
     .values({
@@ -79,16 +74,33 @@ const seedSlot = async (
     .insert(schema.offering)
     .values({ organizationId: tenant.orgId, courseId: course!.id, subjectId: subject!.id })
     .returning();
-  await fx.db.insert(schema.scheduleSlot).values({
-    organizationId: tenant.orgId,
-    offeringId: offering!.id,
-    courseId: course!.id,
-    classroomId,
-    dayOfWeek: 0,
-    startTime: "07:00",
-    endTime: "08:00",
-    academicYear: "2026",
-  });
+  return { courseId: course!.id, offeringId: offering!.id };
+};
+
+const slotValues = (
+  tenant: TestTenant,
+  classroomId: string,
+  offering: { courseId: string; offeringId: string },
+) => ({
+  organizationId: tenant.orgId,
+  offeringId: offering.offeringId,
+  courseId: offering.courseId,
+  classroomId,
+  dayOfWeek: 0,
+  startTime: "07:00",
+  endTime: "08:00",
+  academicYear: "2026",
+});
+
+/** A class in `classroomId`: course, subject, offering and one slot. */
+const seedSlot = async (
+  fx: SigeTestFixture,
+  tenant: TestTenant,
+  campusId: string,
+  classroomId: string,
+) => {
+  const offering = await seedOffering(fx, tenant, campusId);
+  await fx.db.insert(schema.scheduleSlot).values(slotValues(tenant, classroomId, offering));
 };
 
 const classroomInput = (campusId: string, values: Record<string, unknown> = {}) => ({
@@ -433,6 +445,82 @@ await sigeSuite("classroom router", (fx) => {
       { context: ctx },
     );
     expect(byTypeFilter.rows.map((r) => r.name)).toEqual(["C"]);
+  });
+
+  test("list sorts by type in enum declaration order, not alphabetically", async () => {
+    const t = await fx.provisionTenant("TipoSalones", ["owner"]);
+    const ctx = await fx.contextFor(t.people.owner!, t);
+    const campus = await seedCampus(fx, t);
+    // Alphabetical would be aula, auditorio, cancha, laboratorio.
+    for (const [name, classroomType] of [
+      ["canch", "cancha"],
+      ["audit", "auditorio"],
+      ["labor", "laboratorio"],
+      ["aulaa", "aula"],
+    ] as const) {
+      await seedClassroom(fx, t, campus.id, { name, code: name, classroomType });
+    }
+    const asc = await call(
+      classroomRouter.list,
+      { sort: [{ id: "type", desc: false }] },
+      { context: ctx },
+    );
+    expect(asc.rows.map((r) => r.classroomType)).toEqual([
+      "aula",
+      "laboratorio",
+      "auditorio",
+      "cancha",
+    ]);
+    const desc = await call(
+      classroomRouter.list,
+      { sort: [{ id: "type", desc: true }] },
+      { context: ctx },
+    );
+    expect(desc.rows.map((r) => r.classroomType)).toEqual([
+      "cancha",
+      "auditorio",
+      "laboratorio",
+      "aula",
+    ]);
+  });
+
+  test("a campus change waits for a concurrent slot insert and is then refused", async () => {
+    const a = await seedCampus(fx, tenant);
+    const b = await seedCampus(fx, tenant);
+    const room = await seedClassroom(fx, tenant, a.id, { name: "Carrera", code: "RACE" });
+    const offering = await seedOffering(fx, tenant, a.id);
+    let slotInserted!: () => void;
+    const inserted = new Promise<void>((resolve) => (slotInserted = resolve));
+    let commitSlot!: () => void;
+    const gate = new Promise<void>((resolve) => (commitSlot = resolve));
+    // The slot's classroom FK takes a key-share lock on the room that the update's row lock queues
+    // behind; the update must then see the committed slot.
+    const slotTx = fx.db.transaction(async (tx) => {
+      await tx.insert(schema.scheduleSlot).values(slotValues(tenant, room.id, offering));
+      slotInserted();
+      await gate;
+    });
+    await inserted;
+    let settled = false;
+    const update = errorOf(
+      call(
+        classroomRouter.update,
+        { id: room.id, ...classroomInput(b.id, { name: "Carrera", code: "RACE" }) },
+        { context: owner },
+      ),
+    ).finally(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(settled).toBe(false);
+    commitSlot();
+    await slotTx;
+    const error = await update;
+    expect(error?.code).toBe("CONFLICT");
+    expect(error?.message).toBe("No se puede cambiar la sede de un salón con clases programadas.");
+    const [after] = await fx.db
+      .select({ campusId: schema.classroom.campusId })
+      .from(schema.classroom)
+      .where(eq(schema.classroom.id, room.id));
+    expect(after?.campusId).toBe(a.id);
   });
 
   test("list rejects columns outside the allowlists", async () => {
