@@ -8,6 +8,8 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
 
 import { createInstitution } from "./create-institution";
+import type { GenerateScheduleResult } from "./schedule-generation";
+import { DEMO_TEACHERS, NEW_DEMO_TEACHERS, seedSchedule } from "./seed-schedule";
 import { DEMO_ACADEMIC_YEAR, DEMO_PROFILE, seedInstitutionStructure } from "./seed-structure";
 
 /**
@@ -51,7 +53,13 @@ export type SeedLogin = {
   password: string;
 };
 
-export type SeedResult = { institutionId: string; logins: SeedLogin[]; rootCreated: boolean };
+export type SeedResult = {
+  institutionId: string;
+  logins: SeedLogin[];
+  rootCreated: boolean;
+  /** The schedule generation outcome; null when the institution already had slots. */
+  schedule: GenerateScheduleResult | null;
+};
 
 /** Demo root credentials and when they may be used (R1: no default superadmin outside dev/test). */
 export const DEMO_ROOT_EMAIL = "root@sige.local";
@@ -185,7 +193,8 @@ export async function seedSige(
 
   // 3. One login per remaining kind, found by document number inside the institution.
   const logins: SeedLogin[] = [];
-  for (const demo of [rector, ...others]) {
+  const teachers: DemoPerson[] = NEW_DEMO_TEACHERS.map((t) => ({ ...t, kind: "teacher" }));
+  for (const demo of [rector, ...others, ...teachers]) {
     let [row] = await database
       .select({ username: schema.user.username })
       .from(schema.person)
@@ -218,5 +227,16 @@ export async function seedSige(
     });
   }
 
-  return { institutionId: organizationId, logins, rootCreated };
+  // 4. Academic offering (P3): classrooms, blocks, 58 offerings with assignments, generated schedule.
+  const teacherRows = await database
+    .select({ id: schema.person.id, documentNumber: schema.person.documentNumber })
+    .from(schema.person)
+    .where(eq(schema.person.organizationId, organizationId));
+  const personByDocument = new Map(teacherRows.map((row) => [row.documentNumber, row.id]));
+  const teacherIds = new Map(
+    DEMO_TEACHERS.map((t) => [t.key, personByDocument.get(t.documentNumber) ?? ""] as const),
+  );
+  const { generation } = await seedSchedule(database, organizationId, teacherIds);
+
+  return { institutionId: organizationId, logins, rootCreated, schedule: generation };
 }
