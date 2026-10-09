@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import ExcelJS from "exceljs";
 import { describe, expect, test } from "bun:test";
+import { deflateRawSync } from "node:zlib";
 
 import {
   IMPORT_TEMPLATE_FILENAME,
@@ -64,6 +65,48 @@ function declaredZip(entries: { name: string; compressed: number; uncompressed: 
   view.setUint32(offset + 12, centralSize, true);
   view.setUint32(offset + 16, 0, true);
   return bytes;
+}
+
+/**
+ * A one-entry zip whose central directory *lies*: it declares `declaredUncompressed` bytes while
+ * the deflate stream really inflates to `actualUncompressed`. Everything the declared-size guard
+ * can see looks harmless.
+ */
+function forgedZip(opts: {
+  name: string;
+  declaredUncompressed: number;
+  actualUncompressed: number;
+}): Uint8Array {
+  const name = new TextEncoder().encode(opts.name);
+  const data = deflateRawSync(Buffer.alloc(opts.actualUncompressed));
+  const local = new Uint8Array(30 + name.length + data.length);
+  const lv = new DataView(local.buffer);
+  lv.setUint32(0, 0x04034b50, true);
+  lv.setUint16(8, 8, true);
+  lv.setUint32(18, data.length, true);
+  lv.setUint32(22, opts.declaredUncompressed, true);
+  lv.setUint16(26, name.length, true);
+  local.set(name, 30);
+  local.set(data, 30 + name.length);
+
+  const central = new Uint8Array(46 + name.length);
+  const cv = new DataView(central.buffer);
+  cv.setUint32(0, 0x02014b50, true);
+  cv.setUint16(10, 8, true);
+  cv.setUint32(20, data.length, true);
+  cv.setUint32(24, opts.declaredUncompressed, true);
+  cv.setUint16(28, name.length, true);
+  cv.setUint32(42, 0, true);
+  central.set(name, 46);
+
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, 1, true);
+  ev.setUint16(10, 1, true);
+  ev.setUint32(12, central.length, true);
+  ev.setUint32(16, local.length, true);
+  return Uint8Array.from([...local, ...central, ...eocd]);
 }
 
 describe("readImportWorkbook", () => {
@@ -160,6 +203,19 @@ describe("zip-bomb guard", () => {
     const error = await failure(readImportWorkbook(bomb));
     expect(error?.code).toBe("BAD_REQUEST");
     expect(error?.message).toBe("El archivo tiene una tasa de compresión sospechosa.");
+  });
+
+  test("rejects a central directory that under-declares a stream that really inflates past the cap", async () => {
+    const bytes = forgedZip({
+      name: "xl/worksheets/sheet1.xml",
+      declaredUncompressed: 1000,
+      actualUncompressed: 60 * 1024 * 1024,
+    });
+    // 60 MiB of zeros deflate to ~60 KB: well inside the byte cap, so only inflation can catch it.
+    expect(bytes.byteLength).toBeLessThan(MAX_IMPORT_BYTES);
+    const error = await failure(readImportWorkbook(bytes));
+    expect(error?.code).toBe("BAD_REQUEST");
+    expect(error?.message).toBe("El archivo descomprimido es demasiado grande.");
   });
 
   test("a normal workbook passes the guard", async () => {

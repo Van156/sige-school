@@ -2,14 +2,17 @@ import { cellText, IMPORT_FIELDS, resolveImportHeaders } from "@base-template/si
 import type { ImportField, ImportRawRow } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
 import ExcelJS from "exceljs";
+import { inflateRawSync } from "node:zlib";
 
 /**
  * Reads the `.xlsx` upload of USR-04 (sige/03 USR-R12) into the raw rows `validateImportRows`
  * expects. Everything that can be refused cheaply is refused before the workbook is parsed:
  * extension, byte size, and a zip-bomb guard that reads only the zip central directory (declared
  * entry count, declared uncompressed sizes and compression ratios), so a hostile archive never
- * reaches the XML parser. The declared sizes are checked again by the zip reader while
- * inflating, so a central directory that lies fails the parse instead of bypassing the cap.
+ * reaches the XML parser. Declared sizes are only claims, so `assertBoundedInflation` then
+ * inflates every entry itself under a hard byte budget (discarding the output) before the
+ * workbook reader ever sees the archive: a central directory that lies cannot make the server
+ * inflate more than `MAX_UNCOMPRESSED_BYTES`.
  */
 
 export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
@@ -44,8 +47,18 @@ const EOCD_MIN_SIZE = 22;
 const MAX_COMMENT_SIZE = 0xff_ff;
 const ZIP64_MARKER = 0xff_ff;
 
-/** Throws when the zip central directory declares an unreasonable archive. No inflating happens. */
-function assertSafeArchive(bytes: Uint8Array): void {
+const LOCAL_SIGNATURE = 0x04_03_4b_50;
+const LOCAL_HEADER_SIZE = 30;
+const METHOD_STORED = 0;
+const METHOD_DEFLATE = 8;
+
+type ArchiveEntry = { method: number; compressed: number; localOffset: number };
+
+/**
+ * Throws when the zip central directory declares an unreasonable archive. No inflating happens;
+ * returns the entries so the actual inflation can be bounded afterwards.
+ */
+function assertSafeArchive(bytes: Uint8Array): ArchiveEntry[] {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const lowest = Math.max(0, bytes.length - EOCD_MIN_SIZE - MAX_COMMENT_SIZE);
   let eocd = -1;
@@ -66,6 +79,7 @@ function assertSafeArchive(bytes: Uint8Array): void {
 
   let offset = directoryOffset;
   let total = 0;
+  const archiveEntries: ArchiveEntry[] = [];
   for (let index = 0; index < entries; index += 1) {
     if (offset + 46 > bytes.length || view.getUint32(offset, true) !== CENTRAL_SIGNATURE) {
       throw badRequest(NOT_EXCEL_MESSAGE);
@@ -87,13 +101,68 @@ function assertSafeArchive(bytes: Uint8Array): void {
     ) {
       throw badRequest(RATIO_MESSAGE);
     }
+    archiveEntries.push({
+      method: view.getUint16(offset + 10, true),
+      compressed,
+      localOffset: view.getUint32(offset + 42, true),
+    });
     offset += length;
+  }
+  return archiveEntries;
+}
+
+/**
+ * Inflates every entry under a shared byte budget and throws once the bytes actually produced
+ * pass `MAX_UNCOMPRESSED_BYTES`, whatever the central directory declared. Output is discarded:
+ * this only proves the archive is safe to hand to the workbook reader.
+ */
+function assertBoundedInflation(bytes: Uint8Array, entries: ArchiveEntry[]): void {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let remaining = MAX_UNCOMPRESSED_BYTES;
+  for (const entry of entries) {
+    const header = entry.localOffset;
+    if (
+      header + LOCAL_HEADER_SIZE > bytes.length ||
+      view.getUint32(header, true) !== LOCAL_SIGNATURE
+    ) {
+      throw badRequest(NOT_EXCEL_MESSAGE);
+    }
+    const start =
+      header +
+      LOCAL_HEADER_SIZE +
+      view.getUint16(header + 26, true) +
+      view.getUint16(header + 28, true);
+    const end = start + entry.compressed;
+    if (end > bytes.length) {
+      throw badRequest(NOT_EXCEL_MESSAGE);
+    }
+    if (entry.method === METHOD_STORED) {
+      remaining -= entry.compressed;
+    } else if (entry.method === METHOD_DEFLATE) {
+      try {
+        // `maxOutputLength` aborts the stream as soon as the budget is exceeded.
+        // `Math.max(.., 1)`: a zero limit would be rejected as an invalid option.
+        remaining -= inflateRawSync(bytes.subarray(start, end), {
+          maxOutputLength: Math.max(remaining, 1),
+        }).length;
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        throw badRequest(
+          code === "ERR_BUFFER_TOO_LARGE" ? UNCOMPRESSED_MESSAGE : NOT_EXCEL_MESSAGE,
+        );
+      }
+    } else {
+      throw badRequest(NOT_EXCEL_MESSAGE);
+    }
+    if (remaining < 0) {
+      throw badRequest(UNCOMPRESSED_MESSAGE);
+    }
   }
 }
 
 /** Parses the bytes of an `.xlsx` into the raw rows of its first worksheet (header = row 1). */
 export async function readImportWorkbook(bytes: Uint8Array): Promise<{ rows: ImportRawRow[] }> {
-  assertSafeArchive(bytes);
+  assertBoundedInflation(bytes, assertSafeArchive(bytes));
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(bytes as unknown as ArrayBuffer);
