@@ -75,4 +75,7 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "shared/components/form/password-input.tsx",
   "features/scheduling/components/classroom-form.tsx",
   "features/scheduling/components/classrooms-table.tsx",
+  "features/scheduling/components/time-block-form.tsx",
+  "features/scheduling/components/time-blocks-table.tsx",
+  "features/scheduling/components/typical-blocks-help.tsx",
 ];

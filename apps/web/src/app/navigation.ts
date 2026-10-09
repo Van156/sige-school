@@ -3,6 +3,7 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
+  Clock,
   DoorOpen,
   GraduationCap,
   LayoutDashboard,
@@ -141,6 +142,12 @@ export const navGroups: NavGroup<NavContext>[] = [
     label: "Horarios",
     visible: hasOrganization,
     items: [{ label: "Salones", to: "/salones", icon: DoorOpen, visible: can("classroom:read") }],
+  },
+  {
+    label: "Bloques de Tiempo",
+    to: "/bloques",
+    icon: Clock,
+    visible: can("time_block:read"),
   },
   {
     id: "users",
