@@ -146,7 +146,7 @@ export type GuardianLink = {
   phone: string | null;
 };
 
-async function guardianLinks(
+export async function guardianLinks(
   db: Reader,
   organizationId: string,
   studentId: string,

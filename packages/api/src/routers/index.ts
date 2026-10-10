@@ -11,6 +11,7 @@ import { institutionAdminRouter } from "./sige/institution-admin";
 import { courseRouter } from "./sige/course";
 import { criterionRouter } from "./sige/criterion";
 import { enrollmentRouter } from "./sige/enrollment";
+import { guardianRouter } from "./sige/guardian";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
 import { offeringRouter } from "./sige/offering";
@@ -64,6 +65,8 @@ export const appRouter = {
   enrollment: enrollmentRouter,
   // STU-01/02/03 students (sige/05 §3.1, P4).
   student: studentRouter,
+  // STU-04 guardian links (sige/05 §3.1, D8).
+  guardian: guardianRouter,
   criterion: criterionRouter,
   period: periodRouter,
   // Module 03 users (sige/03 §3.3): read side in P2 T3.
