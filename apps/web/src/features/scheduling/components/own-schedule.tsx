@@ -11,8 +11,8 @@ import ScheduleCard from "./schedule-card";
 
 /**
  * SCH-11 for a teacher (`view: "teacher"`, their own `activo`/`temporal` classes, course badge on
- * each cell) or a student (their course). A student whose course the server cannot resolve
- * (`NOT_FOUND`, until module 05 links students to courses) sees "Sin curso asignado".
+ * each cell) or a student (their course: `courseId` is omitted, the server resolves it). A student
+ * without a course or academic profile gets `NOT_FOUND` and sees "Sin curso asignado".
  */
 export default function OwnSchedule({ audience }: { audience: "teacher" | "student" }) {
   const scheduleQuery = useQuery({
