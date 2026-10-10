@@ -10,3 +10,6 @@ export * from "./student-import";
 export * from "./enrollment";
 export * from "./rules";
 export * from "./grading";
+export * from "./attendance";
+export * from "./observations";
+export * from "./csv";

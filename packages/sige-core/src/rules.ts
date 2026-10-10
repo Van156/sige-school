@@ -1,5 +1,6 @@
 /**
- * Grading constants and exact decimal arithmetic (foundation §5.4/§5.5 R2.17, sige/06 §3).
+ * Academic constants and exact decimal arithmetic (foundation §5.4/§5.5 R2.17, sige/06 §3,
+ * sige/07 §3, sige/08 §3).
  *
  * Scores travel as integer hundredths ("cents": 4.25 -> 425) and criterion weights as hundredths
  * of a percent (20.00 -> 2000). Values are parsed from their decimal text, never through float
@@ -29,6 +30,25 @@ export const SIGE_RULES = {
   GRADE_IMPORT_MAX_ROWS: 2000,
   /** Attendance rows or finals before an attendance, group or achievement rule fires. */
   MIN_SAMPLE_ROWS: 5,
+  /** Absence-rate bands (07 §3), exclusive: `> 20` "Crítico", `> 10` "Atención". */
+  ABSENCE_CRITICAL: 20,
+  ABSENCE_ATTENTION: 10,
+  /** Attendance below this percent is low attendance (07 §3, used by the metrics module). */
+  LOW_ATTENDANCE: 80,
+  /** `attendance_record.observation` length (ATT-R9). */
+  ATTENDANCE_OBSERVATION_MAX: 300,
+  /** `attendance.save` records per request (07 §4.1). */
+  ATTENDANCE_MAX_RECORDS: 200,
+  /** `attendance.report` inclusive range, in days (ATT-R6). */
+  ATTENDANCE_REPORT_MAX_DAYS: 366,
+  /** `observation.description` / `observation.commitments` lengths (OBS-R2). */
+  OBSERVATION_DESCRIPTION_MAX: 2000,
+  OBSERVATION_COMMITMENTS_MAX: 1000,
+  /** `observation.recent` limit for DASH-03 (08 §4.1). */
+  OBSERVATION_RECENT_MAX: 20,
+  OBSERVATION_RECENT_DEFAULT: 10,
+  /** `observation.studentHistory` timeline rows (08 §4.1). */
+  OBSERVATION_HISTORY_MAX: 500,
   /** The same thresholds in integer hundredths, for comparisons on rounded finals. */
   CENTS: {
     SCORE_MIN: 100,
