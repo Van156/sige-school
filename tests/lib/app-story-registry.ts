@@ -100,4 +100,10 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/students/components/incomplete-profiles-card.tsx",
   "features/students/components/student-form.tsx",
   "features/students/components/existing-user-banner.tsx",
+  "features/students/components/profile-details.tsx",
+  "features/students/components/student-identity-card.tsx",
+  "features/students/components/student-info-tab.tsx",
+  "features/students/components/student-schedule-tab.tsx",
+  "features/students/components/student-guardians-tab.tsx",
+  "features/students/components/student-profile-tabs.tsx",
 ];

@@ -18,4 +18,6 @@ export const STUDENT_PERMISSIONS = {
   editUser: "user:update",
   /** STU-03 complete "Cancelar" returns to USR-01 only for callers who can read it. */
   listUsers: "user:read",
+  /** STU-02 "Ver en pantalla completa" → the managers' course view of SCH-11. */
+  courseSchedule: "course:read",
 } as const satisfies Record<string, `${string}:${string}`>;

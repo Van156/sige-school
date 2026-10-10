@@ -6,6 +6,11 @@ export { default as StudentFormPage } from "./components/student-form-page";
 export { default as StudentProfilePage } from "./components/student-profile-page";
 export { default as StudentsPage } from "./components/students-page";
 export { studentSearchDefaults, studentSearchSchema, type StudentSearch } from "./lib/student-list";
+export {
+  studentProfileSearchDefaults,
+  studentProfileSearchSchema,
+  type StudentProfileSearch,
+} from "./lib/student-profile";
 export { default as GuardianCard, type GuardianCardGuardian } from "./components/guardian-card";
 export { default as NoStudentBlock } from "./components/no-student-block";
 export { default as StatusBadge } from "./components/status-badge";
