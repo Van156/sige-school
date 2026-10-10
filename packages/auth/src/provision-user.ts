@@ -17,7 +17,7 @@ import {
 import { and, eq, like } from "drizzle-orm";
 import { z } from "zod";
 
-import type { AuditLogger } from "./audit/types";
+import type { AuditEvent, AuditLogger } from "./audit/types";
 import { BUILT_IN_ORG_ROLES } from "./permissions/helpers";
 import type { BuiltInOrgRole } from "./permissions/helpers";
 
@@ -30,6 +30,12 @@ import type { BuiltInOrgRole } from "./permissions/helpers";
  * failure leaves no residue (stronger than the compensation the spec allows). The audit event goes
  * through the `AuditLogger` port after commit; if it fails the rows are compensated (deleted).
  * Caller rules (USR-R3: who may provision `owner`/`admin`) belong to the calling procedure.
+ *
+ * `provisionUserInTransaction` is the same path inside a caller's transaction (sige/05 STU-R2
+ * path A: login + student profile + enrollments commit together). Each attempt runs in a
+ * savepoint, so a lost username race retries without aborting the caller's work; the
+ * `user.created` event is returned for the caller to record, so a later rollback never leaves an
+ * event for a user that does not exist, and no compensation is needed.
  */
 
 /** Built-in org roles minus better-auth's plain `member` (R1.9: exactly one SIGE role per user). */
@@ -175,11 +181,61 @@ function uniqueViolationConstraint(error: unknown): string | null {
   return null;
 }
 
+/** A Drizzle transaction handle of the caller (`database.transaction(async (tx) => ...)`). */
+export type ProvisionTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Rows committed (standalone) or written in the caller's transaction, plus the pending event. */
+type ProvisionOutcome = Provisioned & { auditEvent: AuditEvent };
+
 export async function provisionUser(
   deps: ProvisionDeps,
   input: ProvisionInput,
 ): Promise<Provisioned> {
-  const { database, auth, auditLogger, faultInjection } = deps;
+  const { auditEvent, ...provisioned } = await provisionRows(deps, deps.database, input);
+  // Step 6: audit. A failed write compensates, in reverse order (person restricts user deletion).
+  try {
+    await deps.auditLogger.record(auditEvent);
+  } catch (error) {
+    const { userId, personId } = provisioned;
+    try {
+      await deps.database.transaction(async (tx) => {
+        await tx.delete(person).where(eq(person.id, personId));
+        await tx.delete(user).where(eq(user.id, userId)); // cascades account and member
+      });
+    } catch (compensationError) {
+      // The rows stay committed: log loudly with the ids to clean up, and still surface the
+      // original failure so the caller never sees a success.
+      console.error(
+        `[provision-user] compensation failed; orphan rows remain for user ${userId} / person ${personId}`,
+        compensationError,
+      );
+    }
+    throw error;
+  }
+  return provisioned;
+}
+
+/**
+ * Provisions inside the caller's transaction `tx`: nothing commits until the caller does, and
+ * the `user.created` event comes back in `auditEvent` for the caller to record (the audit port
+ * uses its own connection, so recording it here would outlive a later rollback).
+ */
+export async function provisionUserInTransaction(
+  deps: Pick<ProvisionDeps, "auth" | "faultInjection">,
+  tx: ProvisionTransaction,
+  input: ProvisionInput,
+): Promise<ProvisionOutcome> {
+  return provisionRows(deps, tx, input);
+}
+
+/** Validation, uniqueness checks and the row inserts; `runner` is the database or a caller tx. */
+async function provisionRows(
+  deps: Pick<ProvisionDeps, "auth" | "faultInjection">,
+  runner: Database | ProvisionTransaction,
+  input: ProvisionInput,
+): Promise<ProvisionOutcome> {
+  const { auth, faultInjection } = deps;
+  const database = runner;
 
   if (!(PROVISIONABLE_ROLES as readonly string[]).includes(input.role)) {
     throw new ProvisionUserError("VALIDATION", "Rol inválido.");
@@ -254,7 +310,8 @@ export async function provisionUser(
     const userId = crypto.randomUUID();
     const personId = crypto.randomUUID();
 
-    // Steps 3-5: one transaction for user, credential account, member and person.
+    // Steps 3-5: one transaction for user, credential account, member and person (a savepoint
+    // when `runner` is the caller's transaction).
     try {
       await database.transaction(async (tx) => {
         await tx.insert(user).values({
@@ -320,36 +377,17 @@ export async function provisionUser(
       throw error;
     }
 
-    // Step 6: audit. A failed write compensates, in reverse order (person restricts user deletion).
-    try {
-      await auditLogger.record({
-        scope: "organization",
-        organizationId: org.id,
-        actorUserId: input.actor === "system" ? userId : input.actor.userId,
-        impersonatorUserId: input.actor === "system" ? null : input.actor.impersonatorUserId,
-        action: "user.created",
-        targetType: "user",
-        targetId: userId,
-        metadata: { role: input.role, personId, hasRealEmail },
-      });
-    } catch (error) {
-      try {
-        await database.transaction(async (tx) => {
-          await tx.delete(person).where(eq(person.id, personId));
-          await tx.delete(user).where(eq(user.id, userId)); // cascades account and member
-        });
-      } catch (compensationError) {
-        // The rows stay committed: log loudly with the ids to clean up, and still surface the
-        // original failure so the caller never sees a success.
-        console.error(
-          `[provision-user] compensation failed; orphan rows remain for user ${userId} / person ${personId}`,
-          compensationError,
-        );
-      }
-      throw error;
-    }
-
-    return { userId, personId, username, hasRealEmail };
+    const auditEvent: AuditEvent = {
+      scope: "organization",
+      organizationId: org.id,
+      actorUserId: input.actor === "system" ? userId : input.actor.userId,
+      impersonatorUserId: input.actor === "system" ? null : input.actor.impersonatorUserId,
+      action: "user.created",
+      targetType: "user",
+      targetId: userId,
+      metadata: { role: input.role, personId, hasRealEmail },
+    };
+    return { userId, personId, username, hasRealEmail, auditEvent };
   }
 
   throw new ProvisionUserError("USERNAME_UNAVAILABLE", "No se pudo generar el nombre de usuario.");

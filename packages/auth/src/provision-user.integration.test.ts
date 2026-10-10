@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { eq } from "drizzle-orm";
 
 import { createAuth } from "./index";
-import { provisionUser, ProvisionUserError } from "./provision-user";
+import { provisionUser, provisionUserInTransaction, ProvisionUserError } from "./provision-user";
 import type { ProvisionInput } from "./provision-user";
 import {
   RecordingAuditLogger,
@@ -345,6 +345,71 @@ describe.skipIf(!reachable)("provisionUser integration", () => {
       },
     });
     expect(JSON.stringify(event)).not.toContain("1234560001");
+  });
+
+  test("in a caller transaction: rows commit with the caller and the audit event is returned, not recorded", async () => {
+    const result = await handle.db.transaction(async (tx) => {
+      const provisioned = await provisionUserInTransaction(deps(), tx, input());
+      // Visible inside the caller's transaction only.
+      const inside = await tx
+        .select()
+        .from(schema.person)
+        .where(eq(schema.person.id, provisioned.personId));
+      expect(inside).toHaveLength(1);
+      return provisioned;
+    });
+
+    expect(await counts()).toEqual([1, 1, 1, 1]);
+    expect(auditLogger.eventsFor("user.created")).toHaveLength(0);
+    expect(result.auditEvent).toMatchObject({
+      scope: "organization",
+      organizationId: orgId,
+      action: "user.created",
+      targetType: "user",
+      targetId: result.userId,
+      metadata: { role: "teacher", personId: result.personId, hasRealEmail: false },
+    });
+  });
+
+  test("in a caller transaction: a caller failure after provisioning leaves no login or person", async () => {
+    const failure = await handle.db
+      .transaction(async (tx) => {
+        await provisionUserInTransaction(deps(), tx, input());
+        throw new Error("caller failed after the login");
+      })
+      .catch((error: unknown) => error);
+
+    expect((failure as Error).message).toBe("caller failed after the login");
+    expect(await counts()).toEqual([0, 0, 0, 0]);
+    expect(auditLogger.events).toHaveLength(0);
+  });
+
+  test("in a caller transaction: a username collision retries on a savepoint and keeps the caller's work", async () => {
+    await handle.db.insert(schema.user).values({
+      id: "squatter",
+      name: "Squatter",
+      email: "jlopez0001@sin-correo.colegio-sol.invalid",
+      username: "someoneelse",
+    });
+    const result = await handle.db.transaction(async (tx) => {
+      await tx.insert(schema.user).values({ id: "caller-row", name: "C", email: "c@x.com" });
+      return provisionUserInTransaction(deps(), tx, input());
+    });
+
+    expect(result.username).toBe("jlopez0001_2");
+    expect(
+      await handle.db.select().from(schema.user).where(eq(schema.user.id, "caller-row")),
+    ).toHaveLength(1);
+    expect(await counts()).toEqual([3, 1, 1, 1]);
+  });
+
+  test("in a caller transaction: a taken document is a typed error", async () => {
+    await provisionUser(deps(), input());
+    const failure = await handle.db
+      .transaction((tx) => provisionUserInTransaction(deps(), tx, input()))
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ProvisionUserError);
+    expect((failure as ProvisionUserError).code).toBe("DOCUMENT_TAKEN");
   });
 
   test("records the acting user and impersonator", async () => {
