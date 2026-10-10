@@ -21,8 +21,8 @@ type Reader = Pick<Database, "select">;
 const ADMIN_ROLES = ["owner", "admin"];
 
 const campusCount = sql<number>`(select count(*)::int from ${schema.campus} where ${schema.campus.organizationId} = ${schema.organization.id})`;
-/** No student table exists yet (module 05): every institution has none. Replaced by a real count then. */
-const studentCount = sql<number>`0::int`;
+/** Active students of the institution (`status = activo`, as the course counts; D3). */
+const studentCount = sql<number>`(select count(*)::int from ${schema.student} where ${schema.student.organizationId} = ${schema.organization.id} and ${schema.student.status} = 'activo')`;
 const adminCount = sql<number>`(select count(*)::int from ${schema.member} where ${schema.member.organizationId} = ${schema.organization.id} and ${schema.member.role} in ${ADMIN_ROLES})`;
 
 const rowColumns = {
@@ -51,7 +51,6 @@ const LIST_COLUMNS = {
   municipality: schema.institutionProfile.municipality,
   academicYear: schema.institutionProfile.currentAcademicYear,
   campuses: campusCount as unknown as AnyColumn,
-  // Constant until students exist: sorting by it falls through to the tie-breakers.
   students: studentCount as unknown as AnyColumn,
   createdAt: schema.organization.createdAt,
 } as const satisfies ListColumns;
@@ -166,9 +165,10 @@ export async function findInstitutionDetail(
 
 /** KPI tiles of INS-01: totals over every institution. */
 export async function institutionStats(db: Reader) {
-  const [institutions, campuses, admins] = await Promise.all([
+  const [institutions, campuses, students, admins] = await Promise.all([
     db.select({ total: count() }).from(schema.organization),
     db.select({ total: count() }).from(schema.campus),
+    db.select({ total: count() }).from(schema.student).where(eq(schema.student.status, "activo")),
     db
       .select({ total: count() })
       .from(schema.member)
@@ -177,8 +177,7 @@ export async function institutionStats(db: Reader) {
   return {
     institutions: institutions[0]?.total ?? 0,
     campuses: campuses[0]?.total ?? 0,
-    // No student table until module 05.
-    students: 0,
+    students: students[0]?.total ?? 0,
     admins: admins[0]?.total ?? 0,
   };
 }

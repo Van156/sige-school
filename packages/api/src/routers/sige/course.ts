@@ -14,6 +14,7 @@ import { changedFields, recordAudit } from "../../sige/audit";
 import { assertCourseDirector, isActiveTeacher } from "../../sige/course-director";
 import { rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
+import { activeStudentsOfCourse } from "../../sige/student-queries";
 import { onMember } from "../../sige/user-queries";
 import { courseInput } from "../../sige/schemas/institution";
 
@@ -36,8 +37,8 @@ const optionsInput = z
 
 const notFound = () => new ORPCError("NOT_FOUND", { message: "El grado no existe." });
 
-/** No student table exists yet (module 05): every course has none. Replaced by a real count then. */
-const studentCount = sql<number>`0::int`;
+/** Active students of the course (sige/02 `CourseRow.studentCount`, D3). */
+const studentCount = activeStudentsOfCourse;
 const directorName = sql<
   string | null
 >`${schema.person.firstName} || ' ' || ${schema.person.lastName}`;
@@ -70,7 +71,6 @@ const LIST_COLUMNS = {
   academicYear: schema.course.academicYear,
   shift: schema.course.shift,
   maxStudents: schema.course.maxStudents,
-  // Constant until students exist: sorting by it falls through to the tie-breakers.
   studentCount: studentCount as unknown as AnyColumn,
   campusId: schema.course.campusId,
   levelId: schema.course.levelId,

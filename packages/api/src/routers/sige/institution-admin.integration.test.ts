@@ -321,6 +321,42 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
       { context },
     );
 
+  /** Students of `organizationId` on a fresh campus, one per status (only `activo` counts). */
+  const seedStudents = async (
+    organizationId: string,
+    statuses: ("activo" | "retirado" | "graduado")[],
+  ) => {
+    const [campus] = await handle.db
+      .insert(schema.campus)
+      .values({ organizationId, name: `Sede ${crypto.randomUUID()}`, jornada: "completa" })
+      .returning();
+    for (const status of statuses) {
+      const tag = crypto.randomUUID().slice(0, 8);
+      const userId = `u-stu-${tag}`;
+      await handle.db
+        .insert(schema.user)
+        .values({ id: userId, name: "E", email: `${userId}@x.test` });
+      const [person] = await handle.db
+        .insert(schema.person)
+        .values({
+          organizationId,
+          userId,
+          firstName: "Estudiante",
+          lastName: tag,
+          documentType: "TI",
+          documentNumber: `9${tag}`,
+        })
+        .returning();
+      await handle.db.insert(schema.student).values({
+        organizationId,
+        personId: person!.id,
+        campusId: campus!.id,
+        enrolledYear: "2026",
+        status,
+      });
+    }
+  };
+
   /** A database whose inserts into `table` fail, to inject a fault at one creation step. */
   function failingInsert(table: object): Context["db"] {
     return new Proxy(handle.db, {
@@ -448,9 +484,21 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
         name: "Sede A",
         jornada: "completa",
       });
-      await createFull(context, "Colegio Dos");
+      const two = await createFull(context, "Colegio Dos");
+      await seedStudents(two.institution.id, ["activo", "activo", "retirado", "graduado"]);
       const result = await call(institutionAdminRouter.list, {}, { context });
       expect(result.total).toBe(2);
+      expect(result.rows.find((r) => r.id === two.institution.id)?.counts).toEqual({
+        campuses: 1,
+        students: 2,
+        admins: 1,
+      });
+      const byStudents = await call(
+        institutionAdminRouter.list,
+        { sort: [{ id: "students", desc: false }] },
+        { context },
+      );
+      expect(byStudents.rows.map((r) => r.name)).toEqual(["Colegio Uno", "Colegio Dos"]);
       expect(result.rows.map((row) => row.name)).toEqual(["Colegio Dos", "Colegio Uno"]);
       const row = result.rows.find((r) => r.id === one.institution.id)!;
       expect(row).toMatchObject({
@@ -574,6 +622,11 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
         campuses: 1,
         students: 0,
         admins: 2,
+      });
+      await seedStudents(one.institution.id, ["activo", "retirado"]);
+      expect(await call(institutionAdminRouter.stats, undefined, { context })).toMatchObject({
+        campuses: 2,
+        students: 1,
       });
     });
 

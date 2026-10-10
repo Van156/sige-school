@@ -3,7 +3,7 @@ import { buildListQuery, buildListWhere } from "@base-template/db/lib/list-query
 import type { ListColumns } from "@base-template/db/lib/list-query";
 import { escapeLikePattern } from "@base-template/db/lib/list-values";
 import * as schema from "@base-template/db/schema";
-import { and, asc, count, eq, ilike, notExists, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, notExists, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 
 import { hasRoleToken } from "../lib/user-list-config";
@@ -28,6 +28,39 @@ const ON = {
   campus: and(sameOrg(schema.campus.organizationId), eq(schema.campus.id, schema.student.campusId)),
   course: and(sameOrg(schema.course.organizationId), eq(schema.course.id, schema.student.courseId)),
 };
+
+/**
+ * Active students (`status = activo`) whose current course is the `course` row of the outer query
+ * (sige/02 `CourseRow.studentCount`, D3). Correlated subquery: the
+ * outer query must have `course` in scope and must not join `student` itself.
+ */
+export const activeStudentsOfCourse = sql<number>`(select count(*)::int from ${schema.student} where ${and(
+  eq(schema.student.organizationId, schema.course.organizationId),
+  eq(schema.student.courseId, schema.course.id),
+  eq(schema.student.status, "activo"),
+)})`;
+
+/** Active students per course for `courseIds` (absent key = 0), for row lists already loaded. */
+export async function activeStudentCounts(
+  db: Reader,
+  organizationId: string,
+  courseIds: readonly string[],
+): Promise<Map<string, number>> {
+  const ids = [...new Set(courseIds)];
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ courseId: schema.student.courseId, value: count() })
+    .from(schema.student)
+    .where(
+      and(
+        eq(schema.student.organizationId, organizationId),
+        inArray(schema.student.courseId, ids),
+        eq(schema.student.status, "activo"),
+      ),
+    )
+    .groupBy(schema.student.courseId);
+  return new Map(rows.map((row) => [row.courseId!, row.value]));
+}
 
 export const studentRowColumns = {
   id: schema.student.id,

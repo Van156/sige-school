@@ -602,6 +602,25 @@ await sigeSuite("offering router", (fx) => {
       .where(eq(schema.teacherAssignment.teacherPersonId, me));
     expect(await call(offeringRouter.options, {}, { context: teacher })).toEqual([]);
   });
+
+  test("options: studentCount is the number of active students of the offering's course", async () => {
+    const t = await fx.provisionTenant("OpcionesConteo", ["owner"]);
+    const manager = await fx.contextFor(t.people.owner!, t);
+    const campus = await seedCampus(fx, t);
+    const course = await seedCourse(fx, t, campus.id, { name: "Octavo" });
+    const empty = await seedCourse(fx, t, campus.id, { name: "Noveno" });
+    const subject = await seedSubject(fx, t);
+    await seedOffering(fx, t, course.id, subject.id);
+    await seedOffering(fx, t, empty.id, subject.id);
+    await seedStudent(fx, t, campus.id, { courseId: course.id });
+    await seedStudent(fx, t, campus.id, { courseId: course.id });
+    await seedStudent(fx, t, campus.id, { courseId: course.id, status: "retirado" });
+    const rows = await call(offeringRouter.options, {}, { context: manager });
+    expect(rows.map((row) => [row.courseName, row.studentCount])).toEqual([
+      ["Noveno", 0],
+      ["Octavo", 2],
+    ]);
+  });
 });
 
 await testPermissionMatrix({

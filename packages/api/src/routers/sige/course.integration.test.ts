@@ -13,6 +13,7 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
+import { seedStudent } from "../../sige/testing/scheduling-seed";
 import { courseRouter } from "./course";
 
 /** `course.*` (sige/02 INS-11/12, §3.3, §4): server list, CRUD, level-in-campus, audit. */
@@ -564,6 +565,34 @@ await sigeSuite("course router", (fx) => {
     expect(byDirector.total).toBe(3);
     const withDirector = byDirector.rows.find((r) => r.name === "C");
     expect(withDirector?.directorName).toContain("teacher");
+  });
+
+  test("studentCount counts the course's active students and sorts the list", async () => {
+    const t = await fx.provisionTenant("CursosConteo", ["owner"]);
+    const ctx = await fx.contextFor(t.people.owner!, t);
+    const campus = await seedCampus(fx, t);
+    const full = await seedCourse(fx, t, campus.id, { name: "Lleno" });
+    const empty = await seedCourse(fx, t, campus.id, { name: "Vacio" });
+    const other = await seedCourse(fx, t, campus.id, { name: "Otro" });
+    await seedStudent(fx, t, campus.id, { courseId: full.id });
+    await seedStudent(fx, t, campus.id, { courseId: full.id });
+    await seedStudent(fx, t, campus.id, { courseId: full.id, status: "retirado" });
+    await seedStudent(fx, t, campus.id, { courseId: full.id, status: "graduado" });
+    await seedStudent(fx, t, campus.id, { courseId: other.id });
+    await seedStudent(fx, t, campus.id, { courseId: null });
+
+    const list = await call(
+      courseRouter.list,
+      { sort: [{ id: "studentCount", desc: true }] },
+      { context: ctx },
+    );
+    expect(list.rows.map((row) => [row.name, row.studentCount])).toEqual([
+      ["Lleno", 2],
+      ["Otro", 1],
+      ["Vacio", 0],
+    ]);
+    expect((await call(courseRouter.get, { id: full.id }, { context: ctx })).studentCount).toBe(2);
+    expect((await call(courseRouter.get, { id: empty.id }, { context: ctx })).studentCount).toBe(0);
   });
 
   test("list rejects columns outside the allowlists", async () => {

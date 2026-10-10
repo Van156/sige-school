@@ -20,6 +20,7 @@ import {
   rethrowDbError,
 } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
+import { activeStudentCounts } from "../../sige/student-queries";
 import { offeringCreateBulkInput, offeringUpdateInput } from "../../sige/schemas/scheduling";
 
 /**
@@ -405,7 +406,7 @@ export const offeringRouter = {
   /**
    * Selector for GRD-01/03/04, ATT-01, MET and dashboards (SCH-R2): any of `offering:read`,
    * `grade:read`, `attendance:read`, always filtered by `ScopePolicy.offeringWhere()`.
-   * `studentCount` is 0 until enrollments exist (P4).
+   * `studentCount` = active students of the offering's course (sige/04 §3.1).
    */
   options: sigeProcedure
     .use(
@@ -424,6 +425,11 @@ export const offeringRouter = {
           ),
         )
         .orderBy(asc(schema.course.name), asc(schema.subject.name), asc(schema.offering.id));
+      const counts = await activeStudentCounts(
+        context.db,
+        context.org.id,
+        rows.map((row) => row.courseId),
+      );
       return rows.map((row) => ({
         offeringId: row.id,
         courseId: row.courseId,
@@ -434,7 +440,7 @@ export const offeringRouter = {
         teacherPersonId: row.teacherPersonId,
         teacherName: row.teacherName,
         hoursPerWeek: row.hoursPerWeek,
-        studentCount: 0,
+        studentCount: counts.get(row.courseId) ?? 0,
       }));
     }),
 };
