@@ -48,7 +48,8 @@ const meta = {
         { value: "c2", label: "Sede Norte" },
       ],
     },
-    canManage: true,
+    canEdit: true,
+    canDelete: true,
     onDelete: () => {},
     list: {
       rows: ROOMS,
@@ -67,8 +68,11 @@ type Story = StoryObj<typeof meta>;
 
 export const Manager: Story = {};
 
-/** Roles without `classroom:create`: no row actions. */
-export const ReadOnly: Story = { args: { canManage: false } };
+/** Roles without `classroom:update` and `classroom:delete`: no row actions. */
+export const ReadOnly: Story = { args: { canEdit: false, canDelete: false } };
+
+/** A custom role with `classroom:update` but not `classroom:delete`: edit only. */
+export const EditOnly: Story = { args: { canDelete: false } };
 
 export const Loading: Story = {
   args: { list: { ...meta.args.list, rows: undefined, total: undefined, isPending: true } },

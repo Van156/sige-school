@@ -144,12 +144,15 @@ export const navGroups: NavGroup<NavContext>[] = [
     id: "scheduling",
     label: "Horarios",
     visible: hasOrganization,
+    // Order of the prototype's "Matrícula y Programación" entries (sige/00 R1.25; "Matrículas"
+    // joins in P4). `/horarios` needs `schedule:read`: every view of SCH-11 is gated by it, so
+    // `student:read` alone (accepted by `schedule.get` for STU-02) would open a no-permission page.
     items: [
       {
-        label: "Horarios de Clases",
-        to: "/horarios",
-        icon: CalendarClock,
-        visible: (ctx) => holds(ctx, "schedule:read") || holds(ctx, "student:read"),
+        label: "Asignación de Profesores",
+        to: "/asignaciones",
+        icon: UserCheck,
+        visible: can("offering:read"),
       },
       {
         label: "Materias por Grado",
@@ -157,13 +160,13 @@ export const navGroups: NavGroup<NavContext>[] = [
         icon: BookMarked,
         visible: can("offering:read"),
       },
-      {
-        label: "Asignación de Profesores",
-        to: "/asignaciones",
-        icon: UserCheck,
-        visible: can("offering:read"),
-      },
       { label: "Salones", to: "/salones", icon: DoorOpen, visible: can("classroom:read") },
+      {
+        label: "Horarios de Clases",
+        to: "/horarios",
+        icon: CalendarClock,
+        visible: can("schedule:read"),
+      },
       {
         label: "Bloques de Tiempo",
         to: "/bloques",

@@ -17,6 +17,7 @@ const meta = {
     ),
   ],
   parameters: { layout: "centered" },
+  args: { canViewSchedule: true },
 } satisfies Meta<typeof GenerationResult>;
 
 export default meta;
@@ -57,6 +58,11 @@ export const NothingAssigned: Story = {
       result: { assigned: 0, conflicts: 0, courses: 1, skipped: [] },
     },
   },
+};
+
+/** A custom role with `schedule:generate` but not `schedule:read`: no "Ver Horario". */
+export const WithoutScheduleAccess: Story = {
+  args: { ...WithoutConflicts.args, canViewSchedule: false },
 };
 
 export const RequestFailed: Story = { args: { outcome: { kind: "failed" } } };

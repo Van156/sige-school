@@ -10,6 +10,7 @@ import LoadError from "@/shared/components/feedback/load-error";
 import NoPermission from "@/shared/components/feedback/no-permission";
 import PageHeader from "@/shared/components/layout/page-header";
 
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { scheduleAudience, scheduleDescription, type ScheduleSearch } from "../lib/schedule-view";
 import ManagerSchedule from "./manager-schedule";
 import OwnSchedule from "./own-schedule";
@@ -28,7 +29,7 @@ export default function SchedulesPage({ search }: { search: ScheduleSearch }) {
 function SchedulesContent({ search }: { search: ScheduleSearch }) {
   const navigate = useNavigate({ from: "/horarios/" });
   const { data: me, isPending, isError, refetch } = useSigeMe();
-  const canGenerate = useCan("schedule:generate").can;
+  const canGenerate = useCan(SCHEDULING_ACTIONS.schedules.generate).can;
 
   if (isPending) {
     return <Loader />;
@@ -58,7 +59,7 @@ function SchedulesContent({ search }: { search: ScheduleSearch }) {
       />
       <ActiveInstitutionBanner />
       {audience === "manager" ? (
-        <CanGate permission="schedule:read" message={NO_PERMISSION_MESSAGE}>
+        <CanGate permission={SCHEDULING_ACTIONS.schedules.view} message={NO_PERMISSION_MESSAGE}>
           <ManagerSchedule
             courseId={search.courseId}
             onCourseChange={(courseId) => void navigate({ search: { courseId }, replace: true })}

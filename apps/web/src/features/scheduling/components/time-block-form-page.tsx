@@ -19,6 +19,7 @@ import PageHeader from "@/shared/components/layout/page-header";
 import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import { useSaveAndReturn } from "../hooks/use-save-and-return";
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import {
   emptyTimeBlockForm,
   timeBlockToFormValues,
@@ -38,7 +39,11 @@ export default function TimeBlockFormPage({ blockId }: { blockId?: string }) {
   return (
     <ActiveInstitutionGuard pageName="sus bloques de tiempo">
       <CanGate
-        permission={blockId === undefined ? "time_block:create" : "time_block:update"}
+        permission={
+          blockId === undefined
+            ? SCHEDULING_ACTIONS.timeBlocks.create
+            : SCHEDULING_ACTIONS.timeBlocks.edit
+        }
         message="No tienes permiso para gestionar los bloques de tiempo de esta institución."
       >
         <PageHeader

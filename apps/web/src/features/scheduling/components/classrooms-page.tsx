@@ -7,11 +7,11 @@ import { useCallback, useMemo } from "react";
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
 
 import { orpc } from "@/app/orpc";
+import { useCan } from "@/features/access-control";
 import {
   ActiveInstitutionBanner,
   ActiveInstitutionGuard,
   ConfirmDelete,
-  useCanManage,
   useDeleteEntity,
 } from "@/features/institution";
 import EmptyState from "@/shared/components/feedback/empty-state";
@@ -19,6 +19,7 @@ import ListPageShell from "@/shared/components/layout/list-page-shell";
 import { StatGrid, StatTile } from "@/shared/components/layout/stat-tile";
 import { mergeTableSearch } from "@/shared/lib/data-table/search";
 
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import {
   classroomSearchConfig,
   hasNoClassrooms,
@@ -30,7 +31,10 @@ import ClassroomsTable from "./classrooms-table";
 
 const LOAD_ERROR_MESSAGE = "No se pudieron cargar los salones.";
 
-/** SCH-07 `/salones` (container): classrooms of the active institution, read-only without `classroom:create`. */
+/**
+ * SCH-07 `/salones` (container): classrooms of the active institution. "Nuevo Salón", edit and
+ * delete each show only with their own permission (`SCHEDULING_ACTIONS.classrooms`).
+ */
 export default function ClassroomsPage({ search }: { search: ClassroomSearch }) {
   return (
     <ActiveInstitutionGuard pageName="sus salones">
@@ -41,7 +45,9 @@ export default function ClassroomsPage({ search }: { search: ClassroomSearch }) 
 
 function ClassroomsContent({ search }: { search: ClassroomSearch }) {
   const navigate = useNavigate({ from: "/salones/" });
-  const canManage = useCanManage("classroom");
+  const canCreate = useCan(SCHEDULING_ACTIONS.classrooms.create).can;
+  const canEdit = useCan(SCHEDULING_ACTIONS.classrooms.edit).can;
+  const canDelete = useCan(SCHEDULING_ACTIONS.classrooms.delete).can;
 
   const classroomsQuery = useQuery({
     ...orpc.classroom.list.queryOptions({ input: toClassroomListInput(search) }),
@@ -91,7 +97,7 @@ function ClassroomsContent({ search }: { search: ClassroomSearch }) {
       <ListPageShell
         title="Gestión de Salones"
         description="Administración de salones y aulas por sede"
-        actions={canManage ? createLink("Nuevo Salón") : undefined}
+        actions={canCreate ? createLink("Nuevo Salón") : undefined}
         banner={<ActiveInstitutionBanner />}
         stats={
           <StatGrid columns={3}>
@@ -107,14 +113,15 @@ function ClassroomsContent({ search }: { search: ClassroomSearch }) {
             icon={<DoorOpen />}
             title="No hay salones registrados"
             description="Registre los salones y aulas de la institución"
-            action={canManage ? createLink("Crear Salón") : undefined}
+            action={canCreate ? createLink("Crear Salón") : undefined}
           />
         ) : (
           <ClassroomsTable
             search={search}
             onSearchChange={onSearchChange}
             filterOptions={filterOptions}
-            canManage={canManage}
+            canEdit={canEdit}
+            canDelete={canDelete}
             onDelete={deletion.requestDelete}
             list={{
               rows: classroomsQuery.data?.rows,

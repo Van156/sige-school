@@ -14,6 +14,7 @@ import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
 
 import { useSaveAndReturn } from "../hooks/use-save-and-return";
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { courseCheckItems, subjectCheckItems, teacherOptions } from "../lib/offering-choices";
 import { describeBulkResult, emptyBulkOfferingForm } from "../lib/offering-form";
 import OfferingBulkForm from "./offering-bulk-form";
@@ -25,7 +26,7 @@ export default function OfferingBulkFormPage() {
   return (
     <ActiveInstitutionGuard pageName="sus materias por grado">
       <CanGate
-        permission="offering:create"
+        permission={SCHEDULING_ACTIONS.offerings.assign}
         message="No tienes permiso para asignar materias a los grados de esta institución."
       >
         <PageHeader

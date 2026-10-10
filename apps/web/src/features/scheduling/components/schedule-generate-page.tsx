@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { orpc } from "@/app/orpc";
-import { CanGate } from "@/features/access-control";
+import { CanGate, useCan } from "@/features/access-control";
 import { ActiveInstitutionGuard } from "@/features/institution";
 import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
@@ -9,6 +9,7 @@ import PageHeader from "@/shared/components/layout/page-header";
 import ConfirmDialog from "@/shared/components/overlays/confirm-dialog";
 
 import { useGenerateSchedule } from "../hooks/use-generate-schedule";
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { generatableCourses } from "../lib/schedule-generation";
 import GenerationHelp from "./generation-help";
 import GenerationProgress from "./generation-progress";
@@ -22,7 +23,7 @@ export default function ScheduleGeneratePage() {
   return (
     <ActiveInstitutionGuard pageName="sus horarios">
       <CanGate
-        permission="schedule:generate"
+        permission={SCHEDULING_ACTIONS.schedules.generate}
         message="No tienes permiso para generar horarios en esta institución."
       >
         <PageHeader
@@ -80,6 +81,7 @@ function ScheduleGenerateContent({
 }) {
   const generation = useGenerateSchedule(courses);
   const { phase } = generation;
+  const canViewSchedule = useCan(SCHEDULING_ACTIONS.schedules.view).can;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -94,9 +96,12 @@ function ScheduleGenerateContent({
         {phase.name === "done" ? (
           <GenerationResult
             outcome={{ kind: "done", result: phase.result, viewCourseId: phase.viewCourseId }}
+            canViewSchedule={canViewSchedule}
           />
         ) : null}
-        {phase.name === "failed" ? <GenerationResult outcome={{ kind: "failed" }} /> : null}
+        {phase.name === "failed" ? (
+          <GenerationResult outcome={{ kind: "failed" }} canViewSchedule={canViewSchedule} />
+        ) : null}
       </div>
       <aside className="flex flex-col gap-4">
         <GenerationHelp />

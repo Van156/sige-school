@@ -15,15 +15,16 @@ import {
 
 /**
  * SCH-07 listing in a URL-driven server table. Presentational: the caller owns the
- * `classroom.list` query state; row actions are shown only when `canManage`, and `onDelete` just
- * asks the caller to confirm.
+ * `classroom.list` query state; edit and delete are shown per `canEdit`/`canDelete`, and
+ * `onDelete` just asks the caller to confirm.
  */
 export default function ClassroomsTable({
   search,
   onSearchChange,
   list,
   filterOptions,
-  canManage,
+  canEdit,
+  canDelete,
   onDelete,
 }: {
   search: ClassroomSearch;
@@ -38,12 +39,13 @@ export default function ClassroomsTable({
     onRetry: () => void;
   };
   filterOptions: ClassroomFilterOptions;
-  canManage: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   onDelete: (room: ClassroomRow) => void;
 }) {
   const columns = useMemo(
-    () => getClassroomColumns({ canManage, filterOptions, onDelete }),
-    [canManage, filterOptions, onDelete],
+    () => getClassroomColumns({ canEdit, canDelete, filterOptions, onDelete }),
+    [canEdit, canDelete, filterOptions, onDelete],
   );
   return (
     <SimpleListTable

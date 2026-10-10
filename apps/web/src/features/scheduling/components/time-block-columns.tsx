@@ -15,14 +15,17 @@ type TimeBlockColumn = DataTableColumnDef<TimeBlockRow, string>;
 
 /**
  * SCH-09 columns (sige/04 §5.1). Ids are the client list's ids. Breaks are highlighted in the
- * name and the type badge; the actions column exists only for callers who can manage.
+ * name and the type badge; the actions column exists only for callers who can edit or delete, and shows only the allowed
+ * actions.
  */
 export function getTimeBlockColumns({
-  canManage,
+  canEdit,
+  canDelete,
   campusOptions,
   onDelete,
 }: {
-  canManage: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   campusOptions: Option[];
   onDelete: (block: TimeBlockRow) => void;
 }): TimeBlockColumn[] {
@@ -88,28 +91,32 @@ export function getTimeBlockColumns({
     },
   ];
 
-  if (canManage) {
+  if (canEdit || canDelete) {
     columns.push({
       id: "actions",
       header: () => <span className="sr-only">Acciones</span>,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1 whitespace-nowrap">
-          <Link
-            to="/bloques/$id/editar"
-            params={{ id: row.original.id }}
-            aria-label={`Editar bloque ${row.original.name} ${row.original.shift}`}
-            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-          >
-            <Pencil />
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Eliminar bloque ${row.original.name} ${row.original.shift}`}
-            onClick={() => onDelete(row.original)}
-          >
-            <Trash2 />
-          </Button>
+          {canEdit ? (
+            <Link
+              to="/bloques/$id/editar"
+              params={{ id: row.original.id }}
+              aria-label={`Editar bloque ${row.original.name} ${row.original.shift}`}
+              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            >
+              <Pencil />
+            </Link>
+          ) : null}
+          {canDelete ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Eliminar bloque ${row.original.name} ${row.original.shift}`}
+              onClick={() => onDelete(row.original)}
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       ),
       meta: { label: "Acciones" },

@@ -21,6 +21,7 @@ import PageHeader from "@/shared/components/layout/page-header";
 import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import { useSaveAndReturn } from "../hooks/use-save-and-return";
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import {
   classroomToFormValues,
   emptyClassroomForm,
@@ -39,7 +40,11 @@ export default function ClassroomFormPage({ classroomId }: { classroomId?: strin
   return (
     <ActiveInstitutionGuard pageName="sus salones">
       <CanGate
-        permission={classroomId === undefined ? "classroom:create" : "classroom:update"}
+        permission={
+          classroomId === undefined
+            ? SCHEDULING_ACTIONS.classrooms.create
+            : SCHEDULING_ACTIONS.classrooms.edit
+        }
         message="No tienes permiso para gestionar los salones de esta institución."
       >
         <PageHeader

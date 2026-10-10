@@ -20,6 +20,7 @@ import ListPageShell from "@/shared/components/layout/list-page-shell";
 import { StatGrid, StatTile } from "@/shared/components/layout/stat-tile";
 import { mergeTableSearch } from "@/shared/lib/data-table/search";
 
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { courseFilterOptions, subjectFilterOptions } from "../lib/offering-choices";
 import {
   deleteQuestion,
@@ -49,9 +50,10 @@ export default function OfferingsPage({ search }: { search: OfferingSearch }) {
 function OfferingsContent({ search }: { search: OfferingSearch }) {
   const navigate = useNavigate({ from: "/materias-por-grado/" });
   const queryClient = useQueryClient();
-  const canCreate = useCan("offering:create").can;
-  const canEdit = useCan("offering:update").can;
-  const canDelete = useCan("offering:delete").can;
+  const canViewAssignments = useCan(SCHEDULING_ACTIONS.offerings.viewAssignments).can;
+  const canCreate = useCan(SCHEDULING_ACTIONS.offerings.assign).can;
+  const canEdit = useCan(SCHEDULING_ACTIONS.offerings.editHours).can;
+  const canDelete = useCan(SCHEDULING_ACTIONS.offerings.delete).can;
   const [editing, setEditing] = useState<OfferingRow | null>(null);
 
   const offeringsQuery = useQuery({
@@ -110,9 +112,11 @@ function OfferingsContent({ search }: { search: OfferingSearch }) {
         description="Asignar materias a grados"
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link to="/asignaciones" className={buttonVariants({ variant: "outline" })}>
-              Ver Asignaciones
-            </Link>
+            {canViewAssignments ? (
+              <Link to="/asignaciones" className={buttonVariants({ variant: "outline" })}>
+                Ver Asignaciones
+              </Link>
+            ) : null}
             {canCreate ? assignLink("Asignar Materias") : null}
           </div>
         }

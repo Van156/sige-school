@@ -13,10 +13,17 @@ export type GenerationOutcome =
 
 /**
  * SCH-12 card "Resultado" (sige/04 §5.4). A run that placed classes shows the success callout, the
- * counts, the skipped courses with their reasons and "Ver Horario"; `assigned = 0` and a failed
- * request show the error callout. Presentational.
+ * counts, the skipped courses with their reasons and "Ver Horario" (only with `canViewSchedule`, the
+ * SCH-11 grid's permission); `assigned = 0` and a failed request show the error callout.
+ * Presentational.
  */
-export default function GenerationResult({ outcome }: { outcome: GenerationOutcome }) {
+export default function GenerationResult({
+  outcome,
+  canViewSchedule,
+}: {
+  outcome: GenerationOutcome;
+  canViewSchedule: boolean;
+}) {
   return (
     <Card size="sm">
       <CardHeader>
@@ -30,7 +37,11 @@ export default function GenerationResult({ outcome }: { outcome: GenerationOutco
             <AlertDescription>{GENERATION_FAILURE_MESSAGE}</AlertDescription>
           </Alert>
         ) : (
-          <DoneBody result={outcome.result} viewCourseId={outcome.viewCourseId} />
+          <DoneBody
+            result={outcome.result}
+            viewCourseId={outcome.viewCourseId}
+            canViewSchedule={canViewSchedule}
+          />
         )}
       </CardContent>
     </Card>
@@ -40,9 +51,11 @@ export default function GenerationResult({ outcome }: { outcome: GenerationOutco
 function DoneBody({
   result,
   viewCourseId,
+  canViewSchedule,
 }: {
   result: ScheduleGenerationResult;
   viewCourseId: string | undefined;
+  canViewSchedule: boolean;
 }) {
   const { assigned, conflicts, courses, skipped } = result;
   return (
@@ -92,7 +105,7 @@ function DoneBody({
           </ul>
         </div>
       ) : null}
-      {!isEmptyResult(result) ? (
+      {canViewSchedule && !isEmptyResult(result) ? (
         <div>
           <Link
             to="/horarios"

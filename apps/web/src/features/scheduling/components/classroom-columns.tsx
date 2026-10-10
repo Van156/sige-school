@@ -26,14 +26,16 @@ export type ClassroomFilterOptions = { campuses: Option[] };
 /**
  * SCH-07 columns (sige/04 §5.1). Ids are the server's list ids. The campus filter is an id while
  * the campus column sorts by name, so the filter lives in a hidden filter-only column. The actions
- * column exists only for callers who can manage.
+ * column exists only for callers who can edit or delete, and shows only the allowed actions.
  */
 export function getClassroomColumns({
-  canManage,
+  canEdit,
+  canDelete,
   filterOptions,
   onDelete,
 }: {
-  canManage: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   filterOptions: ClassroomFilterOptions;
   onDelete: (room: ClassroomRow) => void;
 }): ClassroomColumn[] {
@@ -99,28 +101,32 @@ export function getClassroomColumns({
     },
   ];
 
-  if (canManage) {
+  if (canEdit || canDelete) {
     columns.push({
       id: "actions",
       header: () => <span className="sr-only">Acciones</span>,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1 whitespace-nowrap">
-          <Link
-            to="/salones/$id/editar"
-            params={{ id: row.original.id }}
-            aria-label={`Editar salón ${row.original.name}`}
-            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-          >
-            <Pencil />
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Eliminar salón ${row.original.name}`}
-            onClick={() => onDelete(row.original)}
-          >
-            <Trash2 />
-          </Button>
+          {canEdit ? (
+            <Link
+              to="/salones/$id/editar"
+              params={{ id: row.original.id }}
+              aria-label={`Editar salón ${row.original.name}`}
+              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            >
+              <Pencil />
+            </Link>
+          ) : null}
+          {canDelete ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Eliminar salón ${row.original.name}`}
+              onClick={() => onDelete(row.original)}
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
         </div>
       ),
       meta: { label: "Acciones" },

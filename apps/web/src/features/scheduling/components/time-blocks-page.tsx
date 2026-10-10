@@ -4,11 +4,11 @@ import { Link } from "@tanstack/react-router";
 import { Clock, Coffee, Layers, Plus } from "lucide-react";
 
 import { orpc } from "@/app/orpc";
+import { useCan } from "@/features/access-control";
 import {
   ActiveInstitutionBanner,
   ActiveInstitutionGuard,
   ConfirmDelete,
-  useCanManage,
   useDeleteEntity,
 } from "@/features/institution";
 import EmptyState from "@/shared/components/feedback/empty-state";
@@ -17,13 +17,17 @@ import LoadError from "@/shared/components/feedback/load-error";
 import ListPageShell from "@/shared/components/layout/list-page-shell";
 import { StatGrid, StatTile } from "@/shared/components/layout/stat-tile";
 
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { timeBlockStats } from "../lib/time-block-list";
 import type { TimeBlockRow } from "../types";
 import TimeBlocksTable from "./time-blocks-table";
 
 const LOAD_ERROR_MESSAGE = "No se pudieron cargar los bloques de tiempo.";
 
-/** SCH-09 `/bloques` (container): time blocks of the active institution, read-only without `time_block:create`. */
+/**
+ * SCH-09 `/bloques` (container): time blocks of the active institution. "Nuevo Bloque", edit and
+ * delete each show only with their own permission (`SCHEDULING_ACTIONS.timeBlocks`).
+ */
 export default function TimeBlocksPage() {
   return (
     <ActiveInstitutionGuard pageName="sus bloques de tiempo">
@@ -33,7 +37,9 @@ export default function TimeBlocksPage() {
 }
 
 function TimeBlocksContent() {
-  const canManage = useCanManage("time_block");
+  const canCreate = useCan(SCHEDULING_ACTIONS.timeBlocks.create).can;
+  const canEdit = useCan(SCHEDULING_ACTIONS.timeBlocks.edit).can;
+  const canDelete = useCan(SCHEDULING_ACTIONS.timeBlocks.delete).can;
   const blocksQuery = useQuery(orpc.timeBlock.list.queryOptions({ input: {} }));
   const deleteBlock = useMutation(orpc.timeBlock.delete.mutationOptions());
   const deletion = useDeleteEntity<TimeBlockRow>({
@@ -56,7 +62,7 @@ function TimeBlocksContent() {
       <ListPageShell
         title="Bloques de Tiempo"
         description="Definición de bloques horarios para generación de horarios"
-        actions={canManage ? createLink("Nuevo Bloque") : undefined}
+        actions={canCreate ? createLink("Nuevo Bloque") : undefined}
         banner={<ActiveInstitutionBanner />}
         stats={
           <StatGrid columns={3}>
@@ -76,12 +82,13 @@ function TimeBlocksContent() {
             icon={<Layers />}
             title="No hay bloques de tiempo definidos"
             description="Defina los bloques horarios para cada sede"
-            action={canManage ? createLink("Crear Bloque") : undefined}
+            action={canCreate ? createLink("Crear Bloque") : undefined}
           />
         ) : (
           <TimeBlocksTable
             blocks={blocks ?? []}
-            canManage={canManage}
+            canEdit={canEdit}
+            canDelete={canDelete}
             isPending={false}
             errorMessage={null}
             onRetry={() => void blocksQuery.refetch()}

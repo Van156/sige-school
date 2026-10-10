@@ -12,6 +12,7 @@ import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
 
 import { useRemoveSlot } from "../hooks/use-remove-slot";
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { REMOVE_SLOT_QUESTION, resolveCourseId } from "../lib/schedule-view";
 import ScheduleCard from "./schedule-card";
 
@@ -26,8 +27,8 @@ export default function ManagerSchedule({
   courseId: string | undefined;
   onCourseChange: (courseId: string) => void;
 }) {
-  const canRemove = useCan("schedule:update").can;
-  const canGenerate = useCan("schedule:generate").can;
+  const canRemove = useCan(SCHEDULING_ACTIONS.schedules.removeSlot).can;
+  const canGenerate = useCan(SCHEDULING_ACTIONS.schedules.generate).can;
   const removal = useRemoveSlot();
   const coursesQuery = useQuery(orpc.course.options.queryOptions({ input: {} }));
   const selected = coursesQuery.data ? resolveCourseId(coursesQuery.data, courseId) : undefined;

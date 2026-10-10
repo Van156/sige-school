@@ -17,19 +17,21 @@ import { getTimeBlockColumns } from "./time-block-columns";
 
 /**
  * SCH-09 listing in a client-side data table (the whole bounded list is in memory), filterable by
- * campus and jornada and kept in the server's campus, jornada and order. Presentational: row
- * actions are shown only when `canManage`; `onDelete` just asks the caller to confirm.
+ * campus and jornada and kept in the server's campus, jornada and order. Presentational: edit
+ * and delete are shown per `canEdit`/`canDelete`; `onDelete` just asks the caller to confirm.
  */
 export default function TimeBlocksTable({
   blocks,
-  canManage,
+  canEdit,
+  canDelete,
   isPending,
   errorMessage,
   onRetry,
   onDelete,
 }: {
   blocks: TimeBlockRow[];
-  canManage: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   isPending: boolean;
   errorMessage: string | null;
   onRetry: () => void;
@@ -40,11 +42,12 @@ export default function TimeBlocksTable({
   const columns = useMemo(
     () =>
       getTimeBlockColumns({
-        canManage,
+        canEdit,
+        canDelete,
         campusOptions: timeBlockCampusFilterOptions(blocks),
         onDelete,
       }),
-    [canManage, blocks, onDelete],
+    [canEdit, canDelete, blocks, onDelete],
   );
 
   return (

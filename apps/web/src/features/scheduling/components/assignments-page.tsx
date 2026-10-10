@@ -19,6 +19,7 @@ import ListPageShell from "@/shared/components/layout/list-page-shell";
 import { StatGrid, StatTile } from "@/shared/components/layout/stat-tile";
 import { mergeTableSearch } from "@/shared/lib/data-table/search";
 
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import {
   assignmentSearchConfig,
   DELETE_QUESTION,
@@ -47,7 +48,9 @@ export default function AssignmentsPage({ search }: { search: AssignmentSearch }
 
 function AssignmentsContent({ search }: { search: AssignmentSearch }) {
   const navigate = useNavigate({ from: "/asignaciones/" });
-  const canEdit = useCan("offering:update").can;
+  const canViewOfferings = useCan(SCHEDULING_ACTIONS.assignments.viewOfferings).can;
+  // Create, edit and delete share `offering:update` (sige/04 §3.2).
+  const canEdit = useCan(SCHEDULING_ACTIONS.assignments.edit).can;
 
   const assignmentsQuery = useQuery({
     ...orpc.assignment.list.queryOptions({ input: toAssignmentListInput(search) }),
@@ -105,9 +108,11 @@ function AssignmentsContent({ search }: { search: AssignmentSearch }) {
         description="Asignar profesores a materias por grado"
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link to="/materias-por-grado" className={buttonVariants({ variant: "outline" })}>
-              Ver Materias por Grado
-            </Link>
+            {canViewOfferings ? (
+              <Link to="/materias-por-grado" className={buttonVariants({ variant: "outline" })}>
+                Ver Materias por Grado
+              </Link>
+            ) : null}
             {canEdit ? createLink("Nueva Asignación") : null}
           </div>
         }

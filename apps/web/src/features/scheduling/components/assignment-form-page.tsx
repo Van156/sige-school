@@ -19,6 +19,7 @@ import PageHeader from "@/shared/components/layout/page-header";
 import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import { useSaveAndReturn } from "../hooks/use-save-and-return";
+import { SCHEDULING_ACTIONS } from "../lib/action-permissions";
 import { courseFilterOptions, subjectFilterOptions, teacherOptions } from "../lib/offering-choices";
 import AssignmentCreateForm from "./assignment-create-form";
 import AssignmentEditForm from "./assignment-edit-form";
@@ -34,7 +35,11 @@ export default function AssignmentFormPage({ assignmentId }: { assignmentId?: st
   return (
     <ActiveInstitutionGuard pageName="sus asignaciones de profesores">
       <CanGate
-        permission="offering:update"
+        permission={
+          assignmentId === undefined
+            ? SCHEDULING_ACTIONS.assignments.create
+            : SCHEDULING_ACTIONS.assignments.edit
+        }
         message="No tienes permiso para asignar profesores en esta institución."
       >
         <PageHeader

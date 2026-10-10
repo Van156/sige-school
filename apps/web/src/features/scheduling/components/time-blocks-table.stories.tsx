@@ -64,7 +64,8 @@ const meta = {
   decorators: [withRouter],
   args: {
     blocks: BLOCKS,
-    canManage: true,
+    canEdit: true,
+    canDelete: true,
     isPending: false,
     errorMessage: null,
     onRetry: () => {},
@@ -77,8 +78,11 @@ type Story = StoryObj<typeof meta>;
 
 export const Manager: Story = {};
 
-/** Roles without `time_block:create`: no row actions. */
-export const ReadOnly: Story = { args: { canManage: false } };
+/** Roles without `time_block:update` and `time_block:delete`: no row actions. */
+export const ReadOnly: Story = { args: { canEdit: false, canDelete: false } };
+
+/** A custom role with `time_block:update` but not `time_block:delete`: edit only. */
+export const EditOnly: Story = { args: { canDelete: false } };
 
 export const Loading: Story = { args: { blocks: [], isPending: true } };
 
