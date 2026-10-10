@@ -158,3 +158,44 @@ export const seedTimeBlock = async (
     .returning();
   return row!;
 };
+
+/** A login, person and `student` row; `courseId` must belong to `campusId` (composite FK). */
+export const seedStudent = async (
+  fx: SigeTestFixture,
+  tenant: TestTenant,
+  campusId: string,
+  values: {
+    firstName?: string;
+    lastName?: string;
+    documentNumber?: string;
+    courseId?: string | null;
+    status?: "activo" | "retirado" | "graduado";
+  } = {},
+) => {
+  const tag = crypto.randomUUID().slice(0, 8);
+  const userId = `u-stu-${tag}`;
+  await fx.db.insert(schema.user).values({ id: userId, name: "E", email: `${userId}@x.test` });
+  const [person] = await fx.db
+    .insert(schema.person)
+    .values({
+      organizationId: tenant.orgId,
+      userId,
+      firstName: values.firstName ?? "Estudiante",
+      lastName: values.lastName ?? tag,
+      documentType: "TI",
+      documentNumber: values.documentNumber ?? `9${Date.now() % 1_000_000}${tag.slice(0, 4)}`,
+    })
+    .returning();
+  const [row] = await fx.db
+    .insert(schema.student)
+    .values({
+      organizationId: tenant.orgId,
+      personId: person!.id,
+      campusId,
+      courseId: values.courseId ?? null,
+      enrolledYear: "2026",
+      status: values.status ?? "activo",
+    })
+    .returning();
+  return { ...row!, person: person! };
+};

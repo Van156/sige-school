@@ -13,7 +13,12 @@ import { createListInput } from "../../lib/list-input";
 import { offeringListConfig } from "../../lib/offering-list-config";
 import { changedFields, recordAudit } from "../../sige/audit";
 import { assertAssignableTeacher } from "../../sige/offering-rules";
-import { HAS_DEPENDENTS, OFFERING_HAS_SLOTS_MESSAGE, rethrowDbError } from "../../sige/pg-errors";
+import {
+  HAS_DEPENDENTS,
+  OFFERING_HAS_ENROLLMENTS_MESSAGE,
+  OFFERING_HAS_SLOTS_MESSAGE,
+  rethrowDbError,
+} from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import { offeringCreateBulkInput, offeringUpdateInput } from "../../sige/schemas/scheduling";
 
@@ -23,8 +28,8 @@ import { offeringCreateBulkInput, offeringUpdateInput } from "../../sige/schemas
  * offering predicate (a no-op for managers; a teacher sees only own `activo`/`temporal`
  * offerings). `createBulk` is one transaction (<= 500 pairs); existing pairs are skipped and an
  * optional teacher also writes the assignments. `update` edits the weekly hours only and does not
- * move slots (OQ-SCH-1). `delete` locks the offering row, refuses while slots exist and lets the
- * composite FK cascade remove the assignment (SCH-R6).
+ * move slots (OQ-SCH-1). `delete` locks the offering row, refuses while enrollments or slots exist
+ * (in that order) and lets the composite FK cascade remove the assignment (SCH-R6).
  *
  * No advisory lock: nothing here creates, moves or removes slots, so the time-block "in use"
  * checks cannot race these writes. A concurrent slot insert is arbitrated by the offering row
@@ -333,7 +338,8 @@ export const offeringRouter = {
     }),
 
   /**
-   * SCH-R6 / §4.2. Slots cascade from the offering, so "has slots" is checked under the offering
+   * SCH-R6 / §4.2. Enrollments are checked first ("tiene estudiantes matriculados", P3 D2), then
+   * slots. Slots cascade from the offering, so "has slots" is checked under the offering
    * row lock (a concurrent slot insert holds a key-share lock on it and is waited for). The
    * assignment row goes with the offering (cascade); later modules' dependents are `restrict`
    * FKs mapped by `rethrowDbError`.
@@ -347,6 +353,24 @@ export const offeringRouter = {
         snapshot = await context.db.transaction(async (tx) => {
           await lockOffering(tx, context.org.id, input.id);
           const row = await offeringRow(tx, context.org.id, input.id);
+          // §4.2 order: enrollments first, then slots. An enrollment insert holds a key-share lock
+          // on the offering, so this check is not raced past.
+          const [enrolled] = await tx
+            .select({ id: schema.enrollment.id })
+            .from(schema.enrollment)
+            .where(
+              and(
+                eq(schema.enrollment.organizationId, context.org.id),
+                eq(schema.enrollment.offeringId, input.id),
+              ),
+            )
+            .limit(1);
+          if (enrolled) {
+            throw new ORPCError(HAS_DEPENDENTS, {
+              status: 409,
+              message: OFFERING_HAS_ENROLLMENTS_MESSAGE,
+            });
+          }
           const [slot] = await tx
             .select({ id: schema.scheduleSlot.id })
             .from(schema.scheduleSlot)

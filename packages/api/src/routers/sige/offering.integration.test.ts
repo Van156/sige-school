@@ -18,6 +18,7 @@ import {
   seedCourse,
   seedOffering,
   seedSlot,
+  seedStudent,
   seedSubject,
 } from "../../sige/testing/scheduling-seed";
 import { offeringRouter } from "./offering";
@@ -316,6 +317,36 @@ await sigeSuite("offering router", (fx) => {
     expect(error?.code).toBe("HAS_DEPENDENTS");
     expect(error?.message).toBe("La materia del grado tiene clases programadas en el horario.");
     expect(audit.events).toHaveLength(0);
+    expect(
+      await fx.db.select().from(schema.offering).where(eq(schema.offering.id, offering.id)),
+    ).toHaveLength(1);
+  });
+
+  test("delete checks enrollments before slots (§4.2, P3 D2)", async () => {
+    const course = await seedCourse(fx, tenant, campusId);
+    const subject = await seedSubject(fx, tenant);
+    const offering = await seedOffering(fx, tenant, course.id, subject.id);
+    await seedSlot(fx, tenant, campusId, offering);
+    const student = await seedStudent(fx, tenant, campusId, { courseId: course.id });
+    await fx.db.insert(schema.enrollment).values({
+      organizationId: tenant.orgId,
+      studentId: student.id,
+      offeringId: offering.id,
+      academicYear: "2026",
+    });
+    audit.reset();
+    const error = await errorOf(
+      call(offeringRouter.delete, { id: offering.id }, { context: owner }),
+    );
+    expect(error?.code).toBe("HAS_DEPENDENTS");
+    expect(error?.message).toBe("La materia del grado tiene estudiantes matriculados.");
+    expect(audit.events).toHaveLength(0);
+    // Without slots the enrollment still blocks the delete.
+    await fx.db.delete(schema.scheduleSlot).where(eq(schema.scheduleSlot.offeringId, offering.id));
+    const again = await errorOf(
+      call(offeringRouter.delete, { id: offering.id }, { context: owner }),
+    );
+    expect(again?.message).toBe("La materia del grado tiene estudiantes matriculados.");
     expect(
       await fx.db.select().from(schema.offering).where(eq(schema.offering.id, offering.id)),
     ).toHaveLength(1);
