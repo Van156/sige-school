@@ -6,9 +6,10 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { requirePermission } from "../../index";
+import { criterionHasGrades } from "../../sige/academic-dependents";
 import { changedFields, recordAudit } from "../../sige/audit";
 import { noopGradeRecalculation } from "../../sige/grade-recalculation";
-import { rethrowDbError } from "../../sige/pg-errors";
+import { CRITERION_HAS_GRADES_MESSAGE, HAS_DEPENDENTS, rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import { criterionInput } from "../../sige/schemas/institution";
 
@@ -174,6 +175,14 @@ export const criterionRouter = {
       const port = context.gradeRecalculation ?? noopGradeRecalculation;
       try {
         await context.db.transaction(async (tx) => {
+          // §4.2: "El criterio tiene notas registradas." The `grade_record` FK restricts, so a
+          // row inserted after this check still refuses the delete with the same message.
+          if (await criterionHasGrades(tx, context.org.id, input.id)) {
+            throw new ORPCError(HAS_DEPENDENTS, {
+              status: 409,
+              message: CRITERION_HAS_GRADES_MESSAGE,
+            });
+          }
           const affected = await tx
             .delete(schema.gradeCriterion)
             .where(byId(context.org.id, input.id))

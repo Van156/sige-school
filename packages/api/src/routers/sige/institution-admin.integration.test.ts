@@ -330,6 +330,7 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
       .insert(schema.campus)
       .values({ organizationId, name: `Sede ${crypto.randomUUID()}`, jornada: "completa" })
       .returning();
+    const created: { studentId: string; personId: string }[] = [];
     for (const status of statuses) {
       const tag = crypto.randomUUID().slice(0, 8);
       const userId = `u-stu-${tag}`;
@@ -347,14 +348,72 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
           documentNumber: `9${tag}`,
         })
         .returning();
-      await handle.db.insert(schema.student).values({
-        organizationId,
-        personId: person!.id,
-        campusId: campus!.id,
-        enrolledYear: "2026",
-        status,
-      });
+      const [row] = await handle.db
+        .insert(schema.student)
+        .values({
+          organizationId,
+          personId: person!.id,
+          campusId: campus!.id,
+          enrolledYear: "2026",
+          status,
+        })
+        .returning();
+      created.push({ studentId: row!.id, personId: person!.id });
     }
+    return { campusId: campus!.id, students: created };
+  };
+
+  /**
+   * One `grade_record` of `organizationId`, with the whole chain it needs. A grade record always
+   * belongs to a student, so this institution has students too (§4.2 lists both).
+   */
+  const seedGradeRecordFor = async (organizationId: string) => {
+    const { campusId, students } = await seedStudents(organizationId, ["activo"]);
+    const tag = crypto.randomUUID().slice(0, 8);
+    const [course] = await handle.db
+      .insert(schema.course)
+      .values({
+        organizationId,
+        campusId,
+        name: `6-${tag.slice(0, 2)}`,
+        academicYear: "2026",
+        shift: "Mañana",
+      })
+      .returning();
+    const [subject] = await handle.db
+      .insert(schema.subject)
+      .values({ organizationId, name: `Materia ${tag}` })
+      .returning();
+    const [offering] = await handle.db
+      .insert(schema.offering)
+      .values({ organizationId, courseId: course!.id, subjectId: subject!.id })
+      .returning();
+    const [period] = await handle.db
+      .insert(schema.academicPeriod)
+      .values({
+        organizationId,
+        academicYear: "2026",
+        orderNum: 1,
+        name: "Primer Periodo",
+        shortName: tag.slice(0, 6),
+        startDate: "2026-01-15",
+        endDate: "2026-03-20",
+      })
+      .returning();
+    const [criterion] = await handle.db
+      .insert(schema.gradeCriterion)
+      .values({ organizationId, name: `Criterio ${tag}`, weight: "100.00", orderNum: 1 })
+      .returning();
+    await handle.db.insert(schema.gradeRecord).values({
+      organizationId,
+      studentId: students[0]!.studentId,
+      offeringId: offering!.id,
+      periodId: period!.id,
+      criterionId: criterion!.id,
+      score: "4.00",
+      createdBy: students[0]!.personId,
+      updatedBy: students[0]!.personId,
+    });
   };
 
   /** A database whose inserts into `table` fail, to inject a fault at one creation step. */
@@ -880,6 +939,29 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
       expect(storage.objects.size).toBe(1);
       expect(auditLogger.eventsFor("organization.deleted")).toHaveLength(0);
       // Another institution's students never block this one.
+      expect(
+        await call(institutionAdminRouter.delete, { id: two.institution.id }, { context }),
+      ).toEqual({ deleted: true });
+    });
+
+    test("refuses while the institution has grade records (§4.2) and keeps everything", async () => {
+      const { context } = await rootContext();
+      const one = await createFull(context, "Colegio Notas");
+      const two = await createFull(context, "Colegio Vacío");
+      await seedGradeRecordFor(one.institution.id);
+      auditLogger.reset();
+      const error = await call(
+        institutionAdminRouter.delete,
+        { id: one.institution.id },
+        { context },
+      ).catch((caught: unknown) => caught);
+      expect((error as ORPCError<string, unknown>).code).toBe("HAS_DEPENDENTS");
+      expect((error as ORPCError<string, unknown>).message).toBe(
+        "La institución tiene estudiantes o notas registradas.",
+      );
+      expect(await handle.db.select().from(schema.gradeRecord)).toHaveLength(1);
+      expect(auditLogger.eventsFor("organization.deleted")).toHaveLength(0);
+      // An institution with neither students nor grades still goes.
       expect(
         await call(institutionAdminRouter.delete, { id: two.institution.id }, { context }),
       ).toEqual({ deleted: true });

@@ -14,6 +14,13 @@ import {
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
 import {
+  seedAcademicPeriod,
+  seedAttendanceRecord,
+  seedCriterion,
+  seedGradeRecord,
+  seedObservation,
+} from "../../sige/testing/academic-seed";
+import {
   seedCampus,
   seedCourse,
   seedOffering,
@@ -961,6 +968,54 @@ await sigeSuite("student router", (fx) => {
     expect(error?.message).toBe("El estudiante tiene matrículas, notas o asistencia registradas.");
     expect(await studentRow(created.student.id)).toBeDefined();
   });
+
+  test.each(["grade", "attendance", "observation"] as const)(
+    "delete refuses a profile with %s records (STU-R7) and keeps everything",
+    async (kind) => {
+      const { course, offerings } = await courseWithOfferings(campusId, 1);
+      const created = await call(studentRouter.create, newStudentInput({ courseId: course.id }), {
+        context: owner,
+      });
+      // The admission enrolls the student, and STU-R7 lists enrollments first: drop them so the
+      // new dependent is the only reason left to refuse.
+      await fx.db
+        .delete(schema.enrollment)
+        .where(eq(schema.enrollment.studentId, created.student.id));
+      const author = tenant.people.teacher!.personId;
+      if (kind === "grade") {
+        const period = await seedAcademicPeriod(fx, tenant);
+        const criterion = await seedCriterion(fx, tenant);
+        await seedGradeRecord(fx, tenant, {
+          studentId: created.student.id,
+          offeringId: offerings[0]!.id,
+          periodId: period.id,
+          criterionId: criterion.id,
+          authorPersonId: author,
+        });
+      } else if (kind === "attendance") {
+        await seedAttendanceRecord(fx, tenant, {
+          studentId: created.student.id,
+          offeringId: offerings[0]!.id,
+          recordedBy: author,
+        });
+      } else {
+        await seedObservation(fx, tenant, {
+          studentId: created.student.id,
+          authorPersonId: author,
+        });
+      }
+      audit.reset();
+      const error = await errorOf(
+        call(studentRouter.delete, { id: created.student.id }, { context: owner }),
+      );
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe(
+        "El estudiante tiene matrículas, notas o asistencia registradas.",
+      );
+      expect(audit.events).toHaveLength(0);
+      expect(await studentRow(created.student.id)).toBeDefined();
+    },
+  );
 
   test("delete removes guardian links, the profile and the login; the guardian is untouched", async () => {
     const created = await call(studentRouter.create, newStudentInput(), { context: owner });

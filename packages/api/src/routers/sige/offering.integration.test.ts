@@ -14,6 +14,13 @@ import {
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
 import {
+  seedAcademicPeriod,
+  seedAttendanceRecord,
+  seedCriterion,
+  seedFinalGrade,
+  seedGradeRecord,
+} from "../../sige/testing/academic-seed";
+import {
   seedCampus,
   seedCourse,
   seedOffering,
@@ -350,6 +357,67 @@ await sigeSuite("offering router", (fx) => {
     expect(
       await fx.db.select().from(schema.offering).where(eq(schema.offering.id, offering.id)),
     ).toHaveLength(1);
+  });
+
+  test.each(["grade", "final", "attendance"] as const)(
+    "delete is refused while %s records exist (§4.2 third rule, P3 D2)",
+    async (kind) => {
+      const course = await seedCourse(fx, tenant, campusId);
+      const subject = await seedSubject(fx, tenant);
+      const offering = await seedOffering(fx, tenant, course.id, subject.id);
+      const student = await seedStudent(fx, tenant, campusId, { courseId: course.id });
+      const period = await seedAcademicPeriod(fx, tenant);
+      const common = { studentId: student.id, offeringId: offering.id, periodId: period.id };
+      if (kind === "grade") {
+        const criterion = await seedCriterion(fx, tenant);
+        await seedGradeRecord(fx, tenant, {
+          ...common,
+          criterionId: criterion.id,
+          authorPersonId: tenant.people.teacher!.personId,
+        });
+      } else if (kind === "final") {
+        await seedFinalGrade(fx, tenant, common);
+      } else {
+        await seedAttendanceRecord(fx, tenant, {
+          studentId: student.id,
+          offeringId: offering.id,
+          recordedBy: tenant.people.teacher!.personId,
+        });
+      }
+      audit.reset();
+      const error = await errorOf(
+        call(offeringRouter.delete, { id: offering.id }, { context: owner }),
+      );
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe("La materia del grado tiene notas o asistencia registradas.");
+      expect(audit.events).toHaveLength(0);
+      expect(
+        await fx.db.select().from(schema.offering).where(eq(schema.offering.id, offering.id)),
+      ).toHaveLength(1);
+    },
+  );
+
+  test("delete reports enrollments before academic records (§4.2 order)", async () => {
+    const course = await seedCourse(fx, tenant, campusId);
+    const subject = await seedSubject(fx, tenant);
+    const offering = await seedOffering(fx, tenant, course.id, subject.id);
+    const student = await seedStudent(fx, tenant, campusId, { courseId: course.id });
+    const period = await seedAcademicPeriod(fx, tenant);
+    await seedFinalGrade(fx, tenant, {
+      studentId: student.id,
+      offeringId: offering.id,
+      periodId: period.id,
+    });
+    await fx.db.insert(schema.enrollment).values({
+      organizationId: tenant.orgId,
+      studentId: student.id,
+      offeringId: offering.id,
+      academicYear: "2026",
+    });
+    const error = await errorOf(
+      call(offeringRouter.delete, { id: offering.id }, { context: owner }),
+    );
+    expect(error?.message).toBe("La materia del grado tiene estudiantes matriculados.");
   });
 
   test("delete waits for a concurrent slot insert and is then refused", async () => {

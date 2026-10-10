@@ -17,7 +17,13 @@ import type { TestTenant } from "../../sige/testing";
 import { createUser, deleteUser, resetUserPassword, setUserActive } from "../../sige/user-service";
 import type { UserActor } from "../../sige/user-service";
 import { racingDb } from "../../sige/testing";
-import { seedCampus } from "../../sige/testing/scheduling-seed";
+import { seedAcademicPeriod, seedPeriodLock } from "../../sige/testing/academic-seed";
+import {
+  seedCampus,
+  seedCourse,
+  seedOffering,
+  seedSubject,
+} from "../../sige/testing/scheduling-seed";
 import { userRouter } from "./user";
 
 /** `user.*` read side (sige/03 USR-01, §3.3): list, stats, get, options, previews, email check. */
@@ -1141,6 +1147,26 @@ await sigeSuite("user router (write side)", (fx) => {
       const error = await errorOf(remove(coordinator.personId));
       expect(error?.code).toBe("HAS_DEPENDENTS");
       expect(error?.message).toBe("El usuario tiene registros asociados. Desactívelo en su lugar.");
+    });
+
+    test("an authorship reference in a P5 table gets the role-neutral message (D9)", async () => {
+      const teacher = (await create(newUser("teacher"))).user;
+      const campus = await seedCampus(fx, tenant);
+      const course = await seedCourse(fx, tenant, campus.id);
+      const subject = await seedSubject(fx, tenant);
+      // No teacher on the offering: the only thing holding this person is `period_lock.locked_by`,
+      // so the role message ("tiene asignaturas o grupos a cargo") would be wrong (USR-R7, D9).
+      const offering = await seedOffering(fx, tenant, course.id, subject.id);
+      const period = await seedAcademicPeriod(fx, tenant);
+      await seedPeriodLock(fx, tenant, {
+        offeringId: offering.id,
+        periodId: period.id,
+        lockedBy: teacher.personId,
+      });
+      const error = await errorOf(remove(teacher.personId));
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe("El usuario tiene registros asociados. Desactívelo en su lugar.");
+      expect(await personRow(teacher.personId)).toBeDefined();
     });
 
     test("self, protected rows, unknown and foreign ids", async () => {

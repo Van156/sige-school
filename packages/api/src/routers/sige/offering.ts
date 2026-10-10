@@ -11,10 +11,12 @@ import { z } from "zod";
 import { requireAnyPermission, requirePermission } from "../../index";
 import { createListInput } from "../../lib/list-input";
 import { offeringListConfig } from "../../lib/offering-list-config";
+import { offeringHasAcademicRecords } from "../../sige/academic-dependents";
 import { changedFields, recordAudit } from "../../sige/audit";
 import { assertAssignableTeacher } from "../../sige/offering-rules";
 import {
   HAS_DEPENDENTS,
+  OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE,
   OFFERING_HAS_ENROLLMENTS_MESSAGE,
   OFFERING_HAS_SLOTS_MESSAGE,
   rethrowDbError,
@@ -340,8 +342,9 @@ export const offeringRouter = {
 
   /**
    * SCH-R6 / §4.2. Enrollments are checked first ("tiene estudiantes matriculados", P3 D2), then
-   * slots. Slots cascade from the offering, so "has slots" is checked under the offering
-   * row lock (a concurrent slot insert holds a key-share lock on it and is waited for). The
+   * slots, then grades, finals and attendance (the third rule, closed in P5). Slots cascade from
+   * the offering, so "has slots" is checked under the offering row lock (a concurrent slot insert
+   * holds a key-share lock on it and is waited for). The
    * assignment row goes with the offering (cascade); later modules' dependents are `restrict`
    * FKs mapped by `rethrowDbError`.
    */
@@ -386,6 +389,14 @@ export const offeringRouter = {
             throw new ORPCError(HAS_DEPENDENTS, {
               status: 409,
               message: OFFERING_HAS_SLOTS_MESSAGE,
+            });
+          }
+          // §4.2 third rule (P3 D2): grades, finals or attendance. The three restrict FKs carry
+          // the same message, so this check only fixes the order the spec lists.
+          if (await offeringHasAcademicRecords(tx, context.org.id, input.id)) {
+            throw new ORPCError(HAS_DEPENDENTS, {
+              status: 409,
+              message: OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE,
             });
           }
           await tx.delete(schema.offering).where(byId(context.org.id, input.id));

@@ -1,12 +1,13 @@
 import * as schema from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { platformProcedure } from "../../index";
 import { institutionListConfig } from "../../lib/institution-list-config";
 import { createListInput } from "../../lib/list-input";
 import type { Context } from "../../context";
+import { institutionHasAcademicRecords } from "../../sige/academic-dependents";
 import { changedFields } from "../../sige/audit";
 import { createInstitution, InstitutionCreationError } from "../../sige/create-institution";
 import {
@@ -57,18 +58,6 @@ const notFound = () => new ORPCError("NOT_FOUND", { message: INSTITUTION_NOT_FOU
 
 export const INSTITUTION_HAS_RECORDS_MESSAGE =
   "La institución tiene estudiantes o notas registradas.";
-
-type Tx = Parameters<Parameters<Context["db"]["transaction"]>[0]>[0];
-
-/** sige/02 §4.2 institution dependents: students (any status); grade records join in module 06. */
-async function hasAcademicRecords(tx: Tx, organizationId: string): Promise<boolean> {
-  const [row] = await tx
-    .select({ one: sql`1` })
-    .from(schema.student)
-    .where(eq(schema.student.organizationId, organizationId))
-    .limit(1);
-  return row !== undefined;
-}
 
 type PlatformContext = Context & { session: NonNullable<Context["session"]> };
 
@@ -228,9 +217,8 @@ export const institutionAdminRouter = {
    * Refused while students or grade records exist (foundation §6.4, §4.2). The tenant tables
    * cascade from `organization`, so no FK blocks: the check runs under the organization row lock
    * (`FOR UPDATE`), which a concurrent student insert (its FK takes `FOR KEY SHARE`) must wait for,
-   * so no student can slip in between the check and the delete. Only students exist so far;
-   * module 06 adds grade records to `hasAcademicRecords`. The cascade removes the profile; the
-   * logo object goes best-effort (INS-R4).
+   * so no student can slip in between the check and the delete. The cascade removes the
+   * profile; the logo object goes best-effort (INS-R4).
    */
   delete: platformProcedure({ institution: ["delete"] })
     .input(idInput)
@@ -245,7 +233,7 @@ export const institutionAdminRouter = {
             .where(byId)
             .for("update");
           if (!locked) throw notFound();
-          if (await hasAcademicRecords(tx, input.id)) {
+          if (await institutionHasAcademicRecords(tx, input.id)) {
             throw new ORPCError(HAS_DEPENDENTS, {
               status: 409,
               message: INSTITUTION_HAS_RECORDS_MESSAGE,

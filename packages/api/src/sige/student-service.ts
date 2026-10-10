@@ -13,6 +13,7 @@ import { and, eq } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { z } from "zod";
 
+import { studentHasRecords } from "./academic-dependents";
 import { currentAcademicYear } from "./academic-year";
 import { changedFields, recordAudit } from "./audit";
 import type { AuditContext } from "./audit";
@@ -452,17 +453,10 @@ export async function deleteStudent(
   try {
     await context.db.transaction(async (tx) => {
       const { student, person } = await lockStudent(tx, context, id);
-      const [enrollment] = await tx
-        .select({ id: schema.enrollment.id })
-        .from(schema.enrollment)
-        .where(
-          and(
-            eq(schema.enrollment.organizationId, context.org.id),
-            eq(schema.enrollment.studentId, id),
-          ),
-        )
-        .limit(1);
-      if (enrollment) {
+      // STU-R7: enrollments, grades, finals, attendance and observations all read as the same
+      // message. The pre-check is what produces it: `rethrowDbError` below runs with
+      // `personRole: "student"`, so a restrict FK would be worded as USR-R7 instead (D9).
+      if (await studentHasRecords(tx, context.org.id, id)) {
         throw new ORPCError(HAS_DEPENDENTS, { status: 409, message: STUDENT_HAS_RECORDS_MESSAGE });
       }
       const [login] = await tx

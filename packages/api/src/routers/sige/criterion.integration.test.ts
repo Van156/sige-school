@@ -14,6 +14,14 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
+import { seedAcademicPeriod, seedGradeRecord } from "../../sige/testing/academic-seed";
+import {
+  seedCampus,
+  seedCourse,
+  seedOffering,
+  seedStudent,
+  seedSubject,
+} from "../../sige/testing/scheduling-seed";
 import { criterionRouter } from "./criterion";
 
 /** `criterion.*` (sige/02 INS-17/18, §3.3, §3.4, INS-R7): CRUD, Σ total, recompute port, audit. */
@@ -256,6 +264,36 @@ await sigeSuite("criterion router", (fx) => {
       action: "criterion.deleted",
       metadata: { snapshot: { name: criterion.name, weight: 12.5 } },
     });
+  });
+
+  test("delete is refused while the criterion has grades (§4.2) and audits nothing", async () => {
+    const criterion = await seedCriterion(fx, tenant);
+    const campus = await seedCampus(fx, tenant);
+    const course = await seedCourse(fx, tenant, campus.id);
+    const subject = await seedSubject(fx, tenant);
+    const offering = await seedOffering(fx, tenant, course.id, subject.id);
+    const student = await seedStudent(fx, tenant, campus.id, { courseId: course.id });
+    const period = await seedAcademicPeriod(fx, tenant);
+    await seedGradeRecord(fx, tenant, {
+      studentId: student.id,
+      offeringId: offering.id,
+      periodId: period.id,
+      criterionId: criterion.id,
+      authorPersonId: tenant.people.teacher!.personId,
+    });
+    audit.reset();
+    const error = await errorOf(
+      call(criterionRouter.delete, { id: criterion.id }, { context: owner }),
+    );
+    expect(error?.code).toBe("HAS_DEPENDENTS");
+    expect(error?.message).toBe("El criterio tiene notas registradas.");
+    expect(audit.events).toHaveLength(0);
+    expect(
+      await fx.db
+        .select()
+        .from(schema.gradeCriterion)
+        .where(eq(schema.gradeCriterion.id, criterion.id)),
+    ).toHaveLength(1);
   });
 
   test("update/delete lose a race to a concurrent delete: NOT_FOUND, no audit", async () => {
