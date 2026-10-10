@@ -8,7 +8,7 @@ const rowErrors = Array.from({ length: 12 }, (_, index) => ({
 }));
 
 const meta = {
-  title: "Users/ImportErrorList",
+  title: "Imports/ImportErrorList",
   component: ImportErrorList,
   tags: ["autodocs"],
   args: { errors: rowErrors.slice(0, 3), count: 3 },

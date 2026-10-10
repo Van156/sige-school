@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import ImportPreviewCard from "./import-preview-card";
+import ImportPreviewCard, { type ImportPreviewColumn } from "./import-preview-card";
 
 const rows = [
   { row: 2, nombres: "María", apellidos: "Londoño", documento: "1101234501", rol: "profesor" },
@@ -8,12 +8,23 @@ const rows = [
   { row: 4, nombres: "Lucía", apellidos: "Torres", documento: "", rol: "coordinador" },
 ];
 
+type Row = (typeof rows)[number] & { row: number; valid: boolean; message: string | null };
+
+const columns: ImportPreviewColumn<Row>[] = [
+  { header: "nombres", cell: (row) => row.nombres },
+  { header: "apellidos", cell: (row) => row.apellidos },
+  { header: "documento", cell: (row) => row.documento },
+  { header: "rol", cell: (row) => row.rol },
+];
+
 const meta = {
-  title: "Users/ImportPreviewCard",
+  title: "Imports/ImportPreviewCard",
   component: ImportPreviewCard,
   tags: ["autodocs"],
   args: {
     fileName: "usuarios.xlsx",
+    columns,
+    importLabel: "Importar Usuarios",
     onImport: () => {},
     preview: {
       total: 3,
@@ -35,7 +46,7 @@ const meta = {
     ),
   ],
   parameters: { layout: "centered" },
-} satisfies Meta<typeof ImportPreviewCard>;
+} satisfies Meta<typeof ImportPreviewCard<Row>>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

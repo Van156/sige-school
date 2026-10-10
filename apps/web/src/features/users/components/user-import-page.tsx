@@ -2,18 +2,40 @@ import { buttonVariants } from "@base-template/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
+import { orpc } from "@/app/orpc";
 import { CanGate } from "@/features/access-control";
+import {
+  ImportFileCard,
+  ImportPreviewCard,
+  ImportProgressCard,
+  ImportResult,
+  TemplateDownloadButton,
+  useImportFlow,
+  useImportTemplate,
+  type ImportPreviewColumn,
+  type ImportProcedures,
+} from "@/features/imports";
 import { ActiveInstitutionGuard } from "@/features/institution";
 import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
 
-import { useImportTemplate } from "../hooks/use-import-template";
-import { useUserImport } from "../hooks/use-user-import";
-import ImportFileCard from "./import-file-card";
+import type { UserImportPreviewRow } from "../types";
 import ImportFormatCard from "./import-format-card";
-import ImportPreviewCard from "./import-preview-card";
-import ImportProgressCard from "./import-progress-card";
-import ImportResult from "./import-result";
+
+const USER_IMPORT: ImportProcedures<UserImportPreviewRow> = {
+  preview: (input) => orpc.user.importPreview.call(input),
+  start: (input) => orpc.user.importStart.call(input),
+  invalidate: orpc.user.key(),
+};
+
+const PREVIEW_COLUMNS: readonly ImportPreviewColumn<UserImportPreviewRow>[] = [
+  { header: "nombres", cell: (row) => row.nombres },
+  { header: "apellidos", cell: (row) => row.apellidos },
+  { header: "documento", cell: (row) => row.documento },
+  { header: "rol", cell: (row) => row.rol },
+];
+
+const fetchTemplate = () => orpc.user.importTemplate.call();
 
 /**
  * USR-04 `/usuarios/importar` (container): bulk user import from an `.xlsx`. Pick a file, review
@@ -58,12 +80,24 @@ function ImportUsers({
   jobId: string | null;
   onJobChange: (jobId: string | null) => void;
 }) {
-  const flow = useUserImport({ jobId, onJobChange });
-  const template = useImportTemplate();
+  const flow = useImportFlow({ jobId, onJobChange, procedures: USER_IMPORT });
+  const template = useImportTemplate({ fetchTemplate, filename: "plantilla-usuarios.xlsx" });
 
   if (flow.phase === "running" || flow.phase === "finished") {
     if (flow.job?.status === "done" || flow.job?.status === "failed") {
-      return <ImportResult job={flow.job} onReset={flow.reset} />;
+      return (
+        <ImportResult
+          job={flow.job}
+          noun={{ one: "usuario", other: "usuarios" }}
+          resetLabel="Importar otro archivo"
+          listAction={
+            <Link to="/usuarios" className={buttonVariants({ variant: "outline" })}>
+              Ver usuarios
+            </Link>
+          }
+          onReset={flow.reset}
+        />
+      );
     }
     if (flow.jobLoadFailed) {
       return (
@@ -79,16 +113,24 @@ function ImportUsers({
   return (
     <div className="flex flex-col gap-4">
       <ImportFileCard
+        title="Archivo Excel"
         error={flow.fileError}
         isBusy={flow.phase === "previewing"}
-        isDownloading={template.isPending}
         onSelect={flow.select}
-        onDownloadTemplate={template.download}
-      />
+      >
+        <div>
+          <TemplateDownloadButton
+            isDownloading={template.isPending}
+            onDownload={template.download}
+          />
+        </div>
+      </ImportFileCard>
       {flow.preview && flow.file ? (
         <ImportPreviewCard
           fileName={flow.file.name}
           preview={flow.preview}
+          columns={PREVIEW_COLUMNS}
+          importLabel="Importar Usuarios"
           startError={flow.startError}
           onImport={flow.start}
         />

@@ -23,7 +23,7 @@ import {
   isImportTerminal,
   summarizeImportErrors,
   validateImportFile,
-} from "./user-import";
+} from "./excel-import";
 
 describe("validateImportFile", () => {
   test("accepts an .xlsx up to the limit, any letter case", () => {
@@ -116,8 +116,11 @@ describe("progress", () => {
     expect(importPreviewSummary("usuarios.xlsx", 120, 100)).toBe(
       "usuarios.xlsx · 120 filas, 100 válidas",
     );
-    expect(importedMessage(98)).toBe("98 usuarios importados exitosamente");
-    expect(importedMessage(1)).toBe("1 usuario importado exitosamente");
+    const users = { one: "usuario", other: "usuarios" };
+    expect(importedMessage(98, users)).toBe("98 usuarios importados exitosamente");
+    expect(importedMessage(1, users)).toBe("1 usuario importado exitosamente");
+    const students = { one: "estudiante", other: "estudiantes" };
+    expect(importedMessage(12, students)).toBe("12 estudiantes importados exitosamente");
   });
 });
 

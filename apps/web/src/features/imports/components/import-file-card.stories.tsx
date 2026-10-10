@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import ImportFileCard from "./import-file-card";
+import TemplateDownloadButton from "./template-download-button";
 
 const meta = {
-  title: "Users/ImportFileCard",
+  title: "Imports/ImportFileCard",
   component: ImportFileCard,
   tags: ["autodocs"],
-  args: { onSelect: () => {}, onDownloadTemplate: () => {} },
+  args: { title: "Archivo Excel", onSelect: () => {} },
   decorators: [
     (Story) => (
       <div className="w-[40rem]">
@@ -28,4 +29,16 @@ export const WrongExtension: Story = {
 
 export const Busy: Story = { args: { isBusy: true } };
 
-export const DownloadingTemplate: Story = { args: { isDownloading: true } };
+/** USR-04 puts "Descargar Plantilla" inside the card. */
+export const WithTemplateButton: Story = {
+  args: { children: <TemplateDownloadButton onDownload={() => {}} /> },
+};
+
+/** STU-05 wording: its own label and size hint. */
+export const StudentWording: Story = {
+  args: {
+    title: "Subir Archivo",
+    label: "Archivo Excel (.xlsx) *",
+    hint: "Tamaño máximo: 10MB",
+  },
+};

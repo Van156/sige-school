@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@base-template/ui/components/card";
 
-import { hiddenErrorsLabel, importErrorLabel, summarizeImportErrors } from "../lib/user-import";
+import { hiddenErrorsLabel, importErrorLabel, summarizeImportErrors } from "../lib/excel-import";
 import type { ImportRowError } from "../types";
 
 /**
- * Error card of USR-04 (USR-R13): "Errores ({n})", the first 10 messages and "... y {m} errores
- * más". `count` is the real number of errors, which can exceed the (server-capped) `errors` list.
- * Job-level errors (`row` 0) show without a row prefix. Presentational.
+ * Error card of an import result (USR-R13, STU-R8): "Errores ({n})", the first 10 messages and
+ * "... y {m} errores más". `count` is the real number of errors, which can exceed the
+ * (server-capped) `errors` list. Job-level errors (`row` 0) show without a row prefix.
+ * Presentational.
  */
 export default function ImportErrorList({
   errors,

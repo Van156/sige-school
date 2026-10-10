@@ -1,42 +1,45 @@
 import { Alert, AlertDescription } from "@base-template/ui/components/alert";
-import { Button } from "@base-template/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@base-template/ui/components/card";
 import { Field, FieldDescription, FieldLabel } from "@base-template/ui/components/field";
 import { Input } from "@base-template/ui/components/input";
-import { Download } from "lucide-react";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
-import { IMPORT_ACCEPT, IMPORT_FILE_HINT } from "../lib/user-import";
+import { IMPORT_ACCEPT, IMPORT_FILE_HINT } from "../lib/excel-import";
 
 /**
- * USR-04 card "Archivo Excel" (sige/03 §5.4): the `.xlsx` picker and "Descargar Plantilla".
+ * The `.xlsx` picker card of an import screen (USR-04 "Archivo Excel", STU-05 "Subir Archivo").
  * Presentational: `onSelect` receives the picked file (or `null` when cleared), `error` is the
- * text of a rejected file (client pre-check or server).
+ * text of a rejected file (client pre-check or server); `children` render below the picker (the
+ * screen's callout or "Descargar Plantilla").
  */
 export default function ImportFileCard({
+  title,
+  label = "Archivo Excel *",
+  hint = IMPORT_FILE_HINT,
   error,
   isBusy = false,
-  isDownloading = false,
   onSelect,
-  onDownloadTemplate,
+  children,
 }: {
+  title: string;
+  label?: string;
+  hint?: string;
   error?: string | null;
   /** The preview is running: the picker is locked. */
   isBusy?: boolean;
-  isDownloading?: boolean;
   onSelect: (file: File | null) => void;
-  onDownloadTemplate: () => void;
+  children?: ReactNode;
 }) {
   const inputId = useId();
   const helpId = useId();
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Archivo Excel</CardTitle>
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <Field data-invalid={error ? true : undefined}>
-          <FieldLabel htmlFor={inputId}>Archivo Excel *</FieldLabel>
+          <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
           <Input
             id={inputId}
             type="file"
@@ -46,24 +49,14 @@ export default function ImportFileCard({
             aria-describedby={helpId}
             onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
           />
-          <FieldDescription id={helpId}>{IMPORT_FILE_HINT}</FieldDescription>
+          <FieldDescription id={helpId}>{hint}</FieldDescription>
         </Field>
         {error ? (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isDownloading}
-            onClick={onDownloadTemplate}
-          >
-            <Download data-icon="inline-start" />
-            Descargar Plantilla
-          </Button>
-        </div>
+        {children}
       </CardContent>
     </Card>
   );

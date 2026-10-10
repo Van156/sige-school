@@ -1,4 +1,6 @@
+import { buttonVariants } from "@base-template/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Link } from "@tanstack/react-router";
 
 import { withRouter } from "@/shared/storybook/with-router";
 
@@ -10,10 +12,20 @@ const errors = Array.from({ length: 12 }, (_, index) => ({
 }));
 
 const meta = {
-  title: "Users/ImportResult",
+  title: "Imports/ImportResult",
   component: ImportResult,
   tags: ["autodocs"],
-  args: { onReset: () => {}, job: { status: "done", imported: 98, skipped: 0, errors: [] } },
+  args: {
+    onReset: () => {},
+    noun: { one: "usuario", other: "usuarios" },
+    resetLabel: "Importar otro archivo",
+    listAction: (
+      <Link to="/usuarios" className={buttonVariants({ variant: "outline" })}>
+        Ver usuarios
+      </Link>
+    ),
+    job: { status: "done", imported: 98, skipped: 0, errors: [] },
+  },
   decorators: [
     withRouter,
     (Story) => (

@@ -6,10 +6,10 @@ import {
   recordStartedJob,
   resetImport,
   selectImportFile,
-  userImportSearchSchema,
+  importSearchSchema,
   type SelectFileEffects,
 } from "./import-flow";
-import { IMPORT_EXTENSION_MESSAGE } from "./user-import";
+import { IMPORT_EXTENSION_MESSAGE } from "./excel-import";
 
 function effects() {
   const calls: string[] = [];
@@ -108,11 +108,11 @@ describe("leaveMissingJob", () => {
   });
 });
 
-describe("userImportSearchSchema", () => {
+describe("importSearchSchema", () => {
   test("keeps a job id, drops an empty or malformed one", () => {
-    expect(userImportSearchSchema.parse({ job: "abc" })).toEqual({ job: "abc" });
-    expect(userImportSearchSchema.parse({})).toEqual({});
-    expect(userImportSearchSchema.parse({ job: "" })).toEqual({});
-    expect(userImportSearchSchema.parse({ job: 12 })).toEqual({});
+    expect(importSearchSchema.parse({ job: "abc" })).toEqual({ job: "abc" });
+    expect(importSearchSchema.parse({})).toEqual({});
+    expect(importSearchSchema.parse({ job: "" })).toEqual({});
+    expect(importSearchSchema.parse({ job: 12 })).toEqual({});
   });
 });

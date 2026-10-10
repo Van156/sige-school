@@ -1,4 +1,4 @@
-import type { ImportJob, ImportJobStatus, ImportRowError } from "../types";
+import type { ImportJob, ImportJobStatus, ImportNoun, ImportRowError } from "../types";
 
 /** `importJob.get` is polled this often while the import runs (USR-R12). */
 export const IMPORT_POLL_INTERVAL_MS = 2000;
@@ -80,11 +80,14 @@ export function importPreviewSummary(fileName: string, total: number, valid: num
   return `${fileName} · ${total} filas, ${valid} válidas`;
 }
 
-/** "{n} usuarios importados exitosamente" (USR-R13); singular for one. */
-export function importedMessage(imported: number): string {
+/**
+ * "{n} {noun} importados exitosamente" (USR-R13, STU-R8); singular for one, e.g. "1 usuario
+ * importado exitosamente".
+ */
+export function importedMessage(imported: number, noun: ImportNoun): string {
   return imported === 1
-    ? "1 usuario importado exitosamente"
-    : `${imported} usuarios importados exitosamente`;
+    ? `1 ${noun.one} importado exitosamente`
+    : `${imported} ${noun.other} importados exitosamente`;
 }
 
 /**

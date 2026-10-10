@@ -1,9 +1,9 @@
 import { Card, CardContent } from "@base-template/ui/components/card";
 import { Progress, ProgressLabel, ProgressValue } from "@base-template/ui/components/progress";
 
-import { importProgressLabel, importProgressPercent } from "../lib/user-import";
+import { importProgressLabel, importProgressPercent } from "../lib/excel-import";
 
-/** USR-04 progress while the import runs: "Importando… {processed} de {total}". Presentational. */
+/** Import progress (USR-04, STU-05) while the job runs: "Importando… {processed} de {total}". Presentational. */
 export default function ImportProgressCard({
   processed,
   total,

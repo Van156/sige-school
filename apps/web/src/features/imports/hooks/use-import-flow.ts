@@ -1,7 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, type QueryKey } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
-
-import { orpc } from "@/app/orpc";
 
 import {
   leaveMissingJob,
@@ -14,32 +12,43 @@ import {
   IMPORT_START_FALLBACK,
   importErrorMessage,
   importPhase,
-} from "../lib/user-import";
+} from "../lib/excel-import";
+import type { ImportPreview, ImportPreviewRowBase } from "../types";
 import { useImportJob } from "./use-import-job";
 
+/** The entity's import procedures (e.g. `orpc.student.importPreview.call`). */
+export type ImportProcedures<TRow extends ImportPreviewRowBase> = {
+  preview: (input: { file: File }) => Promise<ImportPreview<TRow>>;
+  start: (input: { file: File }) => Promise<{ jobId: string }>;
+  /** Query key the finished job makes stale (the entity lists). */
+  invalidate: QueryKey;
+};
+
 /**
- * USR-04 flow (container logic): pick a file -> `user.importPreview` -> `user.importStart` ->
- * poll the job. The running job id lives in the URL (`jobId`, changed through `onJobChange`), so
- * a reload resumes polling it; a job that no longer exists returns to the picker. The picked
- * file is pre-checked client-side (the server stays authoritative); `reset` returns to the empty
- * picker. Each failure is exposed as the text to show. The orchestration itself is in
- * `lib/import-flow`.
+ * Excel import flow (container logic of USR-04 and STU-05): pick a file -> `importPreview` ->
+ * `importStart` -> poll the job. The running job id lives in the URL (`jobId`, changed through
+ * `onJobChange`), so a reload resumes polling it; a job that no longer exists returns to the
+ * picker. The picked file is pre-checked client-side (the server stays authoritative); `reset`
+ * returns to the empty picker. Each failure is exposed as the text to show. The orchestration
+ * itself is in `lib/import-flow`.
  */
-export function useUserImport({
+export function useImportFlow<TRow extends ImportPreviewRowBase>({
   jobId,
   onJobChange,
+  procedures,
 }: {
   jobId: string | null;
   onJobChange: (jobId: string | null) => void;
+  procedures: ImportProcedures<TRow>;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const previewMutation = useMutation(orpc.user.importPreview.mutationOptions());
+  const previewMutation = useMutation({ mutationFn: procedures.preview });
   const startMutation = useMutation({
-    ...orpc.user.importStart.mutationOptions(),
+    mutationFn: procedures.start,
     onSuccess: (started) => recordStartedJob(started, onJobChange),
   });
-  const jobState = useImportJob(jobId);
+  const jobState = useImportJob(jobId, procedures.invalidate);
 
   const effects = {
     resetStart: () => {

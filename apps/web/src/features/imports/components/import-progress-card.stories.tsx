@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import ImportProgressCard from "./import-progress-card";
 
 const meta = {
-  title: "Users/ImportProgressCard",
+  title: "Imports/ImportProgressCard",
   component: ImportProgressCard,
   tags: ["autodocs"],
   args: { processed: 50, total: 120 },

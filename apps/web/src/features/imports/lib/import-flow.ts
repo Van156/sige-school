@@ -1,15 +1,15 @@
 import { z } from "zod";
 
 import type { ImportJobStatus } from "../types";
-import { isImportTerminal, validateImportFile } from "./user-import";
+import { isImportTerminal, validateImportFile } from "./excel-import";
 
 /**
- * Search params of `/usuarios/importar`: `job` is the running import, kept in the URL so a reload
- * or a navigation back resumes polling it. A malformed value is dropped. A lost `importStart`
- * response is not recovered: the job id never reached the client, so a retry meets the running
- * job's CONFLICT.
+ * Search params of an import screen (`/usuarios/importar`, `/estudiantes/importar`): `job` is the
+ * running import, kept in the URL so a reload or a navigation back resumes polling it. A
+ * malformed value is dropped. A lost `importStart` response is not recovered: the job id never
+ * reached the client, so a retry meets the running job's CONFLICT.
  */
-export const userImportSearchSchema = z.object({
+export const importSearchSchema = z.object({
   job: z.string().min(1).optional().catch(undefined),
 });
 
@@ -40,7 +40,7 @@ export function selectImportFile(picked: File | null, effects: SelectFileEffects
   effects.requestPreview(picked);
 }
 
-/** Side effects of "Importar otro archivo" / a vanished job. */
+/** Side effects of "Importar otro archivo" / "Cargar otro archivo" / a vanished job. */
 export type ResetImportEffects = Pick<SelectFileEffects, "resetStart" | "resetPreview"> & {
   setFile: (file: File | null) => void;
   setFileError: (message: string | null) => void;

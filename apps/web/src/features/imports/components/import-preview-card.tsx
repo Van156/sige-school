@@ -17,25 +17,36 @@ import {
   TableRow,
 } from "@base-template/ui/components/table";
 
-import { importPreviewSummary } from "../lib/user-import";
-import type { ImportPreview } from "../types";
+import type { ReactNode } from "react";
+
+import { importPreviewSummary } from "../lib/excel-import";
+import type { ImportPreview, ImportPreviewRowBase } from "../types";
+
+/** One previewed column: the workbook header and how a row shows it. */
+export type ImportPreviewColumn<TRow> = { header: string; cell: (row: TRow) => ReactNode };
 
 /**
- * USR-04 card "Vista previa" (sige/03 §5.4): "{archivo} · {n} filas, {m} válidas", the first
- * rows with their status ("Válida" or the row message) and the "Importar Usuarios" button, which
- * is disabled without valid rows. `startError` is the server's refusal of the start (for example a
- * running import). Presentational.
+ * Card "Vista previa" of an import screen (USR-04, STU-05): "{archivo} · {n} filas, {m} válidas",
+ * the first rows in `columns` with their status ("Válida" or the row message) and the import
+ * button (`importLabel`), disabled without valid rows. `startError` is the server's refusal of the
+ * start (for example a running import); `actions` render next to the button. Presentational.
  */
-export default function ImportPreviewCard({
+export default function ImportPreviewCard<TRow extends ImportPreviewRowBase>({
   fileName,
   preview,
+  columns,
+  importLabel,
   startError,
   onImport,
+  actions,
 }: {
   fileName: string;
-  preview: ImportPreview;
+  preview: ImportPreview<TRow>;
+  columns: readonly ImportPreviewColumn<TRow>[];
+  importLabel: string;
   startError?: string | null;
   onImport: () => void;
+  actions?: ReactNode;
 }) {
   return (
     <Card>
@@ -49,20 +60,18 @@ export default function ImportPreviewCard({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>nombres</TableHead>
-              <TableHead>apellidos</TableHead>
-              <TableHead>documento</TableHead>
-              <TableHead>rol</TableHead>
+              {columns.map((column) => (
+                <TableHead key={column.header}>{column.header}</TableHead>
+              ))}
               <TableHead>Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {preview.rows.map((row) => (
               <TableRow key={row.row}>
-                <TableCell>{row.nombres}</TableCell>
-                <TableCell>{row.apellidos}</TableCell>
-                <TableCell>{row.documento}</TableCell>
-                <TableCell>{row.rol}</TableCell>
+                {columns.map((column) => (
+                  <TableCell key={column.header}>{column.cell(row)}</TableCell>
+                ))}
                 <TableCell>
                   {row.valid ? (
                     <Badge variant="success">Válida</Badge>
@@ -81,10 +90,11 @@ export default function ImportPreviewCard({
             <AlertDescription>{startError}</AlertDescription>
           </Alert>
         ) : null}
-        <div>
+        <div className="flex flex-wrap gap-2">
           <Button type="button" disabled={preview.valid === 0} onClick={onImport}>
-            Importar Usuarios
+            {importLabel}
           </Button>
+          {actions}
         </div>
       </CardContent>
     </Card>
