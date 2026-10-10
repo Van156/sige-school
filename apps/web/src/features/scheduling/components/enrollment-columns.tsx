@@ -1,6 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
-import { Button } from "@base-template/ui/components/button";
-import { Trash2 } from "lucide-react";
+import { Button, buttonVariants } from "@base-template/ui/components/button";
+import { Link } from "@tanstack/react-router";
+import { Pencil, Trash2 } from "lucide-react";
 
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 import type { Option } from "@/shared/lib/data-table/types";
@@ -25,7 +26,7 @@ export const HIDDEN_FILTER_COLUMNS = { courseId: false, subjectId: false } as co
 export type EnrollmentFilterOptions = { courses: Option[]; subjects: Option[] };
 
 /** Which row actions the caller may use (`enrollment:update` / `enrollment:delete`). */
-export type EnrollmentRowActions = { canDelete: boolean };
+export type EnrollmentRowActions = { canEdit: boolean; canDelete: boolean };
 
 /**
  * SCH-01 columns (sige/04 §5.1). Ids are the server's list ids. The course and subject filters
@@ -140,7 +141,7 @@ export function getEnrollmentColumns({
     },
   ];
 
-  if (actions.canDelete) {
+  if (actions.canEdit || actions.canDelete) {
     columns.push({
       id: "actions",
       header: () => <span className="sr-only">Acciones</span>,
@@ -148,14 +149,26 @@ export function getEnrollmentColumns({
         const label = `${row.original.studentName} en ${row.original.subjectName}`;
         return (
           <div className="flex justify-end gap-1 whitespace-nowrap">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Eliminar matrícula de ${label}`}
-              onClick={() => onDelete(row.original)}
-            >
-              <Trash2 />
-            </Button>
+            {actions.canEdit ? (
+              <Link
+                to="/matriculas/$id/editar"
+                params={{ id: row.original.id }}
+                aria-label={`Editar matrícula de ${label}`}
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              >
+                <Pencil />
+              </Link>
+            ) : null}
+            {actions.canDelete ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Eliminar matrícula de ${label}`}
+                onClick={() => onDelete(row.original)}
+              >
+                <Trash2 />
+              </Button>
+            ) : null}
           </div>
         );
       },

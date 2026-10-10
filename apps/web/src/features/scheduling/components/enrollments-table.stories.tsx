@@ -67,7 +67,7 @@ const meta = {
         { value: "s3", label: "Inglés" },
       ],
     },
-    actions: { canDelete: true },
+    actions: { canEdit: true, canDelete: true },
     onDelete: () => {},
     list: {
       rows: ROWS,
@@ -87,8 +87,8 @@ type Story = StoryObj<typeof meta>;
 /** The three status badges, a final score, the "Grado anterior" badge and the row actions. */
 export const Manager: Story = {};
 
-/** Without `enrollment:delete` (and edit): no actions column. */
-export const ReadOnly: Story = { args: { actions: { canDelete: false } } };
+/** Without `enrollment:update` and `enrollment:delete`: no actions column. */
+export const ReadOnly: Story = { args: { actions: { canEdit: false, canDelete: false } } };
 
 export const Loading: Story = {
   args: { list: { ...meta.args.list, rows: undefined, total: undefined, isPending: true } },

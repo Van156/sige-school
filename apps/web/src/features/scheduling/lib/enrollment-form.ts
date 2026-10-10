@@ -1,4 +1,7 @@
-import { enrollmentCreateBulkInput } from "@base-template/api/sige/schemas/enrollment";
+import {
+  enrollmentCreateBulkInput,
+  enrollmentUpdateInput,
+} from "@base-template/api/sige/schemas/enrollment";
 import { enrollmentMessages } from "@base-template/sige-core";
 import { z } from "zod";
 
@@ -12,6 +15,7 @@ import type {
   BulkEnrollmentResult,
   EnrollmentCandidate,
   EnrollmentCandidateCourse,
+  EnrollmentRow,
 } from "../types";
 
 /**
@@ -138,4 +142,53 @@ export async function enrollOrAskOverride({
     }
     askOverride(input);
   }
+}
+
+type UpdateApiInput = z.input<typeof enrollmentUpdateInput>;
+
+/** "Nota Final" text to the API value: blank clears it; a decimal comma is accepted. */
+function parseFinalScore(text: string): number | null {
+  const trimmed = text.trim();
+  return trimmed === "" ? null : Number(trimmed.replace(",", "."));
+}
+
+/**
+ * SCH-02 edit rules: status, final score and note (SCH-R8; the rest is read-only). The values are
+ * piped into the API's `enrollmentUpdateInput`, whose score range and note length rules and
+ * messages apply; a blank score or note clears the column.
+ */
+export const enrollmentEditFormSchema = z
+  .object({ status: z.string(), finalScore: z.string(), statusNote: z.string() })
+  .transform((values): Omit<UpdateApiInput, "id"> => ({
+    // Raw select text: the API's enum rule reports an unchosen status.
+    status: values.status as UpdateApiInput["status"],
+    finalScore: parseFinalScore(values.finalScore),
+    statusNote: values.statusNote,
+  }))
+  .pipe(enrollmentUpdateInput.omit({ id: true }));
+
+/** Form state of SCH-02 edit. */
+export type EnrollmentEditFormValues = z.input<typeof enrollmentEditFormSchema>;
+
+/** The validated form, without the id: the rest of `enrollment.update`'s input. */
+export type EnrollmentEditInput = z.output<typeof enrollmentEditFormSchema>;
+
+/** Names of the fields the edit form renders. */
+export const ENROLLMENT_EDIT_FIELDS = ["status", "finalScore", "statusNote"] as const;
+
+export const ENROLLMENT_EDIT_SAVE_FALLBACK =
+  "No se pudo actualizar la matrícula. Intente nuevamente.";
+
+export function enrollmentToEditForm(
+  enrollment: Pick<EnrollmentRow, "status" | "finalScore" | "statusNote">,
+): EnrollmentEditFormValues {
+  return {
+    status: enrollment.status,
+    finalScore: enrollment.finalScore === null ? "" : String(enrollment.finalScore),
+    statusNote: enrollment.statusNote ?? "",
+  };
+}
+
+export function toEnrollmentEditInput(values: EnrollmentEditFormValues): EnrollmentEditInput {
+  return enrollmentEditFormSchema.parse(values);
 }

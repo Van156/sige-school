@@ -79,6 +79,7 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/scheduling/components/assignments-table.tsx",
   "features/scheduling/components/enrollments-table.tsx",
   "features/scheduling/components/enrollment-create-form.tsx",
+  "features/scheduling/components/enrollment-edit-form.tsx",
   "features/scheduling/components/classroom-form.tsx",
   "features/scheduling/components/classrooms-table.tsx",
   "features/scheduling/components/time-block-form.tsx",

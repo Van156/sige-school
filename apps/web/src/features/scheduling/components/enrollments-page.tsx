@@ -55,6 +55,7 @@ function EnrollmentsContent({ search }: { search: EnrollmentSearch }) {
   const navigate = useNavigate({ from: "/matriculas/" });
   const canViewStudents = useCan(ENROLLMENT_ACTIONS.viewStudents).can;
   const canCreate = useCan(ENROLLMENT_ACTIONS.create).can;
+  const canEdit = useCan(ENROLLMENT_ACTIONS.edit).can;
   const canDelete = useCan(ENROLLMENT_ACTIONS.delete).can;
 
   const enrollmentsQuery = useQuery({
@@ -97,7 +98,7 @@ function EnrollmentsContent({ search }: { search: EnrollmentSearch }) {
     }),
     [coursesQuery.data, subjectsQuery.data],
   );
-  const actions = useMemo(() => ({ canDelete }), [canDelete]);
+  const actions = useMemo(() => ({ canEdit, canDelete }), [canEdit, canDelete]);
 
   const stats = statsQuery.data;
   const createLink = (label: string) => (

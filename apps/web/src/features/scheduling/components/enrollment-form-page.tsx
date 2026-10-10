@@ -1,4 +1,7 @@
+import { buttonVariants } from "@base-template/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,10 +13,12 @@ import {
   HelpCard,
   INVALID_FORM_MESSAGE,
 } from "@/features/institution";
+import EmptyState from "@/shared/components/feedback/empty-state";
 import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
 import ConfirmDialog from "@/shared/components/overlays/confirm-dialog";
+import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import { useSaveAndReturn } from "../hooks/use-save-and-return";
 import {
@@ -29,26 +34,38 @@ import {
 import { ENROLLMENT_ACTIONS } from "../lib/enrollment-permissions";
 import type { EnrollmentCandidateCourse } from "../types";
 import EnrollmentCreateForm, { type EnrollmentCandidatesState } from "./enrollment-create-form";
+import EnrollmentEditForm from "./enrollment-edit-form";
 
 const BREADCRUMB_ROOT = { label: "Matrículas", to: "/matriculas" } as const;
 
 /**
- * SCH-02 `/matriculas/nueva` (container). Unreachable without `enrollment:create` (SCH-R1).
+ * SCH-02 `/matriculas/nueva` and `/matriculas/$id/editar` (container): create when
+ * `enrollmentId` is omitted, else edit. Forms are unreachable without `enrollment:create` /
+ * `enrollment:update` (SCH-R1).
  */
-export default function EnrollmentFormPage() {
-  const title = "Nueva Matrícula";
+export default function EnrollmentFormPage({ enrollmentId }: { enrollmentId?: string }) {
+  const isCreate = enrollmentId === undefined;
+  const title = isCreate ? "Nueva Matrícula" : "Editar Matrícula";
   return (
     <ActiveInstitutionGuard pageName="sus matrículas">
       <CanGate
-        permission={ENROLLMENT_ACTIONS.create}
-        message="No tienes permiso para matricular estudiantes en esta institución."
+        permission={isCreate ? ENROLLMENT_ACTIONS.create : ENROLLMENT_ACTIONS.edit}
+        message={
+          isCreate
+            ? "No tienes permiso para matricular estudiantes en esta institución."
+            : "No tienes permiso para editar matrículas en esta institución."
+        }
       >
         <PageHeader
           title={title}
           description="Matricula estudiantes en todas las materias de un grado"
           breadcrumbs={[BREADCRUMB_ROOT, { label: title }]}
         />
-        <EnrollmentCreateLoader />
+        {isCreate ? (
+          <EnrollmentCreateLoader />
+        ) : (
+          <EnrollmentEditLoader enrollmentId={enrollmentId} />
+        )}
       </CanGate>
     </ActiveInstitutionGuard>
   );
@@ -179,5 +196,63 @@ function EnrollmentCreateLoader() {
         onConfirm={confirmOverride}
       />
     </>
+  );
+}
+
+function EnrollmentEditLoader({ enrollmentId }: { enrollmentId: string }) {
+  const save = useSaveAndReturn({ invalidate: orpc.enrollment.key(), to: "/matriculas" });
+  const enrollmentQuery = useQuery(
+    orpc.enrollment.get.queryOptions({ input: { id: enrollmentId } }),
+  );
+  const update = useMutation(orpc.enrollment.update.mutationOptions());
+
+  if (enrollmentQuery.isError && isNotFoundError(enrollmentQuery.error)) {
+    return (
+      <EmptyState
+        icon={<ClipboardList />}
+        title="Matrícula no encontrada"
+        description="La matrícula no existe o ya fue eliminada."
+        action={
+          <Link to="/matriculas" className={buttonVariants()}>
+            Volver a Matrículas
+          </Link>
+        }
+      />
+    );
+  }
+  if (enrollmentQuery.isError) {
+    return (
+      <LoadError
+        message="No se pudo cargar el formulario."
+        onRetry={() => void enrollmentQuery.refetch()}
+      />
+    );
+  }
+  if (enrollmentQuery.isPending) {
+    return <Loader />;
+  }
+
+  const enrollment = enrollmentQuery.data;
+  return (
+    <FormPageLayout
+      form={
+        <EnrollmentEditForm
+          enrollment={enrollment}
+          onInvalid={() => toast.error(INVALID_FORM_MESSAGE)}
+          onSubmit={(input) =>
+            save(() => update.mutateAsync({ id: enrollment.id, ...input }), "Matrícula actualizada")
+          }
+        />
+      }
+      help={
+        <HelpCard title="Información">
+          <ul className="list-disc pl-4">
+            <li>Solo el estado, la nota final y las observaciones son editables.</li>
+            <li>Cancelada o retirada deja la materia fuera del cálculo de notas.</li>
+            <li>La nota final de la matrícula es independiente de las notas del periodo.</li>
+          </ul>
+        </HelpCard>
+      }
+    />
   );
 }

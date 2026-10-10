@@ -7,10 +7,13 @@ import {
   enrollFormSchema,
   enrollOrAskOverride,
   enrollmentCourseOptions,
+  enrollmentEditFormSchema,
+  enrollmentToEditForm,
   enrollSuccessToast,
   isOverCapacityRefusal,
   mapEnrollSubmitError,
   toEnrollInput,
+  toEnrollmentEditInput,
 } from "./enrollment-form";
 
 const issues = (values: unknown) =>
@@ -177,5 +180,53 @@ describe("enrollOrAskOverride (SCH-R5 capacity confirmation)", () => {
     });
     await expect(run).rejects.toBe(failure);
     expect(asked).toEqual([]);
+  });
+});
+
+describe("enrollment edit form (SCH-R8, sige/04 §4.1)", () => {
+  const values = { status: "activa", finalScore: "", statusNote: "" };
+  const scoreIssues = (finalScore: string) =>
+    enrollmentEditFormSchema
+      .safeParse({ ...values, finalScore })
+      .error?.issues.map((issue) => [issue.path[0], issue.message]);
+
+  test("prefills from the row; an unset score and note are blank", () => {
+    expect(
+      enrollmentToEditForm({ status: "retirada", finalScore: null, statusNote: null }),
+    ).toEqual({ status: "retirada", finalScore: "", statusNote: "" });
+    expect(enrollmentToEditForm({ status: "activa", finalScore: 4.5, statusNote: "Ok" })).toEqual({
+      status: "activa",
+      finalScore: "4.5",
+      statusNote: "Ok",
+    });
+  });
+
+  test("blank score and note clear the columns", () => {
+    expect(toEnrollmentEditInput(values)).toEqual({
+      status: "activa",
+      finalScore: null,
+      statusNote: null,
+    });
+  });
+
+  test("the score accepts 1.0–5.0, also with a decimal comma", () => {
+    expect(toEnrollmentEditInput({ ...values, finalScore: "4,5" }).finalScore).toBe(4.5);
+    expect(toEnrollmentEditInput({ ...values, finalScore: " 1 " }).finalScore).toBe(1);
+    expect(toEnrollmentEditInput({ ...values, finalScore: "5.0" }).finalScore).toBe(5);
+  });
+
+  test("an out-of-range or non-numeric score shows the spec message", () => {
+    const message = "La nota final debe estar entre 1.0 y 5.0.";
+    expect(scoreIssues("0.9")).toEqual([["finalScore", message]]);
+    expect(scoreIssues("5.1")).toEqual([["finalScore", message]]);
+    expect(scoreIssues("abc")).toEqual([["finalScore", message]]);
+  });
+
+  test("an unchosen status is refused by the API rule", () => {
+    expect(
+      enrollmentEditFormSchema
+        .safeParse({ ...values, status: "" })
+        .error?.issues.map((issue) => issue.path[0]),
+    ).toEqual(["status"]);
   });
 });
