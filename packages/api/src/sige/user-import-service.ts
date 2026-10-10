@@ -13,8 +13,8 @@ import { ORPCError } from "@orpc/server";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { recordAudit } from "./audit";
+import { createImportJob, executeImportJob } from "./import-job";
 import type { ImportJobRunnerPort } from "./import-runner";
-import { rethrowDbError } from "./pg-errors";
 import { createUser } from "./user-service";
 import type { UserCreateInput } from "./user-service";
 
@@ -27,14 +27,12 @@ import type { UserCreateInput } from "./user-service";
  * concurrency 4 and progress persisted every 25 rows.
  */
 
-export const IMPORT_CONCURRENCY = 4;
-export const IMPORT_PROGRESS_EVERY = 25;
+export { IMPORT_CONCURRENCY, IMPORT_FAILED_MESSAGE, IMPORT_PROGRESS_EVERY } from "./import-job";
 export const PREVIEW_ROWS = 50;
 export const PREVIEW_ERRORS = 200;
 export const IMPORT_RUNNING_MESSAGE = "Ya hay una importación en curso.";
 export const IMPORT_INTERRUPTED_MESSAGE = "Importación interrumpida";
 // Writer-authored (not in the spec).
-export const IMPORT_FAILED_MESSAGE = "No se pudo completar la importación.";
 export const NO_VALID_ROWS_MESSAGE = "El archivo no contiene filas válidas para importar.";
 const ROW_FAILED_MESSAGE = "No se pudo crear el usuario.";
 
@@ -203,25 +201,13 @@ export async function startUserImport(
   actor: ImportActor,
   input: ImportRunInput,
 ): Promise<{ jobId: string }> {
-  let jobId: string;
-  try {
-    const [job] = await deps.db
-      .insert(schema.importJob)
-      .values({
-        organizationId,
-        kind: "users",
-        total: input.total,
-        // Rows rejected by validation are already processed (skipped) when the job starts.
-        processed: input.errors.length,
-        skipped: input.errors.length,
-        errors: input.errors.slice(0, MAX_IMPORT_ERRORS),
-        createdBy: actor.personId,
-      })
-      .returning({ id: schema.importJob.id });
-    jobId = job!.id;
-  } catch (error) {
-    rethrowDbError(error, "write");
-  }
+  const jobId = await createImportJob(deps.db, {
+    organizationId,
+    kind: "users",
+    createdBy: actor.personId,
+    total: input.total,
+    errors: input.errors,
+  });
   deps.runner.run(() => runUserImport(deps, organizationId, actor, jobId, input));
   return { jobId };
 }
@@ -234,92 +220,32 @@ export async function runUserImport(
   jobId: string,
   input: ImportRunInput,
 ): Promise<void> {
-  const { db } = deps;
   const provision = input.provision ?? defaultProvision(deps, organizationId, actor);
-  const errors = input.errors.slice(0, MAX_IMPORT_ERRORS);
   const byRole: Record<string, number> = {};
-  let processed = input.errors.length;
-  let imported = 0;
-  let skipped = input.errors.length;
-
-  // Progress writes are chained so they land in order; one that fails is not fatal, the final
-  // write carries the exact counters.
-  let writes: Promise<unknown> = Promise.resolve();
-  const persistProgress = () => {
-    const snapshot = { processed, imported, skipped, errors: [...errors] };
-    writes = writes.then(() =>
-      db
-        .update(schema.importJob)
-        .set(snapshot)
-        .where(eq(schema.importJob.id, jobId))
-        .catch((error: unknown) => console.error("Could not persist import progress", error)),
-    );
-  };
-
-  try {
-    let next = 0;
-    const worker = async () => {
-      while (next < input.valid.length) {
-        const candidate = input.valid[next]!;
-        next += 1;
-        try {
-          await provision(candidate);
-          imported += 1;
-          byRole[candidate.role] = (byRole[candidate.role] ?? 0) + 1;
-        } catch (error) {
-          skipped += 1;
-          if (errors.length < MAX_IMPORT_ERRORS) {
-            errors.push({ row: candidate.row, message: rowFailure(candidate, error) });
-          }
-        }
-        processed += 1;
-        if (processed % IMPORT_PROGRESS_EVERY === 0) {
-          persistProgress();
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: IMPORT_CONCURRENCY }, worker));
-    await writes;
-
-    await recordAudit(
-      {
-        auditLogger: deps.auditLogger,
-        org: { id: organizationId },
-        session: {
-          user: { id: actor.userId },
-          session: { impersonatedBy: actor.impersonatorUserId },
+  await executeImportJob(deps.db, jobId, input, {
+    process: async (candidate) => {
+      await provision(candidate);
+      byRole[candidate.role] = (byRole[candidate.role] ?? 0) + 1;
+    },
+    failureMessage: rowFailure,
+    finish: ({ imported, skipped }) =>
+      recordAudit(
+        {
+          auditLogger: deps.auditLogger,
+          org: { id: organizationId },
+          session: {
+            user: { id: actor.userId },
+            session: { impersonatedBy: actor.impersonatorUserId },
+          },
         },
-      },
-      {
-        action: "user.imported",
-        targetType: "import_job",
-        targetId: jobId,
-        metadata: { jobId, total: input.total, imported, skipped, byRole },
-      },
-    );
-    await db
-      .update(schema.importJob)
-      .set({ status: "done", processed, imported, skipped, errors, finishedAt: new Date() })
-      .where(eq(schema.importJob.id, jobId));
-  } catch (error) {
-    console.error("Import job failed", error);
-    await writes;
-    await db
-      .update(schema.importJob)
-      .set({
-        status: "failed",
-        processed,
-        imported,
-        skipped,
-        errors:
-          errors.length < MAX_IMPORT_ERRORS
-            ? [...errors, { row: 0, message: IMPORT_FAILED_MESSAGE }]
-            : errors,
-        finishedAt: new Date(),
-      })
-      .where(eq(schema.importJob.id, jobId))
-      .catch((updateError: unknown) => console.error("Could not mark import failed", updateError));
-  }
+        {
+          action: "user.imported",
+          targetType: "import_job",
+          targetId: jobId,
+          metadata: { jobId, total: input.total, imported, skipped, byRole },
+        },
+      ),
+  });
 }
 
 /** The job of `organizationId`, or `null` (also for another institution's id). */
