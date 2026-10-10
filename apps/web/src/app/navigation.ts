@@ -3,6 +3,7 @@ import {
   BookMarked,
   BookOpen,
   Building2,
+  CalendarClock,
   CalendarDays,
   Clock,
   DoorOpen,
@@ -144,6 +145,12 @@ export const navGroups: NavGroup<NavContext>[] = [
     label: "Horarios",
     visible: hasOrganization,
     items: [
+      {
+        label: "Horarios de Clases",
+        to: "/horarios",
+        icon: CalendarClock,
+        visible: (ctx) => holds(ctx, "schedule:read") || holds(ctx, "student:read"),
+      },
       {
         label: "Materias por Grado",
         to: "/materias-por-grado",

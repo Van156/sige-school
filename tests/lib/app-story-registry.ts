@@ -85,4 +85,6 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/scheduling/components/offering-hours-dialog.tsx",
   "features/scheduling/components/offerings-table.tsx",
   "shared/components/form/check-list.tsx",
+  "shared/components/sige/weekly-schedule.tsx",
+  "features/scheduling/components/schedule-card.tsx",
 ];
