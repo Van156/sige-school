@@ -118,3 +118,29 @@ export type EnrollmentRow = {
 
 /** `enrollment.stats` (sige/04 §3.3). */
 export type EnrollmentStats = { total: number; active: number };
+
+/** The course summary of `enrollment.candidates` (sige/04 §3.3): drives the SCH-02 callout. */
+export type EnrollmentCandidateCourse = {
+  id: string;
+  name: string;
+  maxStudents: number;
+  /** Active students whose current course is this one. */
+  currentStudents: number;
+  offeringCount: number;
+};
+
+/** An active student not already in the course (`enrollment.candidates`). */
+export type EnrollmentCandidate = {
+  id: string;
+  name: string;
+  document: string;
+  currentCourseName: string | null;
+};
+
+/** `enrollment.createBulk` (sige/04 §3.3). */
+export type BulkEnrollmentResult = {
+  students: number;
+  created: number;
+  skipped: number;
+  overCapacity: boolean;
+};

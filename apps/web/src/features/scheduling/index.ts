@@ -15,3 +15,4 @@ export { hasScheduledClasses, scheduleSearchSchema } from "./lib/schedule-view";
 export { default as ScheduleGeneratePage } from "./components/schedule-generate-page";
 export { default as EnrollmentsPage } from "./components/enrollments-page";
 export { enrollmentSearchDefaults, enrollmentSearchSchema } from "./lib/enrollment-list";
+export { default as EnrollmentFormPage } from "./components/enrollment-form-page";

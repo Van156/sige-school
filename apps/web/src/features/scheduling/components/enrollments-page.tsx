@@ -1,7 +1,7 @@
 import { buttonVariants } from "@base-template/ui/components/button";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, CheckCircle2, ClipboardList, GraduationCap } from "lucide-react";
+import { CalendarDays, CheckCircle2, ClipboardList, GraduationCap, Plus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
@@ -54,6 +54,7 @@ export default function EnrollmentsPage({ search }: { search: EnrollmentSearch }
 function EnrollmentsContent({ search }: { search: EnrollmentSearch }) {
   const navigate = useNavigate({ from: "/matriculas/" });
   const canViewStudents = useCan(ENROLLMENT_ACTIONS.viewStudents).can;
+  const canCreate = useCan(ENROLLMENT_ACTIONS.create).can;
   const canDelete = useCan(ENROLLMENT_ACTIONS.delete).can;
 
   const enrollmentsQuery = useQuery({
@@ -99,6 +100,12 @@ function EnrollmentsContent({ search }: { search: EnrollmentSearch }) {
   const actions = useMemo(() => ({ canDelete }), [canDelete]);
 
   const stats = statsQuery.data;
+  const createLink = (label: string) => (
+    <Link to="/matriculas/nueva" className={buttonVariants()}>
+      <Plus data-icon="inline-start" />
+      {label}
+    </Link>
+  );
 
   return (
     <>
@@ -106,12 +113,15 @@ function EnrollmentsContent({ search }: { search: EnrollmentSearch }) {
         title="Matrículas de Estudiantes"
         description="Gestión de matrículas de estudiantes por materia"
         actions={
-          canViewStudents ? (
-            <Link to="/estudiantes" className={buttonVariants({ variant: "outline" })}>
-              <GraduationCap data-icon="inline-start" />
-              Ver Estudiantes
-            </Link>
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            {canViewStudents ? (
+              <Link to="/estudiantes" className={buttonVariants({ variant: "outline" })}>
+                <GraduationCap data-icon="inline-start" />
+                Ver Estudiantes
+              </Link>
+            ) : null}
+            {canCreate ? createLink("Nueva Matrícula") : null}
+          </div>
         }
         banner={<ActiveInstitutionBanner />}
         stats={
@@ -132,6 +142,7 @@ function EnrollmentsContent({ search }: { search: EnrollmentSearch }) {
             icon={<ClipboardList />}
             title="No hay matrículas registradas"
             description="Matricule estudiantes en un grado. Serán inscritos automáticamente en todas las materias del grado."
+            action={canCreate ? createLink("Crear Matrícula") : undefined}
           />
         ) : (
           <EnrollmentsTable

@@ -14,7 +14,7 @@ export function useSaveAndReturn({
 }: {
   /** Query key of the entity (its list, stats and rows) the save makes stale. */
   invalidate: QueryKey;
-  to: "/salones" | "/bloques" | "/materias-por-grado" | "/asignaciones";
+  to: "/salones" | "/bloques" | "/materias-por-grado" | "/asignaciones" | "/matriculas";
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
