@@ -1,20 +1,21 @@
 import type { Database } from "@base-template/db";
 import * as schema from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { requirePermission } from "../../index";
 import { changedFields, recordAudit } from "../../sige/audit";
-import { rethrowDbError } from "../../sige/pg-errors";
+import { CAMPUS_HAS_STUDENTS_MESSAGE, HAS_DEPENDENTS, rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import { campusInput } from "../../sige/schemas/institution";
 
 /**
  * `campus.*` (sige/02 §3.3, INS-07/08). The tenant comes from `context.org`, never from input;
  * another tenant's id is `NOT_FOUND`. One main campus per institution is enforced by the partial
- * unique index (INS-R2): a violation maps to `CONFLICT`, with no automatic swap. Deletes rely on
- * the `restrict` FKs (`HAS_DEPENDENTS`, §4.2), never on a racy pre-check.
+ * unique index (INS-R2): a violation maps to `CONFLICT`, with no automatic swap. Deletes pre-check
+ * the dependents in §4.2 order under the campus row lock; the `restrict` FKs (`HAS_DEPENDENTS`)
+ * stay the arbiter.
  */
 
 const idInput = z.object({ id: z.string().min(1) });
@@ -32,6 +33,49 @@ const rowColumns = {
   active: schema.campus.active,
   createdAt: schema.campus.createdAt,
 };
+
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+type CampusChild =
+  | typeof schema.gradeLevel
+  | typeof schema.course
+  | typeof schema.classroom
+  | typeof schema.timeBlock
+  | typeof schema.student;
+
+/**
+ * sige/02 §4.2 campus rows, in spec order. Postgres reports whichever `restrict` FK it meets
+ * first, so the delete pre-checks under the campus row lock; the FK map stays the race arbiter.
+ */
+const DEPENDENT_CHECKS: readonly { tables: readonly CampusChild[]; message: string }[] = [
+  {
+    tables: [schema.gradeLevel, schema.course],
+    message: "La sede tiene niveles o grados asociados.",
+  },
+  {
+    tables: [schema.classroom, schema.timeBlock],
+    message: "La sede tiene salones o bloques horarios asociados.",
+  },
+  { tables: [schema.student], message: CAMPUS_HAS_STUDENTS_MESSAGE },
+];
+
+async function firstDependentMessage(
+  tx: Tx,
+  organizationId: string,
+  campusId: string,
+): Promise<string | null> {
+  for (const check of DEPENDENT_CHECKS) {
+    for (const table of check.tables) {
+      const [row] = await tx
+        .select({ one: sql`1` })
+        .from(table)
+        .where(and(eq(table.organizationId, organizationId), eq(table.campusId, campusId)))
+        .limit(1);
+      if (row) return check.message;
+    }
+  }
+  return null;
+}
 
 async function courseCount(
   db: Database,
@@ -172,14 +216,24 @@ export const campusRouter = {
     .handler(async ({ context, input }) => {
       const before = await findCampus(context.db, context.org.id, input.id);
       if (!before) throw notFound();
+      const byId = and(
+        eq(schema.campus.organizationId, context.org.id),
+        eq(schema.campus.id, input.id),
+      );
       try {
-        const affected = await context.db
-          .delete(schema.campus)
-          .where(
-            and(eq(schema.campus.organizationId, context.org.id), eq(schema.campus.id, input.id)),
-          )
-          .returning({ id: schema.campus.id });
-        if (affected.length === 0) throw notFound();
+        await context.db.transaction(async (tx) => {
+          // The row lock conflicts with the key-share lock of any dependent insert, so the
+          // checks below hold until the delete.
+          const [current] = await tx
+            .select({ id: schema.campus.id })
+            .from(schema.campus)
+            .where(byId)
+            .for("update");
+          if (!current) throw notFound();
+          const message = await firstDependentMessage(tx, context.org.id, input.id);
+          if (message) throw new ORPCError(HAS_DEPENDENTS, { status: 409, message });
+          await tx.delete(schema.campus).where(byId);
+        });
       } catch (error) {
         return rethrowDbError(error, "delete");
       }

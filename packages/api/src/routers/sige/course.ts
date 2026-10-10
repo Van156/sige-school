@@ -12,7 +12,7 @@ import { courseListConfig } from "../../lib/course-list-config";
 import { createListInput } from "../../lib/list-input";
 import { changedFields, recordAudit } from "../../sige/audit";
 import { assertCourseDirector, isActiveTeacher } from "../../sige/course-director";
-import { rethrowDbError } from "../../sige/pg-errors";
+import { COURSE_HAS_STUDENTS_MESSAGE, HAS_DEPENDENTS, rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import { activeStudentsOfCourse } from "../../sige/student-queries";
 import { onMember } from "../../sige/user-queries";
@@ -24,8 +24,10 @@ import { courseInput } from "../../sige/schemas/institution";
  * is `NOT_FOUND`. The composite FKs are the arbiter for the campus (`NOT_FOUND`) and for "the
  * level belongs to the course's campus" (`BAD_REQUEST`, §4.1); uniqueness is the unique
  * constraint (`CONFLICT`). The director must be an active teacher of the institution
- * (`BAD_REQUEST`, D9; `sige/course-director.ts`). Deletes rely on the `restrict` FKs later modules add (students,
- * offerings; §4.2), never on a racy pre-check.
+ * (`BAD_REQUEST`, D9; `sige/course-director.ts`). Deletes rely on the `restrict` FKs (students,
+ * offerings; §4.2); under the course row lock, students are pre-checked so the §4.2 order holds
+ * whichever FK Postgres reports. INS-R6: the campus is locked once the course has students,
+ * offerings or slots (checked under the same row lock).
  */
 
 const idInput = z.object({ id: z.string().min(1) });
@@ -141,6 +143,40 @@ const columnsFrom = (input: z.infer<typeof courseInput>) => ({
   maxStudents: input.maxStudents,
 });
 
+/** sige/02 INS-R6. */
+const CAMPUS_LOCKED_MESSAGE =
+  "No se puede cambiar la sede de un grado con estudiantes o asignaturas.";
+
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Whether `table` has a row of the tenant whose `column` equals `id`. */
+async function hasRow(
+  tx: Tx,
+  table: typeof schema.student | typeof schema.offering | typeof schema.scheduleSlot,
+  column: AnyColumn,
+  organizationId: string,
+  id: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ one: sql`1` })
+    .from(table)
+    .where(and(eq(table.organizationId, organizationId), eq(column, id)))
+    .limit(1);
+  return row !== undefined;
+}
+
+/** INS-R6: a course with students (any status), offerings or slots keeps its campus. */
+async function assertCampusMovable(tx: Tx, organizationId: string, courseId: string) {
+  const dependents = await Promise.all([
+    hasRow(tx, schema.student, schema.student.courseId, organizationId, courseId),
+    hasRow(tx, schema.offering, schema.offering.courseId, organizationId, courseId),
+    hasRow(tx, schema.scheduleSlot, schema.scheduleSlot.courseId, organizationId, courseId),
+  ]);
+  if (dependents.some(Boolean)) {
+    throw new ORPCError("CONFLICT", { status: 409, message: CAMPUS_LOCKED_MESSAGE });
+  }
+}
+
 export const courseRouter = {
   /** Server-list mode (R3.8): `{ rows, total }`; `total` ignores paging. */
   list: sigeProcedure
@@ -254,12 +290,20 @@ export const courseRouter = {
         before.directorPersonId,
       );
       try {
-        const affected = await context.db
-          .update(schema.course)
-          .set(values)
-          .where(byId(context.org.id, input.id))
-          .returning({ id: schema.course.id });
-        if (affected.length === 0) throw notFound();
+        await context.db.transaction(async (tx) => {
+          // The row lock conflicts with the key-share lock that a student, offering or slot
+          // insert takes on its course, so "has dependents" cannot change before the update.
+          const [current] = await tx
+            .select({ campusId: schema.course.campusId })
+            .from(schema.course)
+            .where(byId(context.org.id, input.id))
+            .for("update");
+          if (!current) throw notFound();
+          if (current.campusId !== values.campusId) {
+            await assertCampusMovable(tx, context.org.id, input.id);
+          }
+          await tx.update(schema.course).set(values).where(byId(context.org.id, input.id));
+        });
       } catch (error) {
         return rethrowDbError(error, "write");
       }
@@ -281,11 +325,22 @@ export const courseRouter = {
     .handler(async ({ context, input }) => {
       const before = await toRow(context.db, context.org.id, input.id);
       try {
-        const affected = await context.db
-          .delete(schema.course)
-          .where(byId(context.org.id, input.id))
-          .returning({ id: schema.course.id });
-        if (affected.length === 0) throw notFound();
+        await context.db.transaction(async (tx) => {
+          const [current] = await tx
+            .select({ id: schema.course.id })
+            .from(schema.course)
+            .where(byId(context.org.id, input.id))
+            .for("update");
+          if (!current) throw notFound();
+          // sige/02 §4.2 order: students before offerings (Postgres picks the FK it reports).
+          if (await hasRow(tx, schema.student, schema.student.courseId, context.org.id, input.id)) {
+            throw new ORPCError(HAS_DEPENDENTS, {
+              status: 409,
+              message: COURSE_HAS_STUDENTS_MESSAGE,
+            });
+          }
+          await tx.delete(schema.course).where(byId(context.org.id, input.id));
+        });
       } catch (error) {
         return rethrowDbError(error, "delete");
       }
