@@ -17,6 +17,7 @@ import type { TestTenant } from "../../sige/testing";
 import { createUser, deleteUser, resetUserPassword, setUserActive } from "../../sige/user-service";
 import type { UserActor } from "../../sige/user-service";
 import { racingDb } from "../../sige/testing";
+import { seedCampus } from "../../sige/testing/scheduling-seed";
 import { userRouter } from "./user";
 
 /** `user.*` read side (sige/03 USR-01, §3.3): list, stats, get, options, previews, email check. */
@@ -260,7 +261,7 @@ await sigeSuite("user router (read side)", (fx) => {
       .where(eq(schema.person.id, id("parent")));
   });
 
-  test("get returns the detail with studentId null (D4)", async () => {
+  test("get returns the detail; studentId is null without an academic profile", async () => {
     await fx.db
       .update(schema.person)
       .set({ phone: "3001234567", birthDate: "2001-02-03", gender: "F" })
@@ -281,6 +282,24 @@ await sigeSuite("user router (read side)", (fx) => {
     });
     const self = await call(userRouter.get, { personId: id("owner") }, { context: owner });
     expect(self.isSelf).toBe(true);
+  });
+
+  test("get exposes studentId once the student has an academic profile (USR-01)", async () => {
+    const before = await call(userRouter.get, { personId: id("student") }, { context: owner });
+    expect(before.studentId).toBeNull();
+    const campus = await seedCampus(fx, tenant);
+    const [profile] = await fx.db
+      .insert(schema.student)
+      .values({
+        organizationId: tenant.orgId,
+        personId: id("student"),
+        campusId: campus.id,
+        enrolledYear: "2026",
+      })
+      .returning({ id: schema.student.id });
+    const after = await call(userRouter.get, { personId: id("student") }, { context: owner });
+    expect(after.studentId).toBe(profile!.id);
+    await fx.db.delete(schema.student).where(eq(schema.student.id, profile!.id));
   });
 
   test("get of an unknown id is NOT_FOUND with the Spanish message", async () => {
