@@ -78,6 +78,8 @@ export const studentRowColumns = {
 
 const detailColumns = {
   ...studentRowColumns,
+  firstName: schema.person.firstName,
+  lastName: schema.person.lastName,
   username: schema.user.username,
   email: schema.user.email,
   hasRealEmail: schema.person.hasRealEmail,
@@ -219,6 +221,9 @@ export async function guardianLinks(
 }
 
 export type StudentDetail = StudentRow & {
+  /** Name parts for the STU-03 edit form; `name` stays the display name. */
+  firstName: string;
+  lastName: string;
   username: string;
   email: string | null;
   phone: string | null;

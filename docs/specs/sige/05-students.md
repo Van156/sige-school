@@ -90,6 +90,7 @@ type StudentRow = {
   status: "activo" | "retirado" | "graduado"; guardianName: string | null;
 };
 type StudentDetail = StudentRow & {
+  firstName: string; lastName: string;                                // STU-03 edit (P4 T10)
   username: string; email: string | null; phone: string | null;       // email null when placeholder
   birthDate: string | null; gender: "M" | "F" | "Otro" | null; address: string | null;
   neighborhood: string | null; stratum: number | null; bloodType: string | null; eps: string | null;

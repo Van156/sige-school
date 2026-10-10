@@ -648,6 +648,8 @@ await sigeSuite("student router", (fx) => {
       relationship: "Madre",
     });
     const detail = await call(studentRouter.get, { id: created.student.id }, { context: owner });
+    // The edit form needs the name parts, not only the display name.
+    expect(detail).toMatchObject({ firstName: "Laura", lastName: "Pérez", name: "Laura Pérez" });
     expect(detail.guardians).toEqual([
       {
         guardianPersonId: tenant.people.parent!.personId,

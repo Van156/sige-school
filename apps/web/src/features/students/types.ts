@@ -31,6 +31,9 @@ export type GuardianLink = {
 
 /** `student.get` (sige/05 §3.1, `StudentDetail`). */
 export type StudentDetail = StudentRow & {
+  /** Name parts (STU-03 edit); `name` is the display name. */
+  firstName: string;
+  lastName: string;
   username: string;
   email: string | null;
   phone: string | null;
