@@ -96,4 +96,6 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/students/components/student-switcher.tsx",
   "features/students/components/no-student-block.tsx",
   "features/students/components/guardian-card.tsx",
+  "features/students/components/students-table.tsx",
+  "features/students/components/incomplete-profiles-card.tsx",
 ];

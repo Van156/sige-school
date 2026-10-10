@@ -21,6 +21,7 @@ type SimpleListTableProps<
   columns: DataTableColumnDef<TRow, any>[];
   emptyTitle: string;
   emptyIcon?: ReactNode;
+  emptyDescription?: string;
   /** Initial column visibility/pinning, e.g. to hide filter-only columns. */
   initialState?: UseDataTableProps<TRow>["initialState"];
   /** The list query's state; `total` is the row count for the current filters, not the page. */
@@ -51,6 +52,7 @@ export function SimpleListTable<
   columns,
   emptyTitle,
   emptyIcon,
+  emptyDescription,
   initialState,
   list,
 }: SimpleListTableProps<TRow, TColumnId, TFilterKey>) {
@@ -76,7 +78,11 @@ export function SimpleListTable<
       isPlaceholderData={list.isPlaceholderData}
       errorMessage={list.errorMessage}
       onRetry={list.onRetry}
-      empty={{ title: emptyTitle, icon: emptyIcon }}
+      empty={{
+        title: emptyTitle,
+        icon: emptyIcon,
+        description: emptyDescription,
+      }}
     >
       <DataTableToolbar table={table} />
     </DataTable>
