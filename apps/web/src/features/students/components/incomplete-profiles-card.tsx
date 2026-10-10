@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@base-template/ui/components/card";
 import { Link } from "@tanstack/react-router";
-import { Pencil, UserRoundX } from "lucide-react";
+import { Pencil, UserRoundCheck, UserRoundX } from "lucide-react";
 import { useMemo } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
@@ -64,35 +64,42 @@ function getIncompleteColumns(
       meta: { label: "Email" },
       enableSorting: false,
     },
-    ...(canEditUser
-      ? [
-          {
-            id: "actions",
-            header: () => <span className="sr-only">Acciones</span>,
-            cell: ({ row }) => (
-              <div className="flex justify-end gap-1 whitespace-nowrap">
-                <Link
-                  to="/usuarios/$personId/editar"
-                  params={{ personId: row.original.personId }}
-                  aria-label={`Editar usuario ${row.original.username}`}
-                  className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-                >
-                  <Pencil />
-                </Link>
-              </div>
-            ),
-            meta: { label: "Acciones" },
-            enableSorting: false,
-            enableHiding: false,
-          } satisfies DataTableColumnDef<IncompleteTableRow, string>,
-        ]
-      : []),
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Acciones</span>,
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1 whitespace-nowrap">
+          <Link
+            to="/estudiantes/completar/$personId"
+            params={{ personId: row.original.personId }}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <UserRoundCheck data-icon="inline-start" />
+            Completar
+          </Link>
+          {canEditUser ? (
+            <Link
+              to="/usuarios/$personId/editar"
+              params={{ personId: row.original.personId }}
+              aria-label={`Editar usuario ${row.original.username}`}
+              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            >
+              <Pencil />
+            </Link>
+          ) : null}
+        </div>
+      ),
+      meta: { label: "Acciones" },
+      enableSorting: false,
+      enableHiding: false,
+    },
   ];
 }
 
 /**
  * STU-01 "Perfiles Académicos Incompletos" (sige/05 §5.1): student logins without an academic
- * profile, in a server table with local paging and search. Presentational: the caller decides
+ * profile, in a server table with local paging and search; "Completar" opens STU-03 complete
+ * mode and "Editar usuario" USR-03 (`canEditUser`). Presentational: the caller decides
  * whether it shows (`hasPendingProfiles`) and owns the `student.listIncomplete` query state.
  * `pendingTotal` is the unfiltered count of the "{n} pendientes" chip.
  */

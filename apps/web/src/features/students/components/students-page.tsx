@@ -1,6 +1,8 @@
 import { Badge } from "@base-template/ui/components/badge";
+import { buttonVariants } from "@base-template/ui/components/button";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
@@ -61,6 +63,7 @@ function StudentsContent({ search }: { search: StudentSearch }) {
   const navigate = useNavigate({ from: "/estudiantes/" });
   const canDelete = useCan(STUDENT_PERMISSIONS.delete).can;
   const canCreate = useCan(STUDENT_PERMISSIONS.create).can;
+  const canUpdate = useCan(STUDENT_PERMISSIONS.update).can;
 
   const listQuery = useQuery({
     ...orpc.student.list.queryOptions({ input: toStudentListInput(search) }),
@@ -112,6 +115,15 @@ function StudentsContent({ search }: { search: StudentSearch }) {
         <ListPageShell
           title="Gestión de Estudiantes"
           description="Administra los estudiantes de la institución"
+          actions={
+            // "Cargar Excel" (STU-05) joins once its screen exists (T11).
+            canCreate ? (
+              <Link to="/estudiantes/nuevo" className={buttonVariants()}>
+                <Plus data-icon="inline-start" />
+                Nuevo Estudiante
+              </Link>
+            ) : undefined
+          }
           banner={<ActiveInstitutionBanner />}
           listTitle="Lista de Estudiantes"
           listAction={
@@ -122,8 +134,16 @@ function StudentsContent({ search }: { search: StudentSearch }) {
             search={search}
             onSearchChange={onSearchChange}
             filterChoices={filterChoices}
+            canUpdate={canUpdate}
             canDelete={canDelete}
             onDelete={onDelete}
+            emptyAction={
+              canCreate ? (
+                <Link to="/estudiantes/nuevo" className={buttonVariants()}>
+                  Crear Estudiante
+                </Link>
+              ) : undefined
+            }
             list={{
               rows: listQuery.data?.rows,
               total,

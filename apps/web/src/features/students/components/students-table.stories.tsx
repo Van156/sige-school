@@ -1,3 +1,4 @@
+import { Button } from "@base-template/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { withRouter } from "@/shared/storybook/with-router";
@@ -72,6 +73,7 @@ const meta = {
         { value: "c10", label: "10-01" },
       ],
     },
+    canUpdate: true,
     canDelete: true,
     onDelete: () => {},
     list: {
@@ -89,23 +91,30 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** A manager: "Ver perfil" and "Eliminar" on every row. */
+/** A manager: "Ver perfil", "Editar" and "Eliminar" on every row. */
 export const Populated: Story = {
   args: { search: studentSearchSchema.parse({ status: "todos" }) },
 };
 
-/** A teacher (no `student:delete`): read-only rows. */
+/** A teacher (no `student:update` / `student:delete`): read-only rows. */
 export const ReadOnly: Story = {
-  args: { canDelete: false, list: { ...meta.args.list, rows: STUDENTS.slice(0, 2), total: 2 } },
+  args: {
+    canUpdate: false,
+    canDelete: false,
+    list: { ...meta.args.list, rows: STUDENTS.slice(0, 2), total: 2 },
+  },
 };
 
 export const Loading: Story = {
   args: { list: { ...meta.args.list, rows: undefined, total: undefined, isPending: true } },
 };
 
-/** The default "Activos" view with no student yet. */
+/** The default "Activos" view with no student yet; creators get "Crear Estudiante". */
 export const Empty: Story = {
-  args: { list: { ...meta.args.list, rows: [], total: 0 } },
+  args: {
+    list: { ...meta.args.list, rows: [], total: 0 },
+    emptyAction: <Button>Crear Estudiante</Button>,
+  },
 };
 
 /** Filters that match nobody keep the toolbar so they can be cleared. */

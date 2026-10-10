@@ -22,6 +22,8 @@ type SimpleListTableProps<
   emptyTitle: string;
   emptyIcon?: ReactNode;
   emptyDescription?: string;
+  /** Action of the empty state, e.g. a "Crear …" link. */
+  emptyAction?: ReactNode;
   /** Initial column visibility/pinning, e.g. to hide filter-only columns. */
   initialState?: UseDataTableProps<TRow>["initialState"];
   /** The list query's state; `total` is the row count for the current filters, not the page. */
@@ -53,6 +55,7 @@ export function SimpleListTable<
   emptyTitle,
   emptyIcon,
   emptyDescription,
+  emptyAction,
   initialState,
   list,
 }: SimpleListTableProps<TRow, TColumnId, TFilterKey>) {
@@ -82,6 +85,7 @@ export function SimpleListTable<
         title: emptyTitle,
         icon: emptyIcon,
         description: emptyDescription,
+        action: emptyAction,
       }}
     >
       <DataTableToolbar table={table} />

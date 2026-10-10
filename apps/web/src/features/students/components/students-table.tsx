@@ -1,5 +1,5 @@
 import { GraduationCap } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
 
@@ -23,12 +23,16 @@ export default function StudentsTable({
   onSearchChange,
   list,
   filterChoices,
+  canUpdate,
   canDelete,
   onDelete,
+  emptyAction,
 }: StudentRowActions & {
   search: StudentSearch;
   onSearchChange: DataTableSearchChange;
   filterChoices: StudentFilterChoices;
+  /** "Crear Estudiante" of the empty state (`student:create` callers). */
+  emptyAction?: ReactNode;
   list: {
     rows: StudentRow[] | undefined;
     total: number | undefined;
@@ -40,8 +44,8 @@ export default function StudentsTable({
   };
 }) {
   const columns = useMemo(
-    () => getStudentColumns({ filterChoices, canDelete, onDelete }),
-    [filterChoices, canDelete, onDelete],
+    () => getStudentColumns({ filterChoices, canUpdate, canDelete, onDelete }),
+    [filterChoices, canUpdate, canDelete, onDelete],
   );
   return (
     <SimpleListTable
@@ -53,6 +57,7 @@ export default function StudentsTable({
       emptyTitle="No se encontraron estudiantes con perfil académico completo"
       emptyDescription="Intenta cambiar los filtros o crea un nuevo estudiante."
       emptyIcon={<GraduationCap />}
+      emptyAction={emptyAction}
       list={list}
     />
   );

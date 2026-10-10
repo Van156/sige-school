@@ -1,7 +1,7 @@
 import { Badge } from "@base-template/ui/components/badge";
 import { Button, buttonVariants } from "@base-template/ui/components/button";
 import { Link } from "@tanstack/react-router";
-import { Eye, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 import type { DataTableColumnDef } from "@/shared/lib/data-table/features";
 import type { Option } from "@/shared/lib/data-table/types";
@@ -21,6 +21,8 @@ export const HIDDEN_FILTER_COLUMNS = { campusId: false, courseId: false } as con
 export type StudentFilterChoices = { campuses: Option[]; courses: Option[] };
 
 export type StudentRowActions = {
+  /** `student:update` of the caller: row "Editar" → STU-03. UX only, the procedure re-checks. */
+  canUpdate: boolean;
   /** `student:delete` of the caller; UX only, the procedure re-checks. */
   canDelete: boolean;
   onDelete: (student: StudentRow) => void;
@@ -34,6 +36,7 @@ export type StudentRowActions = {
  */
 export function getStudentColumns({
   filterChoices,
+  canUpdate,
   canDelete,
   onDelete,
 }: StudentRowActions & { filterChoices: StudentFilterChoices }): StudentColumn[] {
@@ -132,6 +135,16 @@ export function getStudentColumns({
             >
               <Eye />
             </Link>
+            {canUpdate ? (
+              <Link
+                to="/estudiantes/$studentId/editar"
+                params={{ studentId: student.id }}
+                aria-label={`Editar a ${student.name}`}
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              >
+                <Pencil />
+              </Link>
+            ) : null}
             {canDelete ? (
               <Button
                 variant="ghost"
