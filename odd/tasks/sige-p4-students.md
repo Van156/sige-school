@@ -20,6 +20,7 @@
 - D5 (default) Linking an inactive guardian person reuses STU-R6 "El usuario seleccionado no es un acudiente.".
 - D6 (spec defaults) OQ-STU-1 no side effects on status change; OQ-STU-2 teachers see health fields.
 - D7 (default) STU-02 action cards pointing to screens that do not exist yet (observations, grades, …) are hidden in P4.
+- D9 (writer default, T1) Status transitions: activo→retirado/graduado, retirado→activo, graduado→activo (correct a mistaken graduation); retirado↔graduado refused; same status always allowed. Import with `grado` existing only in another campus → "El grado no pertenece a la sede seleccionada.".
 - D8 (default) Routers split per entity (`student`, `guardian`, `enrollment`) as in P1–P3.
 
 ## P1–P3 deferrals closed in P4
@@ -35,7 +36,7 @@
 
 Server (TDD; delegated writer):
 
-- [ ] T1 — sige-core: student import row validation (all STU-R8 messages, date formats, gender aliases, course/campus resolution, in-file duplicates), campus/course consistency, status transitions, bulk-enrollment planner (skip existing, capacity arithmetic); zod `api/src/sige/schemas/student.ts` and `enrollment.ts` with §4.1 messages.
+- [x] T1 — sige-core: student import row validation (all STU-R8 messages, date formats, gender aliases, course/campus resolution, in-file duplicates), campus/course consistency, status transitions, bulk-enrollment planner (skip existing, capacity arithmetic); zod `api/src/sige/schemas/student.ts` and `enrollment.ts` with §4.1 messages.
 - [ ] T2 — DB: enums `student_status`/`guardian_relationship`/`enrollment_status`, `course` unique `(org, campus, id)`, tables `student`, `student_guardian`, `enrollment` (composite restrict FKs, checks, indexes), constraint-name constants, generated migration (snapshot in its own commit), constraint tests.
 - [ ] T3 — pg-errors (student/guardian/enrollment uniques and FKs; campus/course/offering/person delete messages) + scope resolvers (`studentWhere`, `studentVisible` per kind; student/parent `offeringWhere`), scope tests.
 - [ ] T4 — `enrollment.*` (list/stats/get/candidates/createBulk/update/delete; SCH-R5 one transaction, idempotent, capacity override, `isStale`), audit, matrix + isolation; close P3 D2 in `offering.delete`.
@@ -55,3 +56,4 @@ Web (react-staff):
 ## Progress
 
 - Mapping done (delegated explorer, Opus). Permission catalog and audit actions already complete for modules 04/05. `exceljs` already a dependency; `import_kind` already has `students`. Branch created from `c87a120`.
+- T1 in 2b0e091 (+1190/−4) + 505f5e0 (+424/−3): sige-core `student.ts` (document types TI/RC/CC default TI, statuses, relationships, `checkCourseCampus`, `courseAfterCampusChange`, `canChangeStudentStatus`), `student-import.ts` (16 columns, header aliases, `parseImportBirthDate` 3 formats, gender aliases, `validateStudentImportRows` with ctx of active campuses/current-year courses/existing documents), `enrollment.ts` (`planBulkEnrollment` refusal order no_students → inactive_student → no_offerings → over_capacity, D3 capacity, `isStale`, `isValidFinalScore`, max 200); api schemas `student.ts`/`enrollment.ts` (P2 user field fragments exported for reuse; `readCell`/`ImportCell` exported). Authored: "No se puede cambiar el estado de "{from}" a "{to}".", "Solo se pueden matricular estudiantes activos.", "Fila n: Fecha de nacimiento inválida "{x}".", "Fila n: La columna "{col}" no puede superar {n} caracteres.", "Seleccione como máximo 200 estudiantes.", "Debes seleccionar un parentesco.". Open for T5: blank optional fields on edit become `undefined` (P2 precedent) — decide whether that clears to null. TDD: RED observed (5 files, missing modules); GREEN sige-core 257, api schemas 123; check-types/lint 0. Parent spot check: both suites re-run, no trailers. Route: delegated writer (Opus).
