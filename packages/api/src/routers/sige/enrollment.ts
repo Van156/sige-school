@@ -46,8 +46,11 @@ const notFound = () => new ORPCError("NOT_FOUND", { message: "La matrícula no e
 const studentName = sql<string>`${schema.person.firstName} || ' ' || ${schema.person.lastName}`;
 /** SCH-R7: the enrollment's course is not the student's current course. */
 const isStale = sql<boolean>`${schema.offering.courseId} is distinct from ${schema.student.courseId}`;
-/** Text searched by the `student` filter: the name or the document. */
-const studentSearch = sql`${schema.person.firstName} || ' ' || ${schema.person.lastName} || ' ' || ${schema.person.documentNumber}`;
+/**
+ * Text searched by the `student` filter: the student's name, the document or the subject (the
+ * SCH-01 box "Buscar estudiante, documento o materia").
+ */
+const studentSearch = sql`${schema.person.firstName} || ' ' || ${schema.person.lastName} || ' ' || ${schema.person.documentNumber} || ' ' || ${schema.subject.name}`;
 
 const rowColumns = {
   id: schema.enrollment.id,

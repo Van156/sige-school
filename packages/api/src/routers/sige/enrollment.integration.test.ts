@@ -399,6 +399,13 @@ await sigeSuite("enrollment router", (fx) => {
       { context: ctx },
     );
     expect(byName.total).toBe(2);
+    // SCH-01 search box "Buscar estudiante, documento o materia" (sige/04 §5.1).
+    const bySubjectName = await call(
+      enrollmentRouter.list,
+      { filters: [listFilter("student", "text", "iLike", "arte")] },
+      { context: ctx },
+    );
+    expect(bySubjectName.rows.map((r) => r.subjectName)).toEqual(["Arte", "Arte"]);
     const bySubject = await call(
       enrollmentRouter.list,
       { filters: [listFilter("subjectId", "select", "eq", art.id)] },

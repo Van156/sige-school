@@ -5,8 +5,9 @@ import { ENROLLMENT_STATUSES } from "@base-template/sige-core";
 import type { ListInputConfig } from "./list-input";
 
 /**
- * Enrollments (`enrollment.list`). The `student` text filter matches the student's name or
- * document; `status` is one of the enrollment statuses. Default order: student (last name), subject, course.
+ * Enrollments (`enrollment.list`). The `student` text filter matches the student's name, the
+ * document or the subject; `status` is one of the enrollment statuses. Default order: student
+ * (last name), subject, course.
  */
 export const enrollmentListConfig = {
   sortableColumns: ["student", "subject", "course", "enrollmentDate", "status", "finalScore"],
