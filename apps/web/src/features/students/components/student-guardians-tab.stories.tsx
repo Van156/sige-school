@@ -1,3 +1,4 @@
+import { Button } from "@base-template/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import StudentGuardiansTab from "./student-guardians-tab";
@@ -43,5 +44,16 @@ export const WithLinkedGuardians: Story = {};
 export const NoGuardians: Story = {
   args: {
     student: { guardianName: null, guardianPhone: null, guardianEmail: null, guardians: [] },
+  },
+};
+
+/** Callers with `student:guardians` get "Gestionar" (→ STU-04) in the header. */
+export const WithManage: Story = {
+  args: {
+    manage: (
+      <Button variant="outline" size="sm">
+        Gestionar
+      </Button>
+    ),
   },
 };

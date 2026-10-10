@@ -107,4 +107,7 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/students/components/student-schedule-tab.tsx",
   "features/students/components/student-guardians-tab.tsx",
   "features/students/components/student-profile-tabs.tsx",
+  "features/students/components/guardian-candidate-combobox.tsx",
+  "features/students/components/guardian-assign-card.tsx",
+  "features/students/components/assigned-guardians-card.tsx",
 ];

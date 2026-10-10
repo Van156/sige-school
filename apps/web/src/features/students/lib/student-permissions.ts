@@ -1,5 +1,5 @@
 /**
- * The permission behind each STU-01/02/03 action (sige/05 §3.1, §5.1–§5.3). Pages read `useCan`
+ * The permission behind each STU-01…05 action (sige/05 §3.1, §5.1–§5.5). Pages read `useCan`
  * with these keys; UX only, the procedures re-check.
  */
 export const STUDENT_PERMISSIONS = {
@@ -14,6 +14,12 @@ export const STUDENT_PERMISSIONS = {
   update: "student:update",
   /** Row "Eliminar" (`student.delete`). */
   delete: "student:delete",
+  /** STU-02 "Asignar Acudientes" / "Gestionar" and STU-04 (`guardian.*`). */
+  guardians: "student:guardians",
+  /** STU-01 "Cargar Excel" and STU-05 (`student.import*`). */
+  import: "student:import",
+  /** STU-04 "Crear acudiente primero" → USR-02 (`user:create` is admin-only, G-STU-4). */
+  createUser: "user:create",
   /** Incomplete-profile row "Editar usuario" → USR-03. */
   editUser: "user:update",
   /** STU-03 complete "Cancelar" returns to USR-01 only for callers who can read it. */

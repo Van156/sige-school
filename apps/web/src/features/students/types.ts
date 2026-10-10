@@ -29,6 +29,14 @@ export type GuardianLink = {
   phone: string | null;
 };
 
+/** A row of `guardian.candidates`: an active `parent` person not yet linked to the student. */
+export type GuardianCandidate = {
+  personId: string;
+  name: string;
+  username: string;
+  document: string;
+};
+
 /** `student.get` (sige/05 §3.1, `StudentDetail`). */
 export type StudentDetail = StudentRow & {
   /** Name parts (STU-03 edit); `name` is the display name. */

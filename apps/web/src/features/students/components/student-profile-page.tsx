@@ -1,20 +1,17 @@
 import { Button, buttonVariants } from "@base-template/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Trash2, UserX } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, UsersRound } from "lucide-react";
 
 import { orpc } from "@/app/orpc";
 import { CanGate, useCan } from "@/features/access-control";
 import { ActiveInstitutionGuard, ConfirmDelete, useDeleteEntity } from "@/features/institution";
-import EmptyState from "@/shared/components/feedback/empty-state";
-import Loader from "@/shared/components/feedback/loader";
-import LoadError from "@/shared/components/feedback/load-error";
 import PageHeader from "@/shared/components/layout/page-header";
-import { isNotFoundError } from "@/shared/lib/orpc-error";
 
 import type { StudentProfileSearch, StudentProfileTab } from "../lib/student-profile";
 import { STUDENT_PERMISSIONS } from "../lib/student-permissions";
 import type { StudentDetail } from "../types";
+import StudentDetailLoader from "./student-detail-loader";
 import StudentGuardiansTab from "./student-guardians-tab";
 import StudentIdentityCard from "./student-identity-card";
 import StudentInfoTab from "./student-info-tab";
@@ -24,8 +21,9 @@ import StudentStrip from "./student-strip";
 
 /**
  * STU-02 `/estudiantes/$studentId` (container): the identity strip with the caller's actions
- * ("Editar", "Eliminar"), the "Identidad" card and the tabs of `?tab=`. Action cards and
- * "Asignar Acudientes" point to screens not built yet and stay hidden (D7; STU-04 is T11).
+ * ("Editar", "Asignar Acudientes", "Eliminar"), the "Identidad" card and the tabs of `?tab=`; the
+ * "Acudientes" tab links to STU-04 through "Gestionar". Action cards point to screens not built
+ * yet and stay hidden (D7).
  */
 export default function StudentProfilePage({
   studentId,
@@ -63,32 +61,11 @@ export default function StudentProfilePage({
 }
 
 function StudentProfile({ studentId, tab }: { studentId: string; tab: StudentProfileTab }) {
-  const detailQuery = useQuery(orpc.student.get.queryOptions({ input: { id: studentId } }));
-
-  if (detailQuery.isPending) {
-    return <Loader />;
-  }
-  if (detailQuery.isError && detailQuery.data === undefined) {
-    // An unknown or out-of-scope id is NOT_FOUND (R1.15).
-    return isNotFoundError(detailQuery.error) ? (
-      <EmptyState
-        icon={<UserX />}
-        title="Estudiante no encontrado"
-        description="El estudiante no existe o no tienes acceso a su perfil."
-        action={
-          <Link to="/estudiantes" className={buttonVariants()}>
-            Volver a Estudiantes
-          </Link>
-        }
-      />
-    ) : (
-      <LoadError
-        message="No se pudo cargar el estudiante."
-        onRetry={() => void detailQuery.refetch()}
-      />
-    );
-  }
-  return <StudentProfileContent student={detailQuery.data} tab={tab} />;
+  return (
+    <StudentDetailLoader studentId={studentId}>
+      {(student) => <StudentProfileContent student={student} tab={tab} />}
+    </StudentDetailLoader>
+  );
 }
 
 function StudentProfileContent({
@@ -101,6 +78,7 @@ function StudentProfileContent({
   const navigate = useNavigate({ from: "/estudiantes/$studentId/" });
   const canUpdate = useCan(STUDENT_PERMISSIONS.update).can;
   const canDelete = useCan(STUDENT_PERMISSIONS.delete).can;
+  const canManageGuardians = useCan(STUDENT_PERMISSIONS.guardians).can;
 
   const deleteStudent = useMutation(orpc.student.delete.mutationOptions());
   const deletion = useDeleteEntity<{ id: string; name: string }>({
@@ -118,7 +96,7 @@ function StudentProfileContent({
       <StudentStrip
         student={student}
         actions={
-          canUpdate || canDelete ? (
+          canUpdate || canManageGuardians || canDelete ? (
             <div className="flex flex-wrap gap-2">
               {canUpdate ? (
                 <Link
@@ -128,6 +106,16 @@ function StudentProfileContent({
                 >
                   <Pencil data-icon="inline-start" />
                   Editar
+                </Link>
+              ) : null}
+              {canManageGuardians ? (
+                <Link
+                  to="/estudiantes/$studentId/acudientes"
+                  params={{ studentId: student.id }}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <UsersRound data-icon="inline-start" />
+                  Asignar Acudientes
                 </Link>
               ) : null}
               {canDelete ? (
@@ -159,7 +147,22 @@ function StudentProfileContent({
               horario: (
                 <StudentSchedule courseId={student.courseId} courseName={student.courseName} />
               ),
-              acudientes: <StudentGuardiansTab student={student} />,
+              acudientes: (
+                <StudentGuardiansTab
+                  student={student}
+                  manage={
+                    canManageGuardians ? (
+                      <Link
+                        to="/estudiantes/$studentId/acudientes"
+                        params={{ studentId: student.id }}
+                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                      >
+                        Gestionar
+                      </Link>
+                    ) : undefined
+                  }
+                />
+              ),
             }}
           />
         </div>
