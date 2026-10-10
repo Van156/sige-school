@@ -10,6 +10,7 @@ import { institutionRouter } from "./sige/institution";
 import { institutionAdminRouter } from "./sige/institution-admin";
 import { courseRouter } from "./sige/course";
 import { criterionRouter } from "./sige/criterion";
+import { enrollmentRouter } from "./sige/enrollment";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
 import { offeringRouter } from "./sige/offering";
@@ -58,6 +59,8 @@ export const appRouter = {
   classroom: classroomRouter,
   timeBlock: timeBlockRouter,
   schedule: scheduleRouter,
+  // SCH-01/02 enrollments (sige/04 §3.3, P4).
+  enrollment: enrollmentRouter,
   criterion: criterionRouter,
   period: periodRouter,
   // Module 03 users (sige/03 §3.3): read side in P2 T3.
