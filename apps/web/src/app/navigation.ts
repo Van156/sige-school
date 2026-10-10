@@ -13,6 +13,7 @@ import {
   MapPin,
   Settings,
   ShieldCheck,
+  UserCheck,
   UserRound,
   Users,
 } from "lucide-react";
@@ -147,6 +148,12 @@ export const navGroups: NavGroup<NavContext>[] = [
         label: "Materias por Grado",
         to: "/materias-por-grado",
         icon: BookMarked,
+        visible: can("offering:read"),
+      },
+      {
+        label: "Asignación de Profesores",
+        to: "/asignaciones",
+        icon: UserCheck,
         visible: can("offering:read"),
       },
       { label: "Salones", to: "/salones", icon: DoorOpen, visible: can("classroom:read") },

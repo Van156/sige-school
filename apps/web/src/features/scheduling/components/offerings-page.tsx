@@ -108,7 +108,14 @@ function OfferingsContent({ search }: { search: OfferingSearch }) {
       <ListPageShell
         title="Materias por Grado"
         description="Asignar materias a grados"
-        actions={canCreate ? assignLink("Asignar Materias") : undefined}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link to="/asignaciones" className={buttonVariants({ variant: "outline" })}>
+              Ver Asignaciones
+            </Link>
+            {canCreate ? assignLink("Asignar Materias") : null}
+          </div>
+        }
         banner={<ActiveInstitutionBanner />}
         stats={
           <StatGrid columns={3}>

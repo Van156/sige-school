@@ -64,3 +64,23 @@ export type OfferingRow = {
 
 /** `offering.stats` (sige/04 §3.1). */
 export type OfferingStats = { assigned: number; weeklyHours: number; withoutTeacher: number };
+
+/** A row of `assignment.list` / the result of `assignment.get` (sige/04 §3.2). */
+export type AssignmentRow = {
+  id: string;
+  offeringId: string;
+  teacherPersonId: string;
+  teacherName: string;
+  /** The teacher's login name; `null` for an account without one. */
+  teacherUsername: string | null;
+  subjectName: string;
+  courseName: string;
+  academicYear: string;
+  /** `YYYY-MM-DD`. */
+  assignmentDate: string;
+  status: AssignmentStatus;
+  notes: string | null;
+};
+
+/** `assignment.stats` (sige/04 §3.2). */
+export type AssignmentStats = { total: number; active: number };

@@ -1,4 +1,7 @@
-/** Public API of the scheduling feature (SIGE module 04: offerings, classrooms and time blocks, SCH-05…10). */
+/** Public API of the scheduling feature (SIGE module 04: offerings, assignments, classrooms and time blocks, SCH-03…10). */
+export { default as AssignmentFormPage } from "./components/assignment-form-page";
+export { default as AssignmentsPage } from "./components/assignments-page";
+export { assignmentSearchDefaults, assignmentSearchSchema } from "./lib/assignment-list";
 export { default as ClassroomFormPage } from "./components/classroom-form-page";
 export { default as ClassroomsPage } from "./components/classrooms-page";
 export { classroomSearchDefaults, classroomSearchSchema } from "./lib/classroom-list";
