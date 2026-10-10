@@ -5,9 +5,10 @@ import { PERIOD_ORDER_MAX, periodsOverlap } from "@base-template/sige-core";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { requirePermission } from "../../index";
+import { requireAnyPermission, requirePermission } from "../../index";
+import { periodHasGrades } from "../../sige/academic-dependents";
 import { changedFields, recordAudit } from "../../sige/audit";
-import { rethrowDbError } from "../../sige/pg-errors";
+import { HAS_DEPENDENTS, PERIOD_HAS_GRADES_MESSAGE, rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import { periodInput } from "../../sige/schemas/institution";
 
@@ -97,9 +98,14 @@ async function toRow(db: Database, organizationId: string, id: string): Promise<
 }
 
 export const periodRouter = {
-  /** Client-list mode (R3.9): bounded, year desc then order. */
+  /**
+   * Client-list mode (R3.9): bounded, year desc then order. D3 widens the gate to
+   * `period:read | grade:read`: a teacher holds no `period:read` but needs the period list for the
+   * GRD-01 lock pills and the GRD-03 period select (the `previewUsername` precedent). Only the
+   * list is widened — `get` and `summary` stay administrative.
+   */
   list: sigeProcedure
-    .use(requirePermission({ period: ["read"] }))
+    .use(requireAnyPermission({ period: ["read"] }, { grade: ["read"] }))
     .input(listInput)
     .handler(({ context, input }) =>
       context.db
@@ -263,6 +269,14 @@ export const periodRouter = {
           // INS-R5: exactly one active period; the only way to move it is `activate`.
           if (target.isActive)
             throw new ORPCError("BAD_REQUEST", { message: CANNOT_DELETE_ACTIVE });
+          // §4.2: grades, finals or locks keep the period. The restrict FKs say the same thing;
+          // the check keeps the message independent of which one Postgres reports.
+          if (await periodHasGrades(tx, context.org.id, input.id)) {
+            throw new ORPCError(HAS_DEPENDENTS, {
+              status: 409,
+              message: PERIOD_HAS_GRADES_MESSAGE,
+            });
+          }
           const affected = await tx
             .delete(schema.academicPeriod)
             .where(byId(context.org.id, input.id))

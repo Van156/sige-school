@@ -13,6 +13,20 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
+import {
+  seedAcademicPeriod,
+  seedCriterion,
+  seedFinalGrade,
+  seedGradeRecord,
+  seedPeriodLock,
+} from "../../sige/testing/academic-seed";
+import {
+  seedCampus,
+  seedCourse,
+  seedOffering,
+  seedStudent,
+  seedSubject,
+} from "../../sige/testing/scheduling-seed";
 import { periodRouter } from "./period";
 
 /** `period.*` (sige/02 INS-15/16, §3.3, INS-R5, INS-R9): CRUD, atomic activate, overlap, audit. */
@@ -550,12 +564,124 @@ await sigeSuite("period router", (fx) => {
   });
 });
 
+await sigeSuite("period.list gate (D3)", (fx) => {
+  let tenant: TestTenant;
+  let periodId: string;
+  const callers: Partial<Record<"teacher" | "student" | "viewer", Context>> = {};
+
+  test("provisions a tenant with a period and one caller per role", async () => {
+    tenant = await fx.provisionTenant("Compuerta", ["owner", "teacher", "student", "viewer"]);
+    periodId = (await seedAcademicPeriod(fx, tenant)).id;
+    for (const role of ["teacher", "student", "viewer"] as const) {
+      callers[role] = await fx.contextFor(tenant.people[role]!, tenant);
+    }
+  });
+
+  test("a teacher reads the list through grade:read, without holding period:read", async () => {
+    const rows = await call(periodRouter.list, {}, { context: callers.teacher! });
+    expect(rows.map((row) => row.id)).toContain(periodId);
+    // The widening is `list` only: the administrative reads still need `period:read`.
+    expect(
+      (await errorOf(call(periodRouter.summary, undefined, { context: callers.teacher! })))?.code,
+    ).toBe("FORBIDDEN");
+    expect(
+      (await errorOf(call(periodRouter.get, { id: periodId }, { context: callers.teacher! })))
+        ?.code,
+    ).toBe("FORBIDDEN");
+  });
+
+  test("a student keeps reading it through period:read", async () => {
+    const rows = await call(periodRouter.list, {}, { context: callers.student! });
+    expect(rows.map((row) => row.id)).toContain(periodId);
+  });
+
+  test("a viewer holds neither permission and is still FORBIDDEN", async () => {
+    expect((await errorOf(call(periodRouter.list, {}, { context: callers.viewer! })))?.code).toBe(
+      "FORBIDDEN",
+    );
+  });
+});
+
+await sigeSuite("period delete dependents (sige/02 §4.2)", (fx) => {
+  let tenant: TestTenant;
+  let owner: Context;
+  let audit: RecordingAuditLogger;
+  let world: { courseId: string; offeringId: string; studentId: string; authorPersonId: string };
+
+  test("provisions a tenant with a course, an offering and a student", async () => {
+    tenant = await fx.provisionTenant("Dependientes", ["owner", "teacher"]);
+    owner = await fx.contextFor(tenant.people.owner!, tenant);
+    audit = owner.auditLogger as RecordingAuditLogger;
+    const campus = await seedCampus(fx, tenant);
+    const course = await seedCourse(fx, tenant, campus.id);
+    const subject = await seedSubject(fx, tenant);
+    const offering = await seedOffering(fx, tenant, course.id, subject.id);
+    const student = await seedStudent(fx, tenant, campus.id, { courseId: course.id });
+    world = {
+      courseId: course.id,
+      offeringId: offering.id,
+      studentId: student.id,
+      authorPersonId: tenant.people.teacher!.personId,
+    };
+  });
+
+  test.each(["grade", "final", "lock"] as const)(
+    "delete is refused while the period has a %s row and audits nothing",
+    async (kind) => {
+      const period = await seedAcademicPeriod(fx, tenant);
+      const common = {
+        studentId: world.studentId,
+        offeringId: world.offeringId,
+        periodId: period.id,
+      };
+      if (kind === "grade") {
+        const criterion = await seedCriterion(fx, tenant);
+        await seedGradeRecord(fx, tenant, {
+          ...common,
+          criterionId: criterion.id,
+          authorPersonId: world.authorPersonId,
+        });
+      } else if (kind === "final") {
+        await seedFinalGrade(fx, tenant, common);
+      } else {
+        await seedPeriodLock(fx, tenant, {
+          offeringId: world.offeringId,
+          periodId: period.id,
+          lockedBy: world.authorPersonId,
+        });
+      }
+      audit.reset();
+      const error = await errorOf(call(periodRouter.delete, { id: period.id }, { context: owner }));
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.status).toBe(409);
+      expect(error?.message).toBe("El periodo tiene notas registradas.");
+      expect(audit.events).toHaveLength(0);
+      expect(
+        await fx.db
+          .select()
+          .from(schema.academicPeriod)
+          .where(eq(schema.academicPeriod.id, period.id)),
+      ).toHaveLength(1);
+    },
+  );
+
+  test("a period without academic rows is still deletable", async () => {
+    const period = await seedAcademicPeriod(fx, tenant);
+    expect(await call(periodRouter.delete, { id: period.id }, { context: owner })).toEqual({
+      deleted: true,
+    });
+  });
+});
+
 await testPermissionMatrix({
   name: "period",
   procedures: [
     {
+      // D3: widened to `period:read | grade:read` so a teacher gets the GRD-01 lock pills and the
+      // GRD-03 period select. `summary` and `get` stay on `period:read`.
       name: "period.list",
       permissions: { period: ["read"] },
+      anyOf: [{ period: ["read"] }, { grade: ["read"] }],
       run: (context) => call(periodRouter.list, {}, { context }),
     },
     {
