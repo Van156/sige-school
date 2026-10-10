@@ -1,8 +1,12 @@
 import { parsePermissionString } from "@base-template/auth/permissions";
 import {
+  BookMarked,
   BookOpen,
   Building2,
+  CalendarClock,
   CalendarDays,
+  Clock,
+  DoorOpen,
   GraduationCap,
   LayoutDashboard,
   Layers,
@@ -10,6 +14,7 @@ import {
   MapPin,
   Settings,
   ShieldCheck,
+  UserCheck,
   UserRound,
   Users,
 } from "lucide-react";
@@ -132,6 +137,41 @@ export const navGroups: NavGroup<NavContext>[] = [
         to: "/criterios",
         icon: ListChecks,
         visible: can("criterion:read"),
+      },
+    ],
+  },
+  {
+    id: "scheduling",
+    label: "Horarios",
+    visible: hasOrganization,
+    // Order of the prototype's "Matrícula y Programación" entries (sige/00 R1.25; "Matrículas"
+    // joins in P4). `/horarios` needs `schedule:read`: every view of SCH-11 is gated by it, so
+    // `student:read` alone (accepted by `schedule.get` for STU-02) would open a no-permission page.
+    items: [
+      {
+        label: "Asignación de Profesores",
+        to: "/asignaciones",
+        icon: UserCheck,
+        visible: can("offering:read"),
+      },
+      {
+        label: "Materias por Grado",
+        to: "/materias-por-grado",
+        icon: BookMarked,
+        visible: can("offering:read"),
+      },
+      { label: "Salones", to: "/salones", icon: DoorOpen, visible: can("classroom:read") },
+      {
+        label: "Horarios de Clases",
+        to: "/horarios",
+        icon: CalendarClock,
+        visible: can("schedule:read"),
+      },
+      {
+        label: "Bloques de Tiempo",
+        to: "/bloques",
+        icon: Clock,
+        visible: can("time_block:read"),
       },
     ],
   },

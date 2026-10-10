@@ -163,6 +163,69 @@ describe("navGroups visibility", () => {
     ).toEqual(["/asignaturas", "/criterios"]);
   });
 
+  test("the scheduling group lists its entries in prototype order, per read permission", () => {
+    const scheduling = (permissions: Record<string, string[]>) =>
+      filterNavGroups(navGroups, { ...member, kind: "coordinator", permissions }).find(
+        (group) => group.id === "scheduling",
+      );
+    expect(
+      scheduling({
+        offering: ["read"],
+        classroom: ["read"],
+        schedule: ["read"],
+        time_block: ["read"],
+      })?.items.map((item) => item.label),
+    ).toEqual([
+      "Asignación de Profesores",
+      "Materias por Grado",
+      "Salones",
+      "Horarios de Clases",
+      "Bloques de Tiempo",
+    ]);
+    expect(scheduling({ schedule: ["read"] })?.items.map((item) => item.to)).toEqual(["/horarios"]);
+    // `/horarios` gates every view on `schedule:read`; `student:read` alone would be a dead link.
+    expect(scheduling({ student: ["read"] })).toBeUndefined();
+    expect(scheduling({ schedule: ["generate", "update"] })).toBeUndefined();
+    expect(scheduling({ offering: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/asignaciones",
+      "/materias-por-grado",
+    ]);
+    expect(scheduling({ offering: ["create", "update", "delete"] })).toBeUndefined();
+    expect(scheduling({ time_block: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/bloques",
+    ]);
+    expect(scheduling({ campus: ["read"] })).toBeUndefined();
+  });
+
+  const MANAGER_SCHEDULING = [
+    "/asignaciones",
+    "/materias-por-grado",
+    "/salones",
+    "/horarios",
+    "/bloques",
+  ];
+  const SCHEDULING_BY_KIND: [Exclude<NavContext["kind"], null>, string[] | undefined][] = [
+    ["owner", MANAGER_SCHEDULING],
+    ["admin", MANAGER_SCHEDULING],
+    ["coordinator", MANAGER_SCHEDULING],
+    ["teacher", ["/horarios"]],
+    ["student", ["/horarios"]],
+    ["parent", undefined],
+    ["viewer", undefined],
+  ];
+
+  test.each(SCHEDULING_BY_KIND)(
+    "the scheduling group for a built-in %s (sige/00 §4.2)",
+    (kind, expected) => {
+      const permissions = resolveNavPermissions({ roleName: kind }, undefined);
+      const group = filterNavGroups(navGroups, { ...member, kind, permissions }).find(
+        (candidate) => candidate.id === "scheduling",
+      );
+      const routes: string[] | undefined = group?.items.map((item) => item.to);
+      expect(routes).toEqual(expected);
+    },
+  );
+
   test("the users group lists Usuarios only for holders of user:read", () => {
     const usersGroup = (kind: NavContext["kind"], permissions: Record<string, string[]>) =>
       filterNavGroups(navGroups, { ...member, kind, permissions }).find(

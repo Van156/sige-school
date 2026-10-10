@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 
 import { orgProcedure } from "../index";
 import { createScopePolicy } from "./scope";
+import { createSigeScopeResolvers } from "./scope-resolvers";
 import type { CallerKind, ScopePolicy } from "./scope";
 
 /**
@@ -102,11 +103,10 @@ function createSigeProcedure(options: SigeProcedureOptions = {}) {
       lastName: row.lastName,
       mustChangePassword: row.mustChangePassword,
     };
-    const scope: ScopePolicy = createScopePolicy({
-      kind,
-      organizationId: context.org.id,
-      personId: row.id,
-    });
+    const scope: ScopePolicy = createScopePolicy(
+      { kind, organizationId: context.org.id, personId: row.id },
+      createSigeScopeResolvers(context.db),
+    );
     return next({ context: { person, scope } });
   });
 }

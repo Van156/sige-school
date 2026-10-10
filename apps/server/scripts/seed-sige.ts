@@ -1,5 +1,5 @@
 // SIGE P0 seed (sige/00 §9, R4): root platform admin, the demo institution "Colegio San José" and
-// one login per SIGE kind. Idempotent. Usage: `pnpm db:seed:sige`.
+// one login per SIGE kind, the 12 teachers and the P3 offering/schedule dataset. Idempotent. Usage: `pnpm db:seed:sige`.
 //
 // The logic lives in `@base-template/api/sige/seed` so it is testable against a real database.
 // Root credentials come from SEED_ROOT_EMAIL / SEED_ROOT_PASSWORD; the built-in demo password is
@@ -43,6 +43,11 @@ async function main(): Promise<void> {
       `  ${login.kind.padEnd(12)} ${login.username.padEnd(16)} / ${login.password}  (${login.fullName})`,
     );
   }
+  console.log(
+    result.schedule
+      ? `[seed-sige] schedule generated: ${result.schedule.assigned} slots, ${result.schedule.conflicts} conflicts, ${result.schedule.skipped.length} courses skipped.`
+      : "[seed-sige] schedule already present (not regenerated).",
+  );
 }
 
 try {

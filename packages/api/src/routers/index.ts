@@ -3,15 +3,20 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { auditRouter } from "./audit";
 import { membersRouter } from "./members";
+import { assignmentRouter } from "./sige/assignment";
 import { campusRouter } from "./sige/campus";
+import { classroomRouter } from "./sige/classroom";
 import { institutionRouter } from "./sige/institution";
 import { institutionAdminRouter } from "./sige/institution-admin";
 import { courseRouter } from "./sige/course";
 import { criterionRouter } from "./sige/criterion";
 import { levelRouter } from "./sige/level";
 import { meRouter } from "./sige/me";
+import { offeringRouter } from "./sige/offering";
 import { periodRouter } from "./sige/period";
+import { scheduleRouter } from "./sige/schedule";
 import { subjectRouter } from "./sige/subject";
+import { timeBlockRouter } from "./sige/time-block";
 import { importJobRouter, platformUserRouter, userRouter } from "./sige/user";
 import { organizationRouter } from "./organization";
 import { platformRouter } from "./platform";
@@ -48,6 +53,11 @@ export const appRouter = {
   level: levelRouter,
   course: courseRouter,
   subject: subjectRouter,
+  offering: offeringRouter,
+  assignment: assignmentRouter,
+  classroom: classroomRouter,
+  timeBlock: timeBlockRouter,
+  schedule: scheduleRouter,
   criterion: criterionRouter,
   period: periodRouter,
   // Module 03 users (sige/03 §3.3): read side in P2 T3.

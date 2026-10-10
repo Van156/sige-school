@@ -15,6 +15,7 @@ export { default as LevelFormPage } from "./components/level-form-page";
 export { default as LevelsPage } from "./components/levels-page";
 export { default as CriteriaPage } from "./components/criteria-page";
 export { default as CriterionFormPage } from "./components/criterion-form-page";
+export { formatIsoDate } from "./lib/period-list";
 export { default as PeriodFormPage } from "./components/period-form-page";
 export { default as PeriodsPage } from "./components/periods-page";
 export { default as SubjectFormPage } from "./components/subject-form-page";
@@ -33,3 +34,5 @@ export {
   type ProfileInput,
 } from "./lib/profile-form";
 export { INSTITUTION_SELECTOR_PATH } from "./lib/institution-scope";
+export { campusChoices, campusOptionLabel } from "./lib/level-form";
+export type { CampusOption } from "./types";
