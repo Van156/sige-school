@@ -78,4 +78,8 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/scheduling/components/time-block-form.tsx",
   "features/scheduling/components/time-blocks-table.tsx",
   "features/scheduling/components/typical-blocks-help.tsx",
+  "features/scheduling/components/offering-bulk-form.tsx",
+  "features/scheduling/components/offering-hours-dialog.tsx",
+  "features/scheduling/components/offerings-table.tsx",
+  "shared/components/form/check-list.tsx",
 ];

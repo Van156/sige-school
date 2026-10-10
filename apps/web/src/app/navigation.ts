@@ -1,5 +1,6 @@
 import { parsePermissionString } from "@base-template/auth/permissions";
 import {
+  BookMarked,
   BookOpen,
   Building2,
   CalendarDays,
@@ -142,6 +143,12 @@ export const navGroups: NavGroup<NavContext>[] = [
     label: "Horarios",
     visible: hasOrganization,
     items: [
+      {
+        label: "Materias por Grado",
+        to: "/materias-por-grado",
+        icon: BookMarked,
+        visible: can("offering:read"),
+      },
       { label: "Salones", to: "/salones", icon: DoorOpen, visible: can("classroom:read") },
       {
         label: "Bloques de Tiempo",

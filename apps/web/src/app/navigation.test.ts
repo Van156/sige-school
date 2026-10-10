@@ -163,14 +163,19 @@ describe("navGroups visibility", () => {
     ).toEqual(["/asignaturas", "/criterios"]);
   });
 
-  test("the scheduling group lists Salones and Bloques de Tiempo per read permission", () => {
+  test("the scheduling group lists Materias por Grado, Salones and Bloques de Tiempo per read permission", () => {
     const scheduling = (permissions: Record<string, string[]>) =>
       filterNavGroups(navGroups, { ...member, kind: "coordinator", permissions }).find(
         (group) => group.id === "scheduling",
       );
     expect(
-      scheduling({ classroom: ["read"], time_block: ["read"] })?.items.map((item) => item.to),
-    ).toEqual(["/salones", "/bloques"]);
+      scheduling({ offering: ["read"], classroom: ["read"], time_block: ["read"] })?.items.map(
+        (item) => item.to,
+      ),
+    ).toEqual(["/materias-por-grado", "/salones", "/bloques"]);
+    expect(scheduling({ offering: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/materias-por-grado",
+    ]);
     expect(scheduling({ time_block: ["read"] })?.items.map((item) => item.to)).toEqual([
       "/bloques",
     ]);

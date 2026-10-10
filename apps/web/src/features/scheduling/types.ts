@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import type {
+  assignmentStatusSchema,
   classroomTypeSchema,
   timeBlockShiftSchema,
 } from "@base-template/api/sige/schemas/scheduling";
@@ -42,3 +43,24 @@ export type TimeBlockRow = {
   academicYear: string;
   inUse: boolean;
 };
+
+/** `teacher_assignment` status (sige/04 §2). */
+export type AssignmentStatus = z.infer<typeof assignmentStatusSchema>;
+
+/** A row of `offering.list` / the result of `offering.update` (sige/04 §3.1). */
+export type OfferingRow = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string | null;
+  courseId: string;
+  courseName: string;
+  hoursPerWeek: number;
+  teacherPersonId: string | null;
+  teacherName: string | null;
+  /** Status of the offering's assignment; `null` while it has no teacher. */
+  assignmentStatus: AssignmentStatus | null;
+};
+
+/** `offering.stats` (sige/04 §3.1). */
+export type OfferingStats = { assigned: number; weeklyHours: number; withoutTeacher: number };
