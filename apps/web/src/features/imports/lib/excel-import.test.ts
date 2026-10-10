@@ -15,6 +15,7 @@ import {
   importRowErrors,
   importErrorMessage,
   importPhase,
+  importScreen,
   importPollInterval,
   importPreviewSummary,
   importProgressLabel,
@@ -198,5 +199,85 @@ describe("importPhase", () => {
     expect(importPhase({ ...base, jobId: "j1", jobStatus: undefined })).toBe("running");
     expect(importPhase({ ...base, jobId: "j1", jobStatus: "done" })).toBe("finished");
     expect(importPhase({ ...base, jobId: "j1", jobStatus: "failed" })).toBe("finished");
+  });
+});
+
+describe("importScreen", () => {
+  const base = {
+    phase: "select" as const,
+    job: undefined,
+    jobLoadFailed: false,
+    file: null,
+    fileError: null,
+    startError: null,
+    preview: undefined,
+  };
+  const preview = { total: 1, valid: 1, invalid: 0, rows: [], errors: [] };
+  const job = {
+    status: "running" as const,
+    total: 10,
+    processed: 4,
+    imported: 4,
+    skipped: 0,
+    errors: [],
+  };
+
+  test("an empty picker, busy while previewing", () => {
+    expect(importScreen(base)).toEqual({
+      kind: "picker",
+      fileError: null,
+      isBusy: false,
+      preview: null,
+    });
+    expect(importScreen({ ...base, phase: "previewing" })).toMatchObject({ isBusy: true });
+  });
+
+  test("the preview of the picked file with the start refusal", () => {
+    expect(
+      importScreen({
+        ...base,
+        phase: "ready",
+        file: { name: "e.xlsx" },
+        preview,
+        startError: "Ya hay una importación en curso.",
+      }),
+    ).toEqual({
+      kind: "picker",
+      fileError: null,
+      isBusy: false,
+      preview: {
+        fileName: "e.xlsx",
+        data: preview,
+        startError: "Ya hay una importación en curso.",
+      },
+    });
+  });
+
+  test("a running job shows its progress, 0 of 0 before the first poll", () => {
+    expect(importScreen({ ...base, phase: "running", job })).toEqual({
+      kind: "progress",
+      processed: 4,
+      total: 10,
+    });
+    expect(importScreen({ ...base, phase: "running" })).toEqual({
+      kind: "progress",
+      processed: 0,
+      total: 0,
+    });
+  });
+
+  test("a job that cannot be read is an error; a terminal one its result", () => {
+    expect(importScreen({ ...base, phase: "running", jobLoadFailed: true })).toEqual({
+      kind: "job-error",
+    });
+    const done = { ...job, status: "done" as const };
+    expect(importScreen({ ...base, phase: "finished", job: done })).toEqual({
+      kind: "result",
+      job: done,
+    });
+    const failed = { ...job, status: "failed" as const };
+    expect(importScreen({ ...base, phase: "finished", job: failed })).toMatchObject({
+      kind: "result",
+    });
   });
 });

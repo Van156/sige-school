@@ -1,5 +1,7 @@
 import type { StudentStatus } from "@base-template/sige-core";
 
+import type { ImportPreviewRowBase } from "@/features/imports";
+
 export type { StudentStatus };
 
 /** A row of `student.list` (sige/05 §3.1, `StudentRow`). */
@@ -90,3 +92,11 @@ export type StudentFilterOptions = {
  * switches between their children, staff pick any student in scope.
  */
 export type StudentPickerMode = "self" | "children" | "staff";
+
+/** A previewed row of `student.importPreview` (sige/05 §3.1, STU-05). */
+export type StudentImportPreviewRow = ImportPreviewRowBase & {
+  nombre: string;
+  apellido: string;
+  documento: string;
+  grado: string;
+};

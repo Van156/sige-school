@@ -1,4 +1,11 @@
-import type { ImportJob, ImportJobStatus, ImportNoun, ImportRowError } from "../types";
+import type {
+  ImportJob,
+  ImportJobStatus,
+  ImportNoun,
+  ImportPreview,
+  ImportPreviewRowBase,
+  ImportRowError,
+} from "../types";
 
 /** `importJob.get` is polled this often while the import runs (USR-R12). */
 export const IMPORT_POLL_INTERVAL_MS = 2000;
@@ -159,4 +166,51 @@ export function importPhase(state: {
     return "previewing";
   }
   return state.hasPreview ? "ready" : "select";
+}
+
+/** What an import screen shows (the users page derives the same inline). */
+export type ImportScreen<TRow extends ImportPreviewRowBase> =
+  | { kind: "result"; job: ImportJob }
+  | { kind: "job-error" }
+  | { kind: "progress"; processed: number; total: number }
+  | {
+      kind: "picker";
+      fileError: string | null;
+      isBusy: boolean;
+      /** The server preview of the picked file, with the start refusal if any. */
+      preview: { fileName: string; data: ImportPreview<TRow>; startError: string | null } | null;
+    };
+
+/**
+ * Maps the import flow to its screen: a terminal job shows its result, a job whose status cannot
+ * be read a retryable error, a running one its progress, anything else the picker (with the
+ * preview once the picked file has one).
+ */
+export function importScreen<TRow extends ImportPreviewRowBase>(flow: {
+  phase: ImportPhase;
+  job: ImportJob | undefined;
+  jobLoadFailed: boolean;
+  file: { name: string } | null;
+  fileError: string | null;
+  startError: string | null;
+  preview: ImportPreview<TRow> | undefined;
+}): ImportScreen<TRow> {
+  if (flow.phase === "running" || flow.phase === "finished") {
+    if (flow.job && isImportTerminal(flow.job.status)) {
+      return { kind: "result", job: flow.job };
+    }
+    if (flow.jobLoadFailed) {
+      return { kind: "job-error" };
+    }
+    return { kind: "progress", processed: flow.job?.processed ?? 0, total: flow.job?.total ?? 0 };
+  }
+  return {
+    kind: "picker",
+    fileError: flow.fileError,
+    isBusy: flow.phase === "previewing",
+    preview:
+      flow.preview && flow.file
+        ? { fileName: flow.file.name, data: flow.preview, startError: flow.startError }
+        : null,
+  };
 }

@@ -4,6 +4,7 @@
  */
 export { default as StudentFormPage } from "./components/student-form-page";
 export { default as StudentGuardiansPage } from "./components/student-guardians-page";
+export { default as StudentImportPage } from "./components/student-import-page";
 export { default as StudentProfilePage } from "./components/student-profile-page";
 export { default as StudentsPage } from "./components/students-page";
 export { studentSearchDefaults, studentSearchSchema, type StudentSearch } from "./lib/student-list";

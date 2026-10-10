@@ -2,7 +2,7 @@ import { Badge } from "@base-template/ui/components/badge";
 import { buttonVariants } from "@base-template/ui/components/button";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { FileSpreadsheet, Plus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import type { DataTableSearchChange } from "@/shared/hooks/use-data-table";
@@ -63,6 +63,7 @@ function StudentsContent({ search }: { search: StudentSearch }) {
   const navigate = useNavigate({ from: "/estudiantes/" });
   const canDelete = useCan(STUDENT_PERMISSIONS.delete).can;
   const canCreate = useCan(STUDENT_PERMISSIONS.create).can;
+  const canImport = useCan(STUDENT_PERMISSIONS.import).can;
   const canUpdate = useCan(STUDENT_PERMISSIONS.update).can;
 
   const listQuery = useQuery({
@@ -116,12 +117,24 @@ function StudentsContent({ search }: { search: StudentSearch }) {
           title="Gestión de Estudiantes"
           description="Administra los estudiantes de la institución"
           actions={
-            // "Cargar Excel" (STU-05) joins once its screen exists (T11).
-            canCreate ? (
-              <Link to="/estudiantes/nuevo" className={buttonVariants()}>
-                <Plus data-icon="inline-start" />
-                Nuevo Estudiante
-              </Link>
+            canImport || canCreate ? (
+              <div className="flex flex-wrap gap-2">
+                {canImport ? (
+                  <Link
+                    to="/estudiantes/importar"
+                    className={buttonVariants({ variant: "outline" })}
+                  >
+                    <FileSpreadsheet data-icon="inline-start" />
+                    Cargar Excel
+                  </Link>
+                ) : null}
+                {canCreate ? (
+                  <Link to="/estudiantes/nuevo" className={buttonVariants()}>
+                    <Plus data-icon="inline-start" />
+                    Nuevo Estudiante
+                  </Link>
+                ) : null}
+              </div>
             ) : undefined
           }
           banner={<ActiveInstitutionBanner />}

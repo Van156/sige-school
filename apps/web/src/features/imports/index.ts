@@ -15,7 +15,7 @@ export { default as TemplateDownloadButton } from "./components/template-downloa
 export { useImportFlow, type ImportProcedures } from "./hooks/use-import-flow";
 export { useImportTemplate } from "./hooks/use-import-template";
 export { importSearchSchema } from "./lib/import-flow";
-export { IMPORT_MAX_BYTES } from "./lib/excel-import";
+export { importScreen, type ImportScreen } from "./lib/excel-import";
 export type {
   ImportJob,
   ImportJobStatus,
