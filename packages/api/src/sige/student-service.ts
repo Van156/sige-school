@@ -66,7 +66,7 @@ export type StudentUpdateInput = z.output<typeof studentUpdateInput>;
 export type Enrolled = { created: number; overCapacity: boolean } | null;
 
 export const STUDENT_NOT_FOUND_MESSAGE = "El estudiante no existe.";
-const USER_NOT_FOUND_MESSAGE = "El usuario no existe.";
+export const USER_NOT_FOUND_MESSAGE = "El usuario no existe.";
 const CAMPUS_NOT_FOUND_MESSAGE = "La sede no existe.";
 // Not in spec §4.1 (writer-authored, P4 T5).
 export const CAMPUS_INACTIVE_MESSAGE = "La sede seleccionada está inactiva.";

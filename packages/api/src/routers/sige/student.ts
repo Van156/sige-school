@@ -26,6 +26,7 @@ import {
   createStudent,
   deleteStudent,
   STUDENT_NOT_FOUND_MESSAGE,
+  USER_NOT_FOUND_MESSAGE,
   updateStudent,
 } from "../../sige/student-service";
 import {
@@ -68,6 +69,25 @@ export const studentRouter = {
     .use(requirePermission({ student: ["create"] }))
     .input(incompleteListInput)
     .handler(({ context, input }) => listIncompleteStudents(context.db, context.org.id, input)),
+
+  /**
+   * STU-03 complete: the pending login of `personId` (same row as `listIncomplete`). Anything
+   * else (unknown, not a student, already completed) is NOT_FOUND "El usuario no existe.".
+   */
+  getIncomplete: sigeProcedure
+    .use(requirePermission({ student: ["create"] }))
+    .input(z.object({ personId: z.string().min(1) }))
+    .handler(async ({ context, input }) => {
+      const page = await listIncompleteStudents(
+        context.db,
+        context.org.id,
+        incompleteListInput.parse({}),
+        input.personId,
+      );
+      const row = page.rows[0];
+      if (!row) throw new ORPCError("NOT_FOUND", { message: USER_NOT_FOUND_MESSAGE });
+      return row;
+    }),
 
   get: sigeProcedure
     .use(requirePermission({ student: ["read"] }))

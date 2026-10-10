@@ -504,6 +504,39 @@ await sigeSuite("student router", (fx) => {
     expect(after.total).toBe(0);
   });
 
+  test("getIncomplete returns one pending login; NOT_FOUND once completed, for non-students and unknown ids", async () => {
+    const login = await studentLogin({ firstName: "Pendiente", lastName: "Dos" });
+    const pending = await call(
+      studentRouter.getIncomplete,
+      { personId: login.personId },
+      { context: coordinator },
+    );
+    expect(pending).toEqual({
+      personId: login.personId,
+      name: "Pendiente Dos",
+      documentType: "TI",
+      documentNumber: expect.any(String),
+      username: login.username,
+      email: null,
+    });
+    for (const personId of [tenant.people.teacher!.personId, "nope"]) {
+      const missing = await errorOf(
+        call(studentRouter.getIncomplete, { personId }, { context: owner }),
+      );
+      expect(missing?.code).toBe("NOT_FOUND");
+      expect(missing?.message).toBe("El usuario no existe.");
+    }
+    await call(
+      studentRouter.complete,
+      { personId: login.personId, campusId, courseId: null },
+      { context: owner },
+    );
+    const completed = await errorOf(
+      call(studentRouter.getIncomplete, { personId: login.personId }, { context: owner }),
+    );
+    expect(completed?.code).toBe("NOT_FOUND");
+  });
+
   // --- Reads: list / get / pick (STU-R1, STU-R5) ------------------------------------------
 
   test("list: rows, filters (name/document/guardian, campus, course, status), sorts and paging", async () => {
@@ -1005,6 +1038,11 @@ await testPermissionMatrix({
       name: "student.listIncomplete",
       permissions: { student: ["create"] },
       run: (context) => call(studentRouter.listIncomplete, {}, { context }),
+    },
+    {
+      name: "student.getIncomplete",
+      permissions: { student: ["create"] },
+      run: (context) => call(studentRouter.getIncomplete, { personId: "missing" }, { context }),
     },
     {
       name: "student.get",

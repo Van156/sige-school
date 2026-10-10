@@ -341,6 +341,7 @@ export async function listIncompleteStudents(
   db: Reader,
   organizationId: string,
   input: ListInput<string, string>,
+  personId?: string,
 ) {
   const sorted = buildListQuery({
     columns: INCOMPLETE_SORT_COLUMNS,
@@ -354,6 +355,7 @@ export async function listIncompleteStudents(
   });
   const where = and(
     eq(schema.person.organizationId, organizationId),
+    personId === undefined ? undefined : eq(schema.person.id, personId),
     hasRoleToken("student"),
     notExists(
       db
