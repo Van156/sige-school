@@ -731,6 +731,47 @@ await sigeSuite("student router", (fx) => {
     ).toHaveLength(1);
   });
 
+  test("filterOptions: campuses and courses of the students in the caller's scope (STU-01)", async () => {
+    const tag = crypto.randomUUID().slice(0, 6);
+    const north = await seedCampus(fx, tenant, { name: `Norte ${tag}` });
+    const taught = await courseWithOfferings(
+      north.id,
+      1,
+      { name: `Dictado ${tag}` },
+      tenant.people.teacher!.personId,
+    );
+    const directed = await seedCourse(fx, tenant, campusId, {
+      name: `Dirigido ${tag}`,
+      directorPersonId: tenant.people.teacher!.personId,
+    });
+    const foreign = await seedCourse(fx, tenant, otherCampusId, { name: `Ajeno ${tag}` });
+    await seedStudent(fx, tenant, north.id, { courseId: taught.course.id, status: "retirado" });
+    await seedStudent(fx, tenant, campusId, { courseId: directed.id });
+    await seedStudent(fx, tenant, otherCampusId, { courseId: foreign.id });
+
+    const mine = await call(studentRouter.filterOptions, undefined, { context: teacher });
+    expect(mine.courses.filter((course) => course.name.endsWith(tag))).toEqual([
+      { id: taught.course.id, name: `Dictado ${tag}`, campusId: north.id },
+      { id: directed.id, name: `Dirigido ${tag}`, campusId },
+    ]);
+    const campusIds = mine.campuses.map((campus) => campus.id);
+    expect(campusIds).toContain(north.id);
+    expect(campusIds).toContain(campusId);
+    expect(campusIds).not.toContain(otherCampusId);
+    expect(mine.courses.every((course) => campusIds.includes(course.campusId))).toBe(true);
+
+    const all = await call(studentRouter.filterOptions, undefined, { context: coordinator });
+    expect(all.courses.filter((course) => course.name.endsWith(tag)).map((c) => c.id)).toEqual([
+      foreign.id,
+      taught.course.id,
+      directed.id,
+    ]);
+    expect(all.campuses.map((campus) => campus.id)).toContain(otherCampusId);
+    // One entry per campus however many students it holds.
+    const ids = all.campuses.map((campus) => campus.id);
+    expect(ids).toHaveLength(new Set(ids).size);
+  });
+
   // --- Edit (STU-R4, STU-R5) --------------------------------------------------------------
 
   test("update edits personal and academic data, never touches enrollments, flags them stale (STU-R4)", async () => {
@@ -971,6 +1012,11 @@ await testPermissionMatrix({
       run: (context) => call(studentRouter.get, { id: "missing" }, { context }),
     },
     {
+      name: "student.filterOptions",
+      permissions: { student: ["read"] },
+      run: (context) => call(studentRouter.filterOptions, undefined, { context }),
+    },
+    {
       name: "student.pick",
       permissions: null,
       anyOf: [{ student: ["read"] }, { portal: ["read_self"] }, { portal: ["read_child"] }],
@@ -1116,6 +1162,13 @@ await testTenantIsolation({
       run: ({ context, foreign }) =>
         call(studentRouter.get, { id: foreign.studentId }, { context }),
       expectation: "notFound",
+    }),
+    isolationCase({
+      name: "student.filterOptions never returns the other tenant's campuses or courses",
+      seed,
+      run: ({ context }) => call(studentRouter.filterOptions, undefined, { context }),
+      expectation: "noLeak",
+      foreignIds: (foreign) => [foreign.campusId, foreign.courseId],
     }),
     isolationCase({
       name: "student.pick never returns the other tenant's students",

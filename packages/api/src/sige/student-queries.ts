@@ -294,6 +294,39 @@ export async function pickStudents(
     .limit(input.limit);
 }
 
+/**
+ * STU-01 "Filtrar por sede" / "Filtrar por grado" options: the campuses and current courses of the
+ * students the caller may read (any status, so "Todos" still filters). Teachers lack
+ * `course:read`, so this is their source; derived from `scope` it never offers a course outside
+ * D2.
+ */
+export async function studentFilterOptions(
+  db: Pick<Database, "selectDistinct">,
+  organizationId: string,
+  scope: SQL | undefined,
+) {
+  const where = inTenant(organizationId, scope);
+  const [campuses, courses] = await Promise.all([
+    db
+      .selectDistinct({ id: schema.campus.id, name: schema.campus.name })
+      .from(schema.student)
+      .innerJoin(schema.campus, ON.campus)
+      .where(where)
+      .orderBy(asc(schema.campus.name), asc(schema.campus.id)),
+    db
+      .selectDistinct({
+        id: schema.course.id,
+        name: schema.course.name,
+        campusId: schema.course.campusId,
+      })
+      .from(schema.student)
+      .innerJoin(schema.course, ON.course)
+      .where(where)
+      .orderBy(asc(schema.course.name), asc(schema.course.id)),
+  ]);
+  return { campuses, courses };
+}
+
 const INCOMPLETE_SORT_COLUMNS = {
   name: sortName as unknown as AnyColumn,
   createdAt: schema.person.createdAt,

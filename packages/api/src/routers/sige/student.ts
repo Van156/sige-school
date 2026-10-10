@@ -19,6 +19,7 @@ import {
   listStudentRows,
   loadStudentDetail,
   pickStudents,
+  studentFilterOptions,
 } from "../../sige/student-queries";
 import {
   completeStudent,
@@ -94,6 +95,13 @@ export const studentRouter = {
     .input(studentPickInput)
     .handler(({ context, input }) =>
       pickStudents(context.db, context.org.id, input, context.scope.studentWhere()),
+    ),
+
+  /** STU-01 campus/course filter options within the caller's scope (teachers lack `course:read`). */
+  filterOptions: sigeProcedure
+    .use(requirePermission({ student: ["read"] }))
+    .handler(({ context }) =>
+      studentFilterOptions(context.db, context.org.id, context.scope.studentWhere()),
     ),
 
   /** STU-03 new (path A, STU-R2/R3). */
