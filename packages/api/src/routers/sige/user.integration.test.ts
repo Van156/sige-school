@@ -472,7 +472,8 @@ await testPermissionMatrix({
     },
     {
       name: "user.previewUsername",
-      permissions: { user: ["create"] },
+      permissions: null,
+      anyOf: [{ user: ["create"] }, { student: ["create"] }],
       run: (context) =>
         call(
           userRouter.previewUsername,
