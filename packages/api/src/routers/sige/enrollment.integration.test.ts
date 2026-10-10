@@ -315,12 +315,12 @@ await sigeSuite("enrollment router", (fx) => {
     const ana = await seedStudent(fx, t, campus.id, {
       firstName: "Ana",
       lastName: "Zapata",
-      documentNumber: "1111",
+      documentNumber: "11110",
     });
     const beto = await seedStudent(fx, t, campus.id, {
       firstName: "Beto",
       lastName: "Arias",
-      documentNumber: "2222",
+      documentNumber: "22220",
     });
     await call(
       enrollmentRouter.createBulk,
@@ -348,7 +348,7 @@ await sigeSuite("enrollment router", (fx) => {
       id: expect.any(String),
       studentId: ana.id,
       studentName: "Ana Zapata",
-      document: "1111",
+      document: "11110",
       subjectName: "Arte",
       courseId: sexto.id,
       courseName: "Sexto",
@@ -389,7 +389,7 @@ await sigeSuite("enrollment router", (fx) => {
 
     const byDocument = await call(
       enrollmentRouter.list,
-      { filters: [listFilter("student", "text", "iLike", "2222")] },
+      { filters: [listFilter("student", "text", "iLike", "22220")] },
       { context: ctx },
     );
     expect(byDocument.total).toBe(3);
@@ -487,13 +487,13 @@ await sigeSuite("enrollment router", (fx) => {
     const free = await seedStudent(fx, t, campus.id, {
       firstName: "Carla",
       lastName: "Ruiz",
-      documentNumber: "5555",
+      documentNumber: "55550",
     });
     const moving = await seedStudent(fx, t, campus.id, {
       courseId: other.id,
       firstName: "Diego",
       lastName: "Bravo",
-      documentNumber: "6666",
+      documentNumber: "66660",
     });
 
     const result = await call(
@@ -509,8 +509,8 @@ await sigeSuite("enrollment router", (fx) => {
       offeringCount: 2,
     });
     expect(result.students).toEqual([
-      { id: moving.id, name: "Diego Bravo", document: "6666", currentCourseName: "Cuarto" },
-      { id: free.id, name: "Carla Ruiz", document: "5555", currentCourseName: null },
+      { id: moving.id, name: "Diego Bravo", document: "66660", currentCourseName: "Cuarto" },
+      { id: free.id, name: "Carla Ruiz", document: "55550", currentCourseName: null },
     ]);
     const searched = await call(
       enrollmentRouter.candidates,
