@@ -851,17 +851,57 @@ describe.skipIf(!reachable)("institutionAdmin (INS-02)", () => {
       ).toBe("NOT_FOUND");
     });
 
+    test("refuses while the institution has students of any status (§4.2) and keeps everything", async () => {
+      const storage = new FakeStorage();
+      const { context: base } = await rootContext();
+      const context: Context = { ...base, fileStorage: storage };
+      const one = await createFull(context, "Colegio Uno");
+      const two = await createFull(context, "Colegio Dos");
+      await call(
+        institutionAdminRouter.setLogo,
+        { id: one.institution.id, logo: fileOf(PNG, "image/png") },
+        { context },
+      );
+      await seedStudents(one.institution.id, ["retirado"]);
+      auditLogger.reset();
+      const error = await call(
+        institutionAdminRouter.delete,
+        { id: one.institution.id },
+        { context },
+      ).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ORPCError);
+      expect((error as ORPCError<string, unknown>).code).toBe("HAS_DEPENDENTS");
+      expect((error as ORPCError<string, unknown>).status).toBe(409);
+      expect((error as ORPCError<string, unknown>).message).toBe(
+        "La institución tiene estudiantes o notas registradas.",
+      );
+      expect(await handle.db.select().from(schema.organization)).toHaveLength(2);
+      expect(await handle.db.select().from(schema.student)).toHaveLength(1);
+      expect(storage.objects.size).toBe(1);
+      expect(auditLogger.eventsFor("organization.deleted")).toHaveLength(0);
+      // Another institution's students never block this one.
+      expect(
+        await call(institutionAdminRouter.delete, { id: two.institution.id }, { context }),
+      ).toEqual({ deleted: true });
+    });
+
     test("a delete that loses the race records no organization.deleted event", async () => {
       const { context: base } = await rootContext();
       const one = await createFull(base, "Colegio Uno");
       auditLogger.reset();
       const racing: Context = {
         ...base,
-        db: racingDb(handle.db, async () => {
-          await handle.db
-            .delete(schema.organization)
-            .where(eq(schema.organization.id, one.institution.id));
-        }),
+        // The delete locks the organization row first, so the rival delete lands right before
+        // the transaction opens (after the detail pre-read).
+        db: racingDb(
+          handle.db,
+          async () => {
+            await handle.db
+              .delete(schema.organization)
+              .where(eq(schema.organization.id, one.institution.id));
+          },
+          "transaction",
+        ),
       };
       expect(
         await codeOf(

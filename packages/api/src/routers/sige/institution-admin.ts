@@ -1,6 +1,6 @@
 import * as schema from "@base-template/db/schema";
 import { ORPCError } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { platformProcedure } from "../../index";
@@ -21,7 +21,7 @@ import {
   logoKeyFromUrl,
   storeLogo,
 } from "../../sige/logo";
-import { rethrowDbError } from "../../sige/pg-errors";
+import { HAS_DEPENDENTS, rethrowDbError } from "../../sige/pg-errors";
 import { profileInput } from "../../sige/schemas/institution";
 
 /**
@@ -54,6 +54,21 @@ const updateInput = profileInput.extend({ id: z.string().min(1) });
 const logoInput = z.object({ id: z.string().min(1), logo: z.instanceof(File) });
 
 const notFound = () => new ORPCError("NOT_FOUND", { message: INSTITUTION_NOT_FOUND });
+
+export const INSTITUTION_HAS_RECORDS_MESSAGE =
+  "La institución tiene estudiantes o notas registradas.";
+
+type Tx = Parameters<Parameters<Context["db"]["transaction"]>[0]>[0];
+
+/** sige/02 §4.2 institution dependents: students (any status); grade records join in module 06. */
+async function hasAcademicRecords(tx: Tx, organizationId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ one: sql`1` })
+    .from(schema.student)
+    .where(eq(schema.student.organizationId, organizationId))
+    .limit(1);
+  return row !== undefined;
+}
 
 type PlatformContext = Context & { session: NonNullable<Context["session"]> };
 
@@ -210,20 +225,34 @@ export const institutionAdminRouter = {
     }),
 
   /**
-   * Refused while students or grade records exist (foundation §6.4): those tables will hold
-   * `restrict` FKs to `organization`, which the shared mapper turns into `HAS_DEPENDENTS`; until
-   * then nothing blocks. The cascade removes the profile; the logo object goes best-effort (INS-R4).
+   * Refused while students or grade records exist (foundation §6.4, §4.2). The tenant tables
+   * cascade from `organization`, so no FK blocks: the check runs under the organization row lock
+   * (`FOR UPDATE`), which a concurrent student insert (its FK takes `FOR KEY SHARE`) must wait for,
+   * so no student can slip in between the check and the delete. Only students exist so far;
+   * module 06 adds grade records to `hasAcademicRecords`. The cascade removes the profile; the
+   * logo object goes best-effort (INS-R4).
    */
   delete: platformProcedure({ institution: ["delete"] })
     .input(idInput)
     .handler(async ({ context, input }) => {
       const organization = await requireDetail(context, input.id);
       try {
-        const removed = await context.db
-          .delete(schema.organization)
-          .where(eq(schema.organization.id, input.id))
-          .returning({ id: schema.organization.id });
-        if (removed.length === 0) throw notFound();
+        await context.db.transaction(async (tx) => {
+          const byId = eq(schema.organization.id, input.id);
+          const [locked] = await tx
+            .select({ id: schema.organization.id })
+            .from(schema.organization)
+            .where(byId)
+            .for("update");
+          if (!locked) throw notFound();
+          if (await hasAcademicRecords(tx, input.id)) {
+            throw new ORPCError(HAS_DEPENDENTS, {
+              status: 409,
+              message: INSTITUTION_HAS_RECORDS_MESSAGE,
+            });
+          }
+          await tx.delete(schema.organization).where(byId);
+        });
       } catch (error) {
         if (error instanceof ORPCError) throw error;
         return rethrowDbError(error, "delete");
