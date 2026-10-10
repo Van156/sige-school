@@ -8,3 +8,5 @@ export * from "./schedule";
 export * from "./student";
 export * from "./student-import";
 export * from "./enrollment";
+export * from "./rules";
+export * from "./grading";
