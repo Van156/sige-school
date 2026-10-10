@@ -44,7 +44,7 @@ function isCalendarDate(value: string): boolean {
 
 const blankToUndefined = (value: string) => (value === "" ? undefined : value);
 
-const emailField = z
+export const emailField = z
   .string()
   .trim()
   .toLowerCase()
@@ -52,7 +52,7 @@ const emailField = z
   .pipe(z.email("Ingresa un correo válido.").max(100, tooLong(100)).optional())
   .optional();
 
-const birthDateField = z
+export const birthDateField = z
   .string()
   .trim()
   .transform(blankToUndefined)
@@ -69,7 +69,7 @@ const birthDateField = z
   )
   .optional();
 
-const genderField = z
+export const genderField = z
   .enum(["M", "F", "Otro", ""])
   .transform((value) => (value === "" ? undefined : value))
   .optional();
