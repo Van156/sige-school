@@ -91,4 +91,9 @@ export const APP_PRESENTATIONAL_COMPONENTS: readonly string[] = [
   "features/scheduling/components/generation-progress.tsx",
   "features/scheduling/components/generation-result.tsx",
   "features/scheduling/components/generation-help.tsx",
+  "features/students/components/status-badge.tsx",
+  "features/students/components/student-strip.tsx",
+  "features/students/components/student-switcher.tsx",
+  "features/students/components/no-student-block.tsx",
+  "features/students/components/guardian-card.tsx",
 ];
