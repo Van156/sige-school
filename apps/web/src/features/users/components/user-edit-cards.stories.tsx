@@ -1,3 +1,4 @@
+import { buttonVariants } from "@base-template/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { UserInfoCard, UserQuickActionsCard } from "./user-edit-cards";
@@ -47,5 +48,36 @@ export const QuickActions: Story = {
 export const QuickActionsEnable: Story = {
   render: () => (
     <UserQuickActionsCard isActive={false} onResetPassword={() => {}} onToggleActive={() => {}} />
+  ),
+};
+
+/** A student's account: the academic profile link comes first (the page renders a router link). */
+export const QuickActionsStudent: Story = {
+  render: () => (
+    <UserQuickActionsCard
+      isActive
+      academicProfileLink={
+        <a href="#perfil" className={buttonVariants({ variant: "outline" })}>
+          Ver Perfil Académico
+        </a>
+      }
+      onResetPassword={() => {}}
+      onToggleActive={() => {}}
+    />
+  ),
+};
+
+/** A student login whose academic profile is still pending (USR-02 path B). */
+export const QuickActionsStudentWithoutProfile: Story = {
+  render: () => (
+    <UserQuickActionsCard
+      isActive
+      academicProfileLink={
+        <a href="#completar" className={buttonVariants({ variant: "outline" })}>
+          Completar Perfil Académico
+        </a>
+      }
+      onResetPassword={() => {}}
+    />
   ),
 };

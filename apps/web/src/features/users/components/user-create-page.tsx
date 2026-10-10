@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/app/orpc";
-import { CanGate } from "@/features/access-control";
+import { CanGate, useCan } from "@/features/access-control";
 import {
   ActiveInstitutionGuard,
   FormPageLayout,
@@ -13,7 +13,7 @@ import {
 } from "@/features/institution";
 import PageHeader from "@/shared/components/layout/page-header";
 
-import { createdUserNotice } from "../lib/user-create-flow";
+import { createdUserDestination, createdUserNotice } from "../lib/user-create-flow";
 import { emptyUserForm, toUserCreateInput } from "../lib/user-form";
 import type { AssignableRole } from "../lib/user-roles";
 import { LiveEmailAvailability, LiveUsernamePreview } from "./live-user-hints";
@@ -22,8 +22,9 @@ import UserForm from "./user-form";
 
 /**
  * USR-02 `/usuarios/nuevo` (container): creates one user through `user.create`. `role` is the
- * `?role=` preselect. A student also lands back on the list (D8): the academic profile (STU-03)
- * does not exist yet, so the toast only says it is pending. Unreachable without `user:create`.
+ * `?role=` preselect. A student continues to STU-03 "complete" for the new person (USR-R3, P2 D8)
+ * when the caller may complete profiles; everyone else returns to USR-01. Unreachable without
+ * `user:create`.
  */
 export default function UserCreatePage({ role }: { role?: AssignableRole }) {
   return (
@@ -57,6 +58,7 @@ function CreateUser({ role }: { role?: AssignableRole }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createMutation = useMutation(orpc.user.create.mutationOptions());
+  const canCompleteProfile = useCan("student:create").can;
 
   return (
     <FormPageLayout
@@ -74,6 +76,16 @@ function CreateUser({ role }: { role?: AssignableRole }) {
             const notice = createdUserNotice(created);
             toast.success(notice.title, { description: notice.description });
             await queryClient.invalidateQueries({ queryKey: orpc.user.key() });
+            const destination = createdUserDestination(created, canCompleteProfile);
+            if (destination.screen === "complete-student-profile") {
+              // The new login is listed in "Perfiles Académicos Incompletos" too.
+              await queryClient.invalidateQueries({ queryKey: orpc.student.key() });
+              await navigate({
+                to: "/estudiantes/completar/$personId",
+                params: { personId: destination.personId },
+              });
+              return;
+            }
             await navigate({ to: "/usuarios" });
           }}
         />
