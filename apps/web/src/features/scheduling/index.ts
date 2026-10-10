@@ -12,3 +12,4 @@ export { default as OfferingsPage } from "./components/offerings-page";
 export { offeringSearchDefaults, offeringSearchSchema } from "./lib/offering-list";
 export { default as SchedulesPage } from "./components/schedules-page";
 export { scheduleSearchSchema } from "./lib/schedule-view";
+export { default as ScheduleGeneratePage } from "./components/schedule-generate-page";

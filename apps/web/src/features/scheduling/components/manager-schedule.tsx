@@ -1,5 +1,7 @@
+import { buttonVariants } from "@base-template/ui/components/button";
 import { NativeSelect, NativeSelectOption } from "@base-template/ui/components/native-select";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { CalendarClock } from "lucide-react";
 
 import { orpc } from "@/app/orpc";
@@ -25,6 +27,7 @@ export default function ManagerSchedule({
   onCourseChange: (courseId: string) => void;
 }) {
   const canRemove = useCan("schedule:update").can;
+  const canGenerate = useCan("schedule:generate").can;
   const removal = useRemoveSlot();
   const coursesQuery = useQuery(orpc.course.options.queryOptions({ input: {} }));
   const selected = coursesQuery.data ? resolveCourseId(coursesQuery.data, courseId) : undefined;
@@ -71,6 +74,13 @@ export default function ManagerSchedule({
       <ScheduleCard
         schedule={scheduleQuery.data}
         onRemove={canRemove ? removal.requestRemove : undefined}
+        emptyAction={
+          canGenerate ? (
+            <Link to="/horarios/generar" className={buttonVariants()}>
+              Generar Horario Automático
+            </Link>
+          ) : undefined
+        }
         filter={
           <NativeSelect
             aria-label="Filtrar por grado"

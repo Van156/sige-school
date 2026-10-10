@@ -84,3 +84,11 @@ export type AssignmentRow = {
 
 /** `assignment.stats` (sige/04 §3.2). */
 export type AssignmentStats = { total: number; active: number };
+
+/** `schedule.generate` (sige/04 §3.5): what the run placed and the courses it left out. */
+export type ScheduleGenerationResult = {
+  assigned: number;
+  conflicts: number;
+  courses: number;
+  skipped: { courseId: string; courseName: string; reason: string }[];
+};

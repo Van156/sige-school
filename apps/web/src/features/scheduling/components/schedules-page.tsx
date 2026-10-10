@@ -1,7 +1,9 @@
-import { useNavigate } from "@tanstack/react-router";
+import { buttonVariants } from "@base-template/ui/components/button";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Wand2 } from "lucide-react";
 
 import { useSigeMe } from "@/app/use-nav-context";
-import { CanGate } from "@/features/access-control";
+import { CanGate, useCan } from "@/features/access-control";
 import { ActiveInstitutionBanner, ActiveInstitutionGuard } from "@/features/institution";
 import Loader from "@/shared/components/feedback/loader";
 import LoadError from "@/shared/components/feedback/load-error";
@@ -26,6 +28,7 @@ export default function SchedulesPage({ search }: { search: ScheduleSearch }) {
 function SchedulesContent({ search }: { search: ScheduleSearch }) {
   const navigate = useNavigate({ from: "/horarios/" });
   const { data: me, isPending, isError, refetch } = useSigeMe();
+  const canGenerate = useCan("schedule:generate").can;
 
   if (isPending) {
     return <Loader />;
@@ -41,7 +44,18 @@ function SchedulesContent({ search }: { search: ScheduleSearch }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Horarios de Clases" description={scheduleDescription(audience)} />
+      <PageHeader
+        title="Horarios de Clases"
+        description={scheduleDescription(audience)}
+        actions={
+          audience === "manager" && canGenerate ? (
+            <Link to="/horarios/generar" className={buttonVariants()}>
+              <Wand2 data-icon="inline-start" />
+              Generar Horario Automático
+            </Link>
+          ) : undefined
+        }
+      />
       <ActiveInstitutionBanner />
       {audience === "manager" ? (
         <CanGate permission="schedule:read" message={NO_PERMISSION_MESSAGE}>
