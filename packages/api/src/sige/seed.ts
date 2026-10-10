@@ -11,10 +11,11 @@ import { createInstitution } from "./create-institution";
 import type { GenerateScheduleResult } from "./schedule-generation";
 import { DEMO_TEACHERS, NEW_DEMO_TEACHERS, seedSchedule } from "./seed-schedule";
 import { DEMO_ACADEMIC_YEAR, DEMO_PROFILE, seedInstitutionStructure } from "./seed-structure";
+import { seedStudents } from "./seed-students";
 
 /**
- * SIGE P0 seed skeleton (sige/00 §9, R4): the root platform admin, the demo institution and one
- * login per SIGE kind. Idempotent: the root is found by email, the institution by slug and every
+ * SIGE demo seed (sige/00 §9, R4): the root platform admin, the demo institution, one login per
+ * SIGE kind, the structure (P1), the offerings and schedule (P3) and the students (P4). Idempotent: the root is found by email, the institution by slug and every
  * person by document number, so a second run writes nothing. Later phases extend this seed with
  * the academic dataset (R4.2). Users go through `provisionUser` (R4.3), never raw inserts; only
  * the root, a platform account outside any institution, is inserted directly.
@@ -243,6 +244,13 @@ export async function seedSige(
     }),
   );
   const { generation } = await seedSchedule(database, organizationId, teacherIds);
+
+  // 5. Students, guardians and enrollments (P4, D4). Julián López and Patricia Gómez are already
+  // listed above with their P0 logins.
+  const listed = new Set(logins.map((login) => login.username));
+  for (const login of await seedStudents(provisionDeps, organizationId)) {
+    if (!listed.has(login.username)) logins.push(login);
+  }
 
   return { institutionId: organizationId, logins, rootCreated, schedule: generation };
 }

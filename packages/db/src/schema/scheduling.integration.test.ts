@@ -387,7 +387,11 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
         .update(offering)
         .set({ teacherPersonId: ctx.teacherB })
         .where(sql`${offering.id} = ${ctx.offeringA}`);
-      const [row] = await db().select().from(teacherAssignment);
+      // Scoped to this file's org: the test DB is shared with other suites.
+      const [row] = await db()
+        .select()
+        .from(teacherAssignment)
+        .where(sql`${teacherAssignment.organizationId} = ${orgA}`);
       expect(row?.teacherPersonId).toBe(ctx.teacherB);
     });
 
@@ -403,7 +407,10 @@ describe.skipIf(!reachable)("scheduling constraints (sige/04 §2, D1)", () => {
       await db()
         .delete(offering)
         .where(sql`${offering.id} = ${ctx.offeringA}`);
-      const rows = await db().select().from(teacherAssignment);
+      const rows = await db()
+        .select()
+        .from(teacherAssignment)
+        .where(sql`${teacherAssignment.organizationId} = ${orgA}`);
       expect(rows).toHaveLength(0);
     });
 

@@ -85,6 +85,11 @@ export const onMember = and(
   eq(schema.member.userId, schema.person.userId),
 );
 
+/** The person's academic profile (`student.id`, sige/05), null when none ("Ver Perfil Académico"). */
+const academicProfileId = sql<
+  string | null
+>`(select ${schema.student.id} from ${schema.student} where ${schema.student.organizationId} = ${schema.person.organizationId} and ${schema.student.personId} = ${schema.person.id})`;
+
 export async function loadUserDetail(
   db: Database,
   organizationId: string,
@@ -92,7 +97,7 @@ export async function loadUserDetail(
   selfPersonId: string | null,
 ) {
   const [row] = await db
-    .select(detailColumns)
+    .select({ ...detailColumns, studentId: academicProfileId })
     .from(schema.person)
     .innerJoin(schema.user, onLogin)
     .innerJoin(schema.member, onMember)
@@ -113,8 +118,7 @@ export async function loadUserDetail(
     department: row.department,
     municipality: row.municipality,
     hasRealEmail: row.hasRealEmail,
-    // No student profile exists until module 05 (D4).
-    studentId: null as string | null,
+    studentId: row.studentId,
   };
 }
 

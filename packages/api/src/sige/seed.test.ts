@@ -3,7 +3,7 @@ import { resolveTestDatabaseUrl, truncateAllTables } from "@base-template/auth/t
 import * as schema from "@base-template/db/schema";
 import { createTestDatabase, requireTestDatabaseOrSkip } from "@base-template/db/testing";
 import type { TestDatabaseHandle } from "@base-template/db/testing";
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { DEMO_INSTITUTION, resolveSeedRoot, seedSige } from "./seed";
@@ -12,6 +12,8 @@ import { DEMO_OFFERINGS, NEW_DEMO_TEACHERS } from "./seed-schedule";
 
 /** SIGE P0 seed (sige/00 §9, R4): idempotent root + demo institution + one login per kind. */
 const url = resolveTestDatabaseUrl();
+// The full demo seed provisions ≈ 85 logins (one password hash each); R4.6 targets < 60 s.
+setDefaultTimeout(60_000);
 const reachable = await requireTestDatabaseOrSkip(url, "seedSige (R4)");
 
 describe.skipIf(!reachable)("seedSige (R4)", () => {
@@ -49,6 +51,9 @@ describe.skipIf(!reachable)("seedSige (R4)", () => {
       "parent",
       "viewer",
       ...NEW_DEMO_TEACHERS.map(() => "teacher" as const),
+      // P4: the other 41 students and 25 guardians (Julián and Patricia are listed above).
+      ...Array.from({ length: 41 }, () => "student" as const),
+      ...Array.from({ length: 25 }, () => "parent" as const),
     ]);
     const [rootUser] = await handle.db
       .select()

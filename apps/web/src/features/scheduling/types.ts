@@ -1,3 +1,4 @@
+import type { EnrollmentStatus } from "@base-template/sige-core";
 import type { z } from "zod";
 
 import type {
@@ -91,4 +92,55 @@ export type ScheduleGenerationResult = {
   conflicts: number;
   courses: number;
   skipped: { courseId: string; courseName: string; reason: string }[];
+};
+
+/** `enrollment.status` values (sige/04 §2). */
+export type { EnrollmentStatus };
+
+/** A row of `enrollment.list` / the result of `enrollment.get` (sige/04 §3.3). */
+export type EnrollmentRow = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  document: string;
+  subjectName: string;
+  courseId: string;
+  courseName: string;
+  /** `YYYY-MM-DD`. */
+  enrollmentDate: string;
+  status: EnrollmentStatus;
+  /** Hand-edited administrative score, 1.0–5.0 (SCH-R8); `null` while unset. */
+  finalScore: number | null;
+  statusNote: string | null;
+  /** The enrollment's course is not the student's current course (SCH-R7). */
+  isStale: boolean;
+};
+
+/** `enrollment.stats` (sige/04 §3.3). */
+export type EnrollmentStats = { total: number; active: number };
+
+/** The course summary of `enrollment.candidates` (sige/04 §3.3): drives the SCH-02 callout. */
+export type EnrollmentCandidateCourse = {
+  id: string;
+  name: string;
+  maxStudents: number;
+  /** Active students whose current course is this one. */
+  currentStudents: number;
+  offeringCount: number;
+};
+
+/** An active student not already in the course (`enrollment.candidates`). */
+export type EnrollmentCandidate = {
+  id: string;
+  name: string;
+  document: string;
+  currentCourseName: string | null;
+};
+
+/** `enrollment.createBulk` (sige/04 §3.3). */
+export type BulkEnrollmentResult = {
+  students: number;
+  created: number;
+  skipped: number;
+  overCapacity: boolean;
 };

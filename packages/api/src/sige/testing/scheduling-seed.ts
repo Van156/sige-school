@@ -1,3 +1,4 @@
+import { provisionUserInTransaction } from "@base-template/auth/provision-user";
 import * as schema from "@base-template/db/schema";
 import { todayIn } from "@base-template/sige-core";
 import { eq } from "drizzle-orm";
@@ -157,4 +158,46 @@ export const seedTimeBlock = async (
     })
     .returning();
   return row!;
+};
+
+/** A login, person and `student` row; `courseId` must belong to `campusId` (composite FK). */
+export const seedStudent = async (
+  fx: SigeTestFixture,
+  tenant: TestTenant,
+  campusId: string,
+  values: {
+    firstName?: string;
+    lastName?: string;
+    documentNumber?: string;
+    courseId?: string | null;
+    status?: "activo" | "retirado" | "graduado";
+  } = {},
+) => {
+  const tag = crypto.randomUUID().slice(0, 8);
+  // Through the shared provisioning service (USR-R1), never raw user/person inserts.
+  const { personId } = await fx.db.transaction((tx) =>
+    provisionUserInTransaction({ auth: fx.auth }, tx, {
+      organizationId: tenant.orgId,
+      role: "student",
+      firstName: values.firstName ?? "Estudiante",
+      lastName: values.lastName ?? tag,
+      documentType: "TI",
+      documentNumber: values.documentNumber ?? `9${Date.now() % 1_000_000}${tag.slice(0, 4)}`,
+      mustChangePassword: false,
+      actor: "system",
+    }),
+  );
+  const [person] = await fx.db.select().from(schema.person).where(eq(schema.person.id, personId));
+  const [row] = await fx.db
+    .insert(schema.student)
+    .values({
+      organizationId: tenant.orgId,
+      personId: person!.id,
+      campusId,
+      courseId: values.courseId ?? null,
+      enrolledYear: "2026",
+      status: values.status ?? "activo",
+    })
+    .returning();
+  return { ...row!, person: person! };
 };

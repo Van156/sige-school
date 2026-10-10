@@ -5,3 +5,6 @@ export * from "./permissions";
 export * from "./username";
 export * from "./user-import";
 export * from "./schedule";
+export * from "./student";
+export * from "./student-import";
+export * from "./enrollment";

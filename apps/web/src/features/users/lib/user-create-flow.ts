@@ -6,8 +6,9 @@ export type CreatedUser = {
 };
 
 /**
- * The success toast of USR-02 (USR-R3). A student account is only half a student, so it points at
- * the pending profile; there is no link yet because STU-03 does not exist (D8).
+ * The success toast of USR-02 (USR-R3): "Usuario creado · contraseña inicial: Nº de documento.", or
+ * for a student, whose account is only half a student, "Usuario creado · completa su perfil
+ * académico." (the username sits in the description).
  */
 export function createdUserNotice(created: CreatedUser): { title: string; description: string } {
   return {
@@ -17,4 +18,24 @@ export function createdUserNotice(created: CreatedUser): { title: string; descri
         ? `${created.username} · contraseña inicial: Nº de documento.`
         : `${created.username} · completa su perfil académico.`,
   };
+}
+
+/** Where USR-02 goes after a create (USR-R3, F4 path B). */
+export type CreatedUserDestination =
+  | { screen: "users" }
+  | { screen: "complete-student-profile"; personId: string };
+
+/**
+ * A student lands on STU-03 "complete" for the new person, but only for a caller who may complete
+ * profiles (`student:create`, else that page is a no-permission dead end); everyone else returns to
+ * USR-01.
+ */
+export function createdUserDestination(
+  created: Pick<CreatedUser, "next">,
+  canCompleteProfile: boolean,
+): CreatedUserDestination {
+  if (created.next === null || !canCompleteProfile) {
+    return { screen: "users" };
+  }
+  return { screen: "complete-student-profile", personId: created.next.personId };
 }

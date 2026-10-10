@@ -9,6 +9,14 @@ import {
   COURSE_DIRECTOR_FK,
   COURSE_LEVEL_CAMPUS_FK,
   COURSE_UNIQUE,
+  ENROLLMENT_FINAL_SCORE_CHECK,
+  ENROLLMENT_OFFERING_FK,
+  ENROLLMENT_STATUS_NOTE_CHECK,
+  ENROLLMENT_STUDENT_FK,
+  ENROLLMENT_UNIQUE,
+  GUARDIAN_LINK_UNIQUE,
+  GUARDIAN_PERSON_FK,
+  GUARDIAN_STUDENT_FK,
   IMPORT_JOB_CREATOR_FK,
   IMPORT_JOB_RUNNING_UNIQUE,
   INSTITUTION_NIT_UNIQUE,
@@ -26,6 +34,11 @@ import {
   SLOT_CLASSROOM_FK,
   SLOT_COURSE_EXCLUDE,
   SLOT_TEACHER_EXCLUDE,
+  STUDENT_CAMPUS_FK,
+  STUDENT_COURSE_CAMPUS_FK,
+  STUDENT_PERSON_FK,
+  STUDENT_PERSON_UNIQUE,
+  STUDENT_STRATUM_CHECK,
   SUBJECT_CODE_UNIQUE,
   TIME_BLOCK_CAMPUS_FK,
   TIME_BLOCK_UNIQUE,
@@ -41,6 +54,8 @@ import { ORPCError } from "@orpc/server";
  * - `23001` restrict_violation / `23503` foreign_key_violation on **delete** -> `HAS_DEPENDENTS`
  *   (409). `ON DELETE RESTRICT` raises 23001; 23503 covers `NO ACTION` FKs added by later modules.
  * - `23P01` exclusion_violation (schedule double-booking, SCH-R9) -> `CONFLICT` (409).
+ * - `23514` check_violation on a user-entered field -> `BAD_REQUEST`; checks on server-set values
+ *   (years, teacher sync) stay unmapped because they signal a service bug.
  * - `23503` on **insert/update** -> `BAD_REQUEST` or `NOT_FOUND` (a referenced row is missing).
  * Anything else is left to the caller (rethrown unchanged).
  */
@@ -51,6 +66,7 @@ const SQLSTATE_UNIQUE_VIOLATION = "23505";
 const SQLSTATE_RESTRICT_VIOLATION = "23001";
 const SQLSTATE_FOREIGN_KEY_VIOLATION = "23503";
 const SQLSTATE_EXCLUSION_VIOLATION = "23P01";
+const SQLSTATE_CHECK_VIOLATION = "23514";
 
 /** Declared next to the other SIGE codes (foundation R3.5); the web maps it to a toast. */
 export const HAS_DEPENDENTS = "HAS_DEPENDENTS";
@@ -83,6 +99,20 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   // Not in spec §4.1 (writer-authored).
   [OFFERING_UNIQUE]: "La materia ya está asignada a este grado.",
   [ASSIGNMENT_OFFERING_UNIQUE]: "La materia del grado ya tiene una asignación.",
+  // sige/05 STU-R8 copy: the person (found by document) already has an academic profile.
+  [STUDENT_PERSON_UNIQUE]: "Ya existe un estudiante con este documento.",
+  // sige/05 STU-R6.
+  [GUARDIAN_LINK_UNIQUE]: "Este acudiente ya está vinculado a este estudiante.",
+  // Not in spec (writer-authored); bulk enrollment skips existing rows, so this is a race only.
+  [ENROLLMENT_UNIQUE]: "El estudiante ya está matriculado en esta materia.",
+};
+
+/** 23514 on user-entered fields, keyed by check constraint (sige/05 §4.1, sige/04 §4.1). */
+const CHECK_MESSAGES: Record<string, string> = {
+  [STUDENT_STRATUM_CHECK]: "El estrato debe estar entre 1 y 6.",
+  [ENROLLMENT_FINAL_SCORE_CHECK]: "La nota final debe estar entre 1.0 y 5.0.",
+  // Same copy as the zod schema (`schemas/enrollment.ts`).
+  [ENROLLMENT_STATUS_NOTE_CHECK]: "No puede superar 500 caracteres.",
 };
 
 /**
@@ -107,7 +137,20 @@ export const OFFERING_HAS_SLOTS_MESSAGE =
   "La materia del grado tiene clases programadas en el horario.";
 export const TIME_BLOCK_IN_USE_MESSAGE = "El bloque tiene clases programadas en el horario.";
 
-/** Spec §4.2 messages, keyed by the `restrict` FK that fired. */
+/**
+ * Copy for deletes blocked by more than one kind of dependent, where the FK Postgres reports
+ * first is not the one the spec lists first (sige/02 §4.2, sige/04 §4.2, sige/05 STU-R7). The
+ * services pre-check inside the delete transaction to keep the spec order; the FK map below stays
+ * the arbiter for races.
+ */
+export const OFFERING_HAS_ENROLLMENTS_MESSAGE =
+  "La materia del grado tiene estudiantes matriculados.";
+export const CAMPUS_HAS_STUDENTS_MESSAGE = "La sede tiene estudiantes asociados.";
+export const COURSE_HAS_STUDENTS_MESSAGE = "El grado tiene estudiantes asociados.";
+export const STUDENT_HAS_RECORDS_MESSAGE =
+  "El estudiante tiene matrículas, notas o asistencia registradas.";
+
+/** Spec §4.2 messages, keyed by the `restrict` FK that fired (person FKs: see USR-R7 below). */
 const DEPENDENTS_MESSAGES: Record<string, string> = {
   [LEVEL_CAMPUS_FK]: "La sede tiene niveles o grados asociados.",
   [COURSE_CAMPUS_FK]: "La sede tiene niveles o grados asociados.",
@@ -120,6 +163,11 @@ const DEPENDENTS_MESSAGES: Record<string, string> = {
   [CLASSROOM_CAMPUS_FK]: "La sede tiene salones o bloques horarios asociados.",
   [TIME_BLOCK_CAMPUS_FK]: "La sede tiene salones o bloques horarios asociados.",
   [SLOT_CLASSROOM_FK]: "El salón tiene clases programadas en el horario.",
+  // sige/04 §4.2 (P3 D2), sige/02 §4.2, sige/05 STU-R7.
+  [ENROLLMENT_OFFERING_FK]: OFFERING_HAS_ENROLLMENTS_MESSAGE,
+  [STUDENT_CAMPUS_FK]: CAMPUS_HAS_STUDENTS_MESSAGE,
+  [STUDENT_COURSE_CAMPUS_FK]: COURSE_HAS_STUDENTS_MESSAGE,
+  [ENROLLMENT_STUDENT_FK]: STUDENT_HAS_RECORDS_MESSAGE,
 };
 const DEPENDENTS_FALLBACK = "El registro tiene elementos asociados.";
 
@@ -134,10 +182,17 @@ const USER_DEPENDENTS_BY_ROLE: Record<string, string> = {
 };
 const USER_DEPENDENTS_FALLBACK = "El usuario tiene registros asociados. Desactívelo en su lugar.";
 const USER_DEPENDENTS_GENERIC_FKS = new Set<string>([IMPORT_JOB_CREATOR_FK]);
+/** FKs onto `person` that name the dependent themselves, whatever role the person holds now. */
+const USER_DEPENDENTS_BY_FK: Record<string, string> = {
+  [STUDENT_PERSON_FK]: USER_DEPENDENTS_BY_ROLE.student!,
+  [GUARDIAN_PERSON_FK]: USER_DEPENDENTS_BY_ROLE.parent!,
+};
 
 function userDependentsMessage(role: string, constraint: string): string {
   if (USER_DEPENDENTS_GENERIC_FKS.has(constraint)) return USER_DEPENDENTS_FALLBACK;
-  return USER_DEPENDENTS_BY_ROLE[role] ?? USER_DEPENDENTS_FALLBACK;
+  return (
+    USER_DEPENDENTS_BY_FK[constraint] ?? USER_DEPENDENTS_BY_ROLE[role] ?? USER_DEPENDENTS_FALLBACK
+  );
 }
 
 export type DbErrorOptions = {
@@ -169,6 +224,22 @@ const FK_WRITE_RULES: Record<string, FkWriteRule> = {
     code: "BAD_REQUEST",
     message: "La asignación debe corresponder a la materia del grado y a su profesor.",
   },
+  // sige/05 §4.1: the (campus, course) pair must exist, i.e. the course belongs to the campus.
+  [STUDENT_COURSE_CAMPUS_FK]: {
+    code: "BAD_REQUEST",
+    message: "El grado no pertenece a la sede seleccionada.",
+  },
+  [STUDENT_CAMPUS_FK]: { code: "NOT_FOUND", message: "La sede no existe." },
+  // STU-R6 / D5: a missing guardian person is "not a guardian" too.
+  [GUARDIAN_PERSON_FK]: {
+    code: "BAD_REQUEST",
+    message: "El usuario seleccionado no es un acudiente.",
+  },
+  // Writer-authored.
+  [STUDENT_PERSON_FK]: { code: "NOT_FOUND", message: "El usuario no existe." },
+  [GUARDIAN_STUDENT_FK]: { code: "NOT_FOUND", message: "El estudiante no existe." },
+  [ENROLLMENT_STUDENT_FK]: { code: "NOT_FOUND", message: "El estudiante no existe." },
+  [ENROLLMENT_OFFERING_FK]: { code: "NOT_FOUND", message: "La materia del grado no existe." },
 };
 const FK_WRITE_FALLBACK: FkWriteRule = {
   code: "BAD_REQUEST",
@@ -210,13 +281,20 @@ export function mapDbError(
     return message ? new ORPCError("CONFLICT", { status: CONFLICT_STATUS, message }) : null;
   }
 
+  if (pg.code === SQLSTATE_CHECK_VIOLATION) {
+    const message = CHECK_MESSAGES[constraint];
+    return message ? new ORPCError("BAD_REQUEST", { message }) : null;
+  }
+
   if (operation === "delete") {
     if (pg.code === SQLSTATE_RESTRICT_VIOLATION || pg.code === SQLSTATE_FOREIGN_KEY_VIOLATION) {
       return new ORPCError(HAS_DEPENDENTS, {
         status: CONFLICT_STATUS,
         message:
           options.personRole === undefined
-            ? (DEPENDENTS_MESSAGES[constraint] ?? DEPENDENTS_FALLBACK)
+            ? (DEPENDENTS_MESSAGES[constraint] ??
+              USER_DEPENDENTS_BY_FK[constraint] ??
+              DEPENDENTS_FALLBACK)
             : userDependentsMessage(options.personRole, constraint),
       });
     }

@@ -164,11 +164,14 @@ describe.skipIf(!reachable)("offering scope", () => {
     });
   });
 
-  test.each(["student", "parent"] as const)("%s fails closed until P4", async (kind) => {
-    const policy = policyFor(kind, world.teacherA);
-    expect(await visibleIds(policy)).toEqual([]);
-    await expect(policy.assertOffering(world.offerings.activo)).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-  });
+  test.each(["student", "parent"] as const)(
+    "%s without a profile or guardian link sees no offering",
+    async (kind) => {
+      const policy = policyFor(kind, world.teacherA);
+      expect(await visibleIds(policy)).toEqual([]);
+      await expect(policy.assertOffering(world.offerings.activo)).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    },
+  );
 });

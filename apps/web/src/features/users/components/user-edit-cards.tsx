@@ -1,5 +1,6 @@
 import { Badge } from "@base-template/ui/components/badge";
 import { Button } from "@base-template/ui/components/button";
+import type { ReactNode } from "react";
 
 import { HelpCard } from "@/features/institution";
 
@@ -7,24 +8,29 @@ import { formatLastAccess } from "../lib/user-format";
 import type { UserDetail } from "../types";
 
 /**
- * USR-03 side card "Acciones Rápidas": reset password and enable/disable. Each action is offered
- * only when the caller may run it on this row (pass `undefined` to hide it). Presentational.
+ * USR-03 side card "Acciones Rápidas": the student's academic profile link, reset password and
+ * enable/disable. Each action is offered only when the caller may run it on this row (pass
+ * `undefined` to hide it). `academicProfileLink` is a slot: the container renders the router link
+ * ("Ver Perfil Académico" / "Completar Perfil Académico"). Presentational.
  */
 export function UserQuickActionsCard({
   isActive,
+  academicProfileLink,
   onResetPassword,
   onToggleActive,
 }: {
   isActive: boolean;
+  academicProfileLink?: ReactNode;
   onResetPassword?: () => void;
   onToggleActive?: () => void;
 }) {
-  if (!onResetPassword && !onToggleActive) {
+  if (!academicProfileLink && !onResetPassword && !onToggleActive) {
     return null;
   }
   return (
     <HelpCard title="Acciones Rápidas">
       <div className="flex flex-col gap-2">
+        {academicProfileLink}
         {onResetPassword ? (
           <Button type="button" variant="outline" onClick={onResetPassword}>
             Resetear Contraseña

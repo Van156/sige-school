@@ -139,7 +139,7 @@ export const scheduleGenerateInput = z.object({
   courseId: z.string().min(1).optional(),
 });
 
-/** SCH-11 `schedule.get`: a course grid or the teacher's own. An omitted `courseId` is BAD_REQUEST until P4 adds the student's own-course default. */
+/** SCH-11 `schedule.get`: a course grid or the teacher's own. An omitted `courseId` means the student caller's own course (BAD_REQUEST for everyone else). */
 export const scheduleGetInput = z.discriminatedUnion("view", [
   z.object({ view: z.literal("course"), courseId: z.string().min(1).optional() }),
   z.object({ view: z.literal("teacher") }),

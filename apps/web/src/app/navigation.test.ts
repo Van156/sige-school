@@ -170,12 +170,14 @@ describe("navGroups visibility", () => {
       );
     expect(
       scheduling({
+        enrollment: ["read"],
         offering: ["read"],
         classroom: ["read"],
         schedule: ["read"],
         time_block: ["read"],
       })?.items.map((item) => item.label),
     ).toEqual([
+      "Matrículas",
       "Asignación de Profesores",
       "Materias por Grado",
       "Salones",
@@ -195,9 +197,14 @@ describe("navGroups visibility", () => {
       "/bloques",
     ]);
     expect(scheduling({ campus: ["read"] })).toBeUndefined();
+    expect(scheduling({ enrollment: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/matriculas",
+    ]);
+    expect(scheduling({ enrollment: ["create", "update", "delete"] })).toBeUndefined();
   });
 
   const MANAGER_SCHEDULING = [
+    "/matriculas",
     "/asignaciones",
     "/materias-por-grado",
     "/salones",
@@ -209,7 +216,8 @@ describe("navGroups visibility", () => {
     ["admin", MANAGER_SCHEDULING],
     ["coordinator", MANAGER_SCHEDULING],
     ["teacher", ["/horarios"]],
-    ["student", ["/horarios"]],
+    // A student reads SCH-11 through "Mi Horario" in the academic group (R1.27).
+    ["student", undefined],
     ["parent", undefined],
     ["viewer", undefined],
   ];
@@ -225,6 +233,54 @@ describe("navGroups visibility", () => {
       expect(routes).toEqual(expected);
     },
   );
+
+  const ACADEMIC_BY_KIND: [Exclude<NavContext["kind"], null>, string[] | undefined][] = [
+    ["owner", ["Estudiantes"]],
+    ["admin", ["Estudiantes"]],
+    ["coordinator", ["Estudiantes"]],
+    ["teacher", ["Estudiantes"]],
+    ["student", ["Mi Horario"]],
+    ["parent", undefined],
+    ["viewer", undefined],
+  ];
+
+  test.each(ACADEMIC_BY_KIND)(
+    "the academic group for a built-in %s (sige/00 R1.25, R1.27)",
+    (kind, expected) => {
+      const permissions = resolveNavPermissions({ roleName: kind }, undefined);
+      const group = filterNavGroups(navGroups, { ...member, kind, permissions }).find(
+        (candidate) => candidate.id === "academic",
+      );
+      const labels: string[] | undefined = group?.items.map((item) => item.label);
+      expect(labels).toEqual(expected);
+    },
+  );
+
+  test("the academic entries are permission-gated; Mi Horario is the student's SCH-11", () => {
+    const academic = (kind: NavContext["kind"], permissions: Record<string, string[]>) =>
+      filterNavGroups(navGroups, { ...member, kind, permissions }).find(
+        (group) => group.id === "academic",
+      );
+    expect(academic("coordinator", { student: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/estudiantes",
+    ]);
+    expect(academic("coordinator", { student: ["create", "update"] })).toBeUndefined();
+    expect(academic("student", { schedule: ["read"] })?.items.map((item) => item.to)).toEqual([
+      "/horarios",
+    ]);
+    // Only a student kind gets "Mi Horario"; anyone else with `schedule:read` keeps the manager entry.
+    expect(academic("custom", { schedule: ["read"] })).toBeUndefined();
+    expect(academic("student", {})).toBeUndefined();
+  });
+
+  test("a student's breadcrumb on SCH-11 is Mi Horario", () => {
+    const permissions = resolveNavPermissions({ roleName: "student" }, undefined);
+    const groups = filterNavGroups(navGroups, { ...member, kind: "student", permissions });
+    expect(getBreadcrumbs(groups, "/horarios")).toEqual([
+      { label: "Académico" },
+      { label: "Mi Horario" },
+    ]);
+  });
 
   test("the users group lists Usuarios only for holders of user:read", () => {
     const usersGroup = (kind: NavContext["kind"], permissions: Record<string, string[]>) =>

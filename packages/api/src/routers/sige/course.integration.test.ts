@@ -13,6 +13,7 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
+import { seedOffering, seedStudent, seedSubject } from "../../sige/testing/scheduling-seed";
 import { courseRouter } from "./course";
 
 /** `course.*` (sige/02 INS-11/12, §3.3, §4): server list, CRUD, level-in-campus, audit. */
@@ -437,9 +438,14 @@ await sigeSuite("course router", (fx) => {
       const course = await seedCourse(fx, tenant, campus.id);
       const racing = {
         ...owner,
-        db: racingDb(fx.db, async () => {
-          await fx.db.delete(schema.course).where(eq(schema.course.id, course.id));
-        }),
+        // Update and delete lock the row in a transaction: the rival deletes as it opens.
+        db: racingDb(
+          fx.db,
+          async () => {
+            await fx.db.delete(schema.course).where(eq(schema.course.id, course.id));
+          },
+          "transaction",
+        ),
       } as Context;
       audit.reset();
       const run =
@@ -467,6 +473,65 @@ await sigeSuite("course router", (fx) => {
       action: "course.deleted",
       metadata: { snapshot: { name: "Borrable" } },
     });
+  });
+
+  test("INS-R6: the campus of a course with students or offerings cannot change", async () => {
+    const LOCKED = "No se puede cambiar la sede de un grado con estudiantes o asignaturas.";
+    const a = await seedCampus(fx, tenant);
+    const b = await seedCampus(fx, tenant);
+    const withStudent = await seedCourse(fx, tenant, a.id, { name: "ConEstudiante" });
+    await seedStudent(fx, tenant, a.id, { courseId: withStudent.id, status: "retirado" });
+    const withOffering = await seedCourse(fx, tenant, a.id, { name: "ConMateria" });
+    await seedOffering(fx, tenant, withOffering.id, (await seedSubject(fx, tenant)).id);
+    for (const course of [withStudent, withOffering]) {
+      audit.reset();
+      const error = await errorOf(
+        call(
+          courseRouter.update,
+          { id: course.id, ...courseInput(b.id, { name: course.name }) },
+          { context: owner },
+        ),
+      );
+      expect(error?.code).toBe("CONFLICT");
+      expect(error?.message).toBe(LOCKED);
+      expect(audit.events).toHaveLength(0);
+      const [row] = await fx.db.select().from(schema.course).where(eq(schema.course.id, course.id));
+      expect(row?.campusId).toBe(a.id);
+      // Other fields still change while the campus stays.
+      const renamed = await call(
+        courseRouter.update,
+        { id: course.id, ...courseInput(a.id, { name: `${course.name} 2` }) },
+        { context: owner },
+      );
+      expect(renamed.name).toBe(`${course.name} 2`);
+    }
+    const free = await seedCourse(fx, tenant, a.id, { name: "Libre" });
+    const moved = await call(
+      courseRouter.update,
+      { id: free.id, ...courseInput(b.id, { name: "Libre" }) },
+      { context: owner },
+    );
+    expect(moved.campusId).toBe(b.id);
+  });
+
+  test("delete refuses a course with students before one with offerings (spec order)", async () => {
+    const campus = await seedCampus(fx, tenant);
+    const subject = await seedSubject(fx, tenant);
+    const both = await seedCourse(fx, tenant, campus.id, { name: "Ambos" });
+    await seedOffering(fx, tenant, both.id, subject.id);
+    await seedStudent(fx, tenant, campus.id, { courseId: both.id, status: "graduado" });
+    const onlyOffering = await seedCourse(fx, tenant, campus.id, { name: "SoloMateria" });
+    await seedOffering(fx, tenant, onlyOffering.id, subject.id);
+    for (const [course, message] of [
+      [both, "El grado tiene estudiantes asociados."],
+      [onlyOffering, "El grado tiene asignaturas asignadas."],
+    ] as const) {
+      audit.reset();
+      const error = await errorOf(call(courseRouter.delete, { id: course.id }, { context: owner }));
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe(message);
+      expect(audit.events).toHaveLength(0);
+    }
   });
 
   test("get returns the row", async () => {
@@ -564,6 +629,34 @@ await sigeSuite("course router", (fx) => {
     expect(byDirector.total).toBe(3);
     const withDirector = byDirector.rows.find((r) => r.name === "C");
     expect(withDirector?.directorName).toContain("teacher");
+  });
+
+  test("studentCount counts the course's active students and sorts the list", async () => {
+    const t = await fx.provisionTenant("CursosConteo", ["owner"]);
+    const ctx = await fx.contextFor(t.people.owner!, t);
+    const campus = await seedCampus(fx, t);
+    const full = await seedCourse(fx, t, campus.id, { name: "Lleno" });
+    const empty = await seedCourse(fx, t, campus.id, { name: "Vacio" });
+    const other = await seedCourse(fx, t, campus.id, { name: "Otro" });
+    await seedStudent(fx, t, campus.id, { courseId: full.id });
+    await seedStudent(fx, t, campus.id, { courseId: full.id });
+    await seedStudent(fx, t, campus.id, { courseId: full.id, status: "retirado" });
+    await seedStudent(fx, t, campus.id, { courseId: full.id, status: "graduado" });
+    await seedStudent(fx, t, campus.id, { courseId: other.id });
+    await seedStudent(fx, t, campus.id, { courseId: null });
+
+    const list = await call(
+      courseRouter.list,
+      { sort: [{ id: "studentCount", desc: true }] },
+      { context: ctx },
+    );
+    expect(list.rows.map((row) => [row.name, row.studentCount])).toEqual([
+      ["Lleno", 2],
+      ["Otro", 1],
+      ["Vacio", 0],
+    ]);
+    expect((await call(courseRouter.get, { id: full.id }, { context: ctx })).studentCount).toBe(2);
+    expect((await call(courseRouter.get, { id: empty.id }, { context: ctx })).studentCount).toBe(0);
   });
 
   test("list rejects columns outside the allowlists", async () => {

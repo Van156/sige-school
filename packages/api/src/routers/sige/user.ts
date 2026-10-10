@@ -184,7 +184,8 @@ export const userRouter = {
 
   /** Live preview of the form (USR-R2); `null` while any part is empty. Writes nothing. */
   previewUsername: sigeProcedure
-    .use(requirePermission({ user: ["create"] }))
+    // STU-03 "new" shows the same preview to `student:create` holders (coordinators).
+    .use(requireAnyPermission({ user: ["create"] }, { student: ["create"] }))
     .input(userPreviewUsernameInput)
     .handler(({ context, input }) => previewUsernameFor(context.db, context.org.id, input)),
 

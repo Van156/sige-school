@@ -148,10 +148,10 @@ export type ImportValidation = {
   errors: ImportRowError[];
 };
 
-type Cell = { text: string; invalid: boolean };
+export type ImportCell = { text: string; invalid: boolean };
 
-const BLANK: Cell = { text: "", invalid: false };
-const INVALID: Cell = { text: "", invalid: true };
+const BLANK: ImportCell = { text: "", invalid: false };
+const INVALID: ImportCell = { text: "", invalid: true };
 
 /**
  * Reads the text of an exceljs cell value: plain strings, safe integers, dates (ISO day),
@@ -159,7 +159,7 @@ const INVALID: Cell = { text: "", invalid: true };
  * Fractions, unsafe integers, non-finite numbers and error cells are `invalid`, so the row
  * reports a clear error instead of importing `12.5` or `1e+21`.
  */
-function readCell(value: unknown): Cell {
+export function readCell(value: unknown): ImportCell {
   if (typeof value === "string") {
     return { text: value.trim(), invalid: false };
   }

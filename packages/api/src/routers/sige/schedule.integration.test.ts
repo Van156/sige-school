@@ -701,18 +701,108 @@ await sigeSuite("schedule router", (fx) => {
     ).toBe("BAD_REQUEST");
   });
 
-  test("a student fails closed until P4 (own course), a parent is FORBIDDEN", async () => {
-    const { s, c1 } = await generated("Estudiante");
-    const student = await fx.contextFor(s.tenant.people.student!, s.tenant);
+  test("a teacher may view the course they direct without teaching it (OD-21)", async () => {
+    const { s, campus } = await generated("ProfesorDirector");
+    const sub = await subjects(s);
+    const directed = await seedCourse(fx, s.tenant, campus.id, {
+      name: "Dirigido",
+      academicYear: year,
+      directorPersonId: s.teacherA.personId,
+    });
+    await seedOffering(fx, s.tenant, directed.id, sub.mat.id, { personId: s.teacherB.personId }, 1);
+    const view = await call(
+      scheduleRouter.get,
+      { view: "course", courseId: directed.id },
+      { context: s.teacherA.context },
+    );
+    expect(view.title).toBe("Horario del grado Dirigido");
+    // Removing the director removes the course from the teacher's view (INS-R8).
+    await fx.db
+      .update(schema.course)
+      .set({ directorPersonId: null })
+      .where(eq(schema.course.id, directed.id));
+    const gone = await errorOf(
+      call(
+        scheduleRouter.get,
+        { view: "course", courseId: directed.id },
+        { context: s.teacherA.context },
+      ),
+    );
+    expect(gone?.code).toBe("NOT_FOUND");
+  });
+
+  /** Gives the tenant's `student` login an academic profile in `courseId` (null = no course). */
+  const enrollStudentLogin = async (s: School, campusId: string, courseId: string | null) => {
+    await fx.db.insert(schema.student).values({
+      organizationId: s.tenant.orgId,
+      personId: s.tenant.people.student!.personId,
+      campusId,
+      courseId,
+      enrolledYear: year,
+    });
+    return fx.contextFor(s.tenant.people.student!, s.tenant);
+  };
+
+  test("a student reads their own course by default; another course is NOT_FOUND", async () => {
+    const { s, campus, c1, c2 } = await generated("Estudiante");
+    const student = await enrollStudentLogin(s, campus.id, c1.id);
+    const own = await call(scheduleRouter.get, { view: "course" }, { context: student });
+    expect(own.title).toBe("Horario del grado Sexto A");
+    expect(cellsOf(own)).toHaveLength(7);
+    const explicit = await call(
+      scheduleRouter.get,
+      { view: "course", courseId: c1.id },
+      { context: student },
+    );
+    expect(cellsOf(explicit)).toHaveLength(7);
+    for (const input of [
+      { view: "course", courseId: c2.id },
+      { view: "course", courseId: "nope" },
+    ] as const) {
+      const error = await errorOf(call(scheduleRouter.get, input, { context: student }));
+      expect(error?.code).toBe("NOT_FOUND");
+      expect(error?.message).toBe("El grado no existe.");
+    }
+    // A student has no teacher view.
+    expect(
+      (await errorOf(call(scheduleRouter.get, { view: "teacher" }, { context: student })))?.code,
+    ).toBe("NOT_FOUND");
+  });
+
+  test("a student whose own course has no offerings still reads its (empty) grid", async () => {
+    const s = await makeSchool("EstudianteVacio");
+    const { campus } = await makeCampus(s);
+    const course = await seedCourse(fx, s.tenant, campus.id, { name: "Vacío", academicYear: year });
+    const student = await enrollStudentLogin(s, campus.id, course.id);
+    const schedule = await call(scheduleRouter.get, { view: "course" }, { context: student });
+    expect(schedule.title).toBe("Horario del grado Vacío");
+    expect(cellsOf(schedule)).toHaveLength(0);
+  });
+
+  test("a student without a course (or without a profile) gets NOT_FOUND Sin curso asignado", async () => {
+    const { s, campus, c1 } = await generated("SinCurso");
+    const noProfile = await fx.contextFor(s.tenant.people.student!, s.tenant);
+    const noProfileError = await errorOf(
+      call(scheduleRouter.get, { view: "course" }, { context: noProfile }),
+    );
+    expect(noProfileError?.code).toBe("NOT_FOUND");
+    expect(noProfileError?.message).toBe("Sin curso asignado");
+    const student = await enrollStudentLogin(s, campus.id, null);
+    for (const input of [{ view: "course" }, { view: "course", courseId: c1.id }] as const) {
+      const error = await errorOf(call(scheduleRouter.get, input, { context: student }));
+      expect(error?.code).toBe("NOT_FOUND");
+      expect(error?.message).toBe(input.courseId ? "El grado no existe." : "Sin curso asignado");
+    }
+  });
+
+  test("a parent is FORBIDDEN", async () => {
+    const { s, c1 } = await generated("Acudiente");
     const parent = await fx.contextFor(s.tenant.people.parent!, s.tenant);
     for (const input of [
       { view: "teacher" },
       { view: "course" },
       { view: "course", courseId: c1.id },
     ] as const) {
-      expect((await errorOf(call(scheduleRouter.get, input, { context: student })))?.code).toBe(
-        "NOT_FOUND",
-      );
       expect((await errorOf(call(scheduleRouter.get, input, { context: parent })))?.code).toBe(
         "FORBIDDEN",
       );

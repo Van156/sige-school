@@ -1,14 +1,21 @@
 import type { Database } from "@base-template/db";
-import { offering, teacherAssignment } from "@base-template/db/schema";
+import {
+  course,
+  offering,
+  student,
+  studentGuardian,
+  teacherAssignment,
+} from "@base-template/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { DEFAULT_SCOPE_RESOLVERS } from "./scope";
 import type { RowPredicate, ScopeResolvers } from "./scope";
 
 /**
- * The concrete `ScopeResolvers` the SIGE procedures use (sige/00 §4.3). P3 fills the offering
- * seam; student and parent offering scope, and every student resolver, stay fail-closed until
- * P4 ships the enrollment and guardian tables (sige/05).
+ * The concrete `ScopeResolvers` the SIGE procedures use (sige/00 §4.3): offering scope (P3) and
+ * student scope plus the student/parent offering scope (P4, sige/05 STU-R1). Every predicate is a
+ * correlated `exists` over tables other than the one it filters, so it can be ANDed into a query
+ * that joins `student` and `offering` without the inner tables shadowing the outer row.
  */
 
 /** Assignment states that keep an offering in the teacher's scope (D3; `inactivo` removes it). */
@@ -29,10 +36,78 @@ const teacherOfferingWhere: RowPredicate = (subject) =>
     ...TEACHER_SCOPE_STATUSES,
   ])}))`;
 
+/** Teacher (D2): students whose current course has one of the teacher's scoped offerings. */
+const teacherOfferingInStudentCourse: RowPredicate = (subject) =>
+  sql`exists (select 1 from ${offering} where ${eq(
+    offering.organizationId,
+    student.organizationId,
+  )} and ${eq(offering.courseId, student.courseId)} and ${teacherOfferingWhere(subject)})`;
+
+/** Teacher (OD-21): students whose current course the teacher directs. */
+const teacherDirectsStudentCourse: RowPredicate = (subject) =>
+  sql`exists (select 1 from ${course} where ${eq(
+    course.organizationId,
+    student.organizationId,
+  )} and ${eq(course.id, student.courseId)} and ${eq(course.directorPersonId, subject.personId)})`;
+
+/** Predicates over `student`. Status is not filtered: lists add their own status filter. */
+const studentWhere: ScopeResolvers["studentWhere"] = {
+  teacher: (subject) =>
+    sql`(${teacherOfferingInStudentCourse(subject)} or ${teacherDirectsStudentCourse(subject)})`,
+  student: (subject) => eq(student.personId, subject.personId),
+  parent: (subject) =>
+    sql`exists (select 1 from ${studentGuardian} where ${eq(
+      studentGuardian.organizationId,
+      student.organizationId,
+    )} and ${eq(studentGuardian.studentId, student.id)} and ${eq(
+      studentGuardian.guardianPersonId,
+      subject.personId,
+    )})`,
+};
+
+/** Student and parent offering scope: the offerings of the own / children's current course. */
+const portalOfferingWhere: Pick<ScopeResolvers["offeringWhere"], "student" | "parent"> = {
+  student: (subject) =>
+    sql`exists (select 1 from ${student} where ${eq(
+      student.organizationId,
+      offering.organizationId,
+    )} and ${eq(student.courseId, offering.courseId)} and ${eq(
+      student.personId,
+      subject.personId,
+    )})`,
+  parent: (subject) =>
+    sql`exists (select 1 from ${studentGuardian} inner join ${student} on ${and(
+      eq(student.organizationId, studentGuardian.organizationId),
+      eq(student.id, studentGuardian.studentId),
+    )} where ${eq(studentGuardian.organizationId, offering.organizationId)} and ${eq(
+      student.courseId,
+      offering.courseId,
+    )} and ${eq(studentGuardian.guardianPersonId, subject.personId)})`,
+};
+
 export function createSigeScopeResolvers(db: Pick<Database, "select">): ScopeResolvers {
   return {
     ...DEFAULT_SCOPE_RESOLVERS,
-    offeringWhere: { ...DEFAULT_SCOPE_RESOLVERS.offeringWhere, teacher: teacherOfferingWhere },
+    studentWhere: { ...DEFAULT_SCOPE_RESOLVERS.studentWhere, ...studentWhere },
+    offeringWhere: {
+      ...DEFAULT_SCOPE_RESOLVERS.offeringWhere,
+      ...portalOfferingWhere,
+      teacher: teacherOfferingWhere,
+    },
+    async studentVisible(subject, studentId, scopeWhere) {
+      const [row] = await db
+        .select({ id: student.id })
+        .from(student)
+        .where(
+          and(
+            eq(student.organizationId, subject.organizationId),
+            eq(student.id, studentId),
+            scopeWhere,
+          ),
+        )
+        .limit(1);
+      return row !== undefined;
+    },
     async offeringVisible(subject, offeringId, scopeWhere) {
       const [row] = await db
         .select({ id: offering.id })

@@ -13,6 +13,7 @@ import {
   testTenantIsolation,
 } from "../../sige/testing";
 import type { SigeTestFixture, TestTenant } from "../../sige/testing";
+import { seedClassroom, seedCourse, seedStudent } from "../../sige/testing/scheduling-seed";
 import { campusRouter } from "./campus";
 
 /** `campus.*` (sige/02 INS-07/08, §3.3, §4): CRUD, the one-main rule, delete blocks, audit. */
@@ -146,6 +147,31 @@ await sigeSuite("campus router", (fx) => {
       expect(rows).toHaveLength(0);
     });
 
+    test("delete refuses in spec order: structure, then rooms and blocks, then students", async () => {
+      const withCourse = await seedCampus(fx, tenant);
+      const course = await seedCourse(fx, tenant, withCourse.id);
+      await seedStudent(fx, tenant, withCourse.id, { courseId: course.id });
+      await seedClassroom(fx, tenant, withCourse.id);
+      const withRoom = await seedCampus(fx, tenant);
+      await seedClassroom(fx, tenant, withRoom.id);
+      await seedStudent(fx, tenant, withRoom.id, { status: "retirado" });
+      const withStudent = await seedCampus(fx, tenant);
+      await seedStudent(fx, tenant, withStudent.id);
+      for (const [campus, message] of [
+        [withCourse, "La sede tiene niveles o grados asociados."],
+        [withRoom, "La sede tiene salones o bloques horarios asociados."],
+        [withStudent, "La sede tiene estudiantes asociados."],
+      ] as const) {
+        audit.reset();
+        const error = (await errorOf(
+          call(campusRouter.delete, { id: campus.id }, { context: owner }),
+        )) as ORPCError<string, unknown>;
+        expect(error.code).toBe("HAS_DEPENDENTS");
+        expect(error.message).toBe(message);
+        expect(audit.events).toHaveLength(0);
+      }
+    });
+
     test("get/update/delete of a missing id is NOT_FOUND", async () => {
       for (const run of [
         () => call(campusRouter.get, { id: "nope" }, { context: owner }),
@@ -166,9 +192,14 @@ await sigeSuite("campus router", (fx) => {
         const campus = await seedCampus(fx, tenant);
         const racing = {
           ...owner,
-          db: racingDb(fx.db, async () => {
-            await fx.db.delete(schema.campus).where(eq(schema.campus.id, campus.id));
-          }),
+          // Delete locks the row in a transaction: the rival deletes as it opens.
+          db: racingDb(
+            fx.db,
+            async () => {
+              await fx.db.delete(schema.campus).where(eq(schema.campus.id, campus.id));
+            },
+            op === "delete" ? "transaction" : "write",
+          ),
         } as Context;
         audit.reset();
         const run =

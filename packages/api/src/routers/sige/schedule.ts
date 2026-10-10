@@ -27,10 +27,15 @@ import {
  *   commit, like every other router.
  * - `get` builds a `WeeklySchedule` with `buildScheduleRows`. Managers read any course; a teacher
  *   reads `view: "teacher"` (their own slots, only for `activo`/`temporal` assignments: the scope
- *   predicate, D3) or a course holding one of their offerings in scope. A student fails closed
- *   until P4 ships `student.course_id` scope (own course); the permission gate keeps parents out.
+ *   predicate, D3) or a course holding one of their offerings in scope or that they direct
+ *   (OD-21). A student reads only their own course (`student.course_id`, also the default when
+ *   `courseId` is omitted); without one the answer is `NOT_FOUND` "Sin curso asignado" (SCH-11
+ *   empty state). The permission gate keeps parents out.
  * - `deleteSlot` removes one slot of the tenant.
  */
+
+/** SCH-11 student empty state ("Sin curso asignado"), returned as the `NOT_FOUND` message. */
+export const NO_COURSE_MESSAGE = "Sin curso asignado";
 
 const timeText = (column: typeof schema.scheduleSlot.startTime) => sql<string>`${column}::text`;
 
@@ -111,15 +116,14 @@ export const scheduleRouter = {
     .handler(async ({ context, input }): Promise<WeeklySchedule> => {
       const orgId = context.org.id;
       const { kind } = context.person;
-      // P4 adds the student's own course (`student.course_id`); until then fail closed (R1.15).
-      if (kind === "student") {
-        throw new ORPCError("NOT_FOUND", { message: "El horario no existe." });
-      }
       if (kind === "parent") {
         throw new ORPCError("FORBIDDEN", { message: "Missing required organization permission." });
       }
 
       if (input.view === "teacher") {
+        if (kind === "student") {
+          throw new ORPCError("NOT_FOUND", { message: "El horario no existe." });
+        }
         const year = await currentAcademicYear(context.db, orgId);
         // D3 applied explicitly: the scope predicate is undefined for unrestricted callers, so a
         // manager who also teaches would otherwise see `inactivo` assignments. Managers who do
@@ -185,10 +189,30 @@ export const scheduleRouter = {
         };
       }
 
-      if (!input.courseId) {
+      const notFound = () => new ORPCError("NOT_FOUND", { message: "El grado no existe." });
+      let courseId = input.courseId;
+      if (kind === "student") {
+        // The student's own course is the only one they may read; omitted = own.
+        const [own] = await context.db
+          .select({ courseId: schema.student.courseId })
+          .from(schema.student)
+          .where(
+            and(
+              eq(schema.student.organizationId, orgId),
+              eq(schema.student.personId, context.person.id),
+            ),
+          )
+          .limit(1);
+        if (courseId === undefined) {
+          if (!own?.courseId) throw new ORPCError("NOT_FOUND", { message: NO_COURSE_MESSAGE });
+          courseId = own.courseId;
+        } else if (courseId !== own?.courseId) {
+          throw notFound();
+        }
+      }
+      if (!courseId) {
         throw new ORPCError("BAD_REQUEST", { message: "Debes seleccionar un grado." });
       }
-      const notFound = () => new ORPCError("NOT_FOUND", { message: "El grado no existe." });
       const [course] = await context.db
         .select({
           id: schema.course.id,
@@ -196,14 +220,16 @@ export const scheduleRouter = {
           campusId: schema.course.campusId,
           shift: schema.course.shift,
           academicYear: schema.course.academicYear,
+          directorPersonId: schema.course.directorPersonId,
         })
         .from(schema.course)
-        .where(and(eq(schema.course.organizationId, orgId), eq(schema.course.id, input.courseId)))
+        .where(and(eq(schema.course.organizationId, orgId), eq(schema.course.id, courseId)))
         .limit(1);
       if (!course) throw notFound();
       const scoped = context.scope.offeringWhere();
-      if (scoped) {
-        // A restricted caller reads a course only through an offering inside their scope.
+      const directs = kind === "teacher" && course.directorPersonId === context.person.id;
+      if (scoped && kind !== "student" && !directs) {
+        // A teacher reads a course they direct (OD-21) or one holding an offering in their scope.
         const [visible] = await context.db
           .select({ id: schema.offering.id })
           .from(schema.offering)

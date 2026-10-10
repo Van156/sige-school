@@ -5,6 +5,8 @@ import {
   Building2,
   CalendarClock,
   CalendarDays,
+  CalendarRange,
+  ClipboardList,
   Clock,
   DoorOpen,
   GraduationCap,
@@ -96,6 +98,9 @@ export function can(permission: string): (ctx: NavContext) => boolean {
 
 const hasOrganization = (ctx: NavContext) => ctx.hasOrganization;
 
+/** A student kind (R1.27): their own entries replace the managers' ones (e.g. "Mi Horario"). */
+const isStudent = (ctx: NavContext) => ctx.kind === "student";
+
 /** Institution management (rector and administrators): the audience of the organization settings. */
 export const isInstitutionManager = (ctx: NavContext) =>
   ctx.hasOrganization && (ctx.kind === "owner" || ctx.kind === "admin");
@@ -144,10 +149,17 @@ export const navGroups: NavGroup<NavContext>[] = [
     id: "scheduling",
     label: "Horarios",
     visible: hasOrganization,
-    // Order of the prototype's "Matrícula y Programación" entries (sige/00 R1.25; "Matrículas"
-    // joins in P4). `/horarios` needs `schedule:read`: every view of SCH-11 is gated by it, so
-    // `student:read` alone (accepted by `schedule.get` for STU-02) would open a no-permission page.
+    // Order of the prototype's "Matrícula y Programación" entries (sige/00 R1.25). `/horarios`
+    // needs `schedule:read`: every view of SCH-11 is gated by it, so `student:read` alone
+    // (accepted by `schedule.get` for STU-02) would open a no-permission page. A student reaches
+    // the same screen as "Mi Horario" in the "Académico" group instead (R1.27).
     items: [
+      {
+        label: "Matrículas",
+        to: "/matriculas",
+        icon: ClipboardList,
+        visible: can("enrollment:read"),
+      },
       {
         label: "Asignación de Profesores",
         to: "/asignaciones",
@@ -165,7 +177,7 @@ export const navGroups: NavGroup<NavContext>[] = [
         label: "Horarios de Clases",
         to: "/horarios",
         icon: CalendarClock,
-        visible: can("schedule:read"),
+        visible: (ctx) => !isStudent(ctx) && holds(ctx, "schedule:read"),
       },
       {
         label: "Bloques de Tiempo",
@@ -180,6 +192,27 @@ export const navGroups: NavGroup<NavContext>[] = [
     label: "Usuarios",
     visible: hasOrganization,
     items: [{ label: "Usuarios", to: "/usuarios", icon: Users, visible: can("user:read") }],
+  },
+  {
+    id: "academic",
+    label: "Académico",
+    visible: hasOrganization,
+    // The prototype's "Académico" section in its order: the student's "Mi Horario" (SCH-11 with
+    // their own course, sige/04 SCH-R1), then "Estudiantes" (STU-01; teachers read their scope).
+    items: [
+      {
+        label: "Mi Horario",
+        to: "/horarios",
+        icon: CalendarRange,
+        visible: (ctx) => isStudent(ctx) && holds(ctx, "schedule:read"),
+      },
+      {
+        label: "Estudiantes",
+        to: "/estudiantes",
+        icon: GraduationCap,
+        visible: can("student:read"),
+      },
+    ],
   },
   {
     id: "settings",

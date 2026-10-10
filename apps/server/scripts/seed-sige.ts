@@ -1,5 +1,6 @@
-// SIGE P0 seed (sige/00 §9, R4): root platform admin, the demo institution "Colegio San José" and
-// one login per SIGE kind, the 12 teachers and the P3 offering/schedule dataset. Idempotent. Usage: `pnpm db:seed:sige`.
+// SIGE demo seed (sige/00 §9, R4): root platform admin, the demo institution "Colegio San José" and
+// one login per SIGE kind, the 12 teachers, the P3 offering/schedule dataset and the P4 students and
+// guardians. Idempotent. Usage: `pnpm db:seed:sige`.
 //
 // The logic lives in `@base-template/api/sige/seed` so it is testable against a real database.
 // Root credentials come from SEED_ROOT_EMAIL / SEED_ROOT_PASSWORD; the built-in demo password is

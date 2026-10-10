@@ -20,6 +20,11 @@ import ConfirmDialog from "@/shared/components/overlays/confirm-dialog";
 
 import { useResetUserPassword } from "../hooks/use-reset-user-password";
 import { useUserActivation } from "../hooks/use-user-activation";
+import {
+  ACADEMIC_PROFILE_LABELS,
+  academicProfileAction,
+  type AcademicProfileAction,
+} from "../lib/user-academic-profile";
 import { toUserUpdateInput, userToFormValues } from "../lib/user-form";
 import { isProtectedRole } from "../lib/user-roles";
 import { userRowAccess } from "../lib/user-list";
@@ -33,7 +38,8 @@ const PROTECTED_MESSAGE = "Los administradores de la institución solo los gesti
 
 /**
  * USR-03 `/usuarios/$personId/editar` (container): edits one user through `user.update` (full
- * replace). The side card resets the password to the document number and enables or disables the
+ * replace). The side card links a student to their academic profile (STU-02, or STU-03 complete
+ * while it is pending), resets the password to the document number and enables or disables the
  * user, each only when the caller may. `owner`/`admin` rows are managed by the platform, so they
  * show a notice instead of the form (USR-R4). Unreachable without `user:update`.
  */
@@ -135,6 +141,9 @@ function EditUserForm({ user }: { user: UserDetail }) {
   const navigate = useNavigate();
   const updateMutation = useMutation(orpc.user.update.mutationOptions());
   const canReset = useCan("user:reset_password").can;
+  const canViewStudent = useCan("student:read").can;
+  const canCompleteProfile = useCan("student:create").can;
+  const profileAction = academicProfileAction(user, { canViewStudent, canCompleteProfile });
   const activation = useUserActivation();
   const resetPassword = useResetUserPassword(user.personId);
   const [resetOpen, setResetOpen] = useState(false);
@@ -163,6 +172,9 @@ function EditUserForm({ user }: { user: UserDetail }) {
           <>
             <UserQuickActionsCard
               isActive={user.isActive}
+              academicProfileLink={
+                profileAction ? <AcademicProfileLink action={profileAction} /> : undefined
+              }
               onResetPassword={canReset ? () => setResetOpen(true) : undefined}
               onToggleActive={canToggle ? () => activation.request(user) : undefined}
             />
@@ -186,5 +198,27 @@ function EditUserForm({ user }: { user: UserDetail }) {
         destructive={activation.copy?.active === false}
       />
     </>
+  );
+}
+
+function AcademicProfileLink({ action }: { action: AcademicProfileAction }) {
+  const className = buttonVariants({ variant: "outline" });
+  const label = ACADEMIC_PROFILE_LABELS[action.kind];
+  return action.kind === "view" ? (
+    <Link
+      to="/estudiantes/$studentId"
+      params={{ studentId: action.studentId }}
+      className={className}
+    >
+      {label}
+    </Link>
+  ) : (
+    <Link
+      to="/estudiantes/completar/$personId"
+      params={{ personId: action.personId }}
+      className={className}
+    >
+      {label}
+    </Link>
   );
 }
