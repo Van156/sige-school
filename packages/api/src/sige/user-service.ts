@@ -1,6 +1,6 @@
 import type { AuditLogger } from "@base-template/auth/audit";
 import { provisionUser, ProvisionUserError } from "@base-template/auth/provision-user";
-import type { ProvisionInput } from "@base-template/auth/provision-user";
+import type { ProvisionAuth, ProvisionInput } from "@base-template/auth/provision-user";
 import type { Database } from "@base-template/db";
 import * as schema from "@base-template/db/schema";
 import { placeholderEmail } from "@base-template/sige-core";
@@ -134,9 +134,11 @@ async function assertKeepsActiveOwner(tx: Tx, organizationId: string, target: Ta
   }
 }
 
-const provisionAuth = { $context: Promise.resolve({ password: { hash: hashPassword } }) };
+export const provisionAuth: ProvisionAuth = {
+  $context: Promise.resolve({ password: { hash: hashPassword } }),
+};
 
-function mapProvisionError(error: ProvisionUserError): ORPCError<string, unknown> {
+export function mapProvisionError(error: ProvisionUserError): ORPCError<string, unknown> {
   switch (error.code) {
     case "DOCUMENT_TAKEN":
     case "EMAIL_TAKEN": {
@@ -414,6 +416,20 @@ export async function setUserActive(
   return loadUserRow(deps.db, organizationId, personId, actor.userId);
 }
 
+/**
+ * Removes a login (USR-R7, STU-R7): the `person` row first (`person.user_id` restricts user
+ * deletion; its own restrict FKs — course director, import creator, student profile, later
+ * modules — are what make a user not "fresh"), then the `user`, which cascades account, member
+ * and sessions. The caller holds the transaction, the checks and the audit event.
+ */
+export async function deleteLoginRows(
+  tx: Tx,
+  target: { personId: string; userId: string },
+): Promise<void> {
+  await tx.delete(schema.person).where(eq(schema.person.id, target.personId));
+  await tx.delete(schema.user).where(eq(schema.user.id, target.userId));
+}
+
 export async function deleteUser(
   deps: UserServiceDeps,
   organizationId: string,
@@ -430,11 +446,7 @@ export async function deleteUser(
       }
       assertManageable(target, actor);
       await assertKeepsActiveOwner(tx, organizationId, target);
-      // `person.user_id` restricts user deletion, so the person goes first; its own restrict FKs
-      // (course director, import creator, later modules) are what make a user not "fresh".
-      await tx.delete(schema.person).where(eq(schema.person.id, personId));
-      // Cascades account, member and sessions.
-      await tx.delete(schema.user).where(eq(schema.user.id, target.userId));
+      await deleteLoginRows(tx, { personId, userId: target.userId });
       await recordAudit(auditContext(deps, organizationId, actor), {
         action: "user.deleted",
         targetType: "user",
