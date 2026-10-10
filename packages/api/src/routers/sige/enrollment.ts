@@ -3,15 +3,19 @@ import { buildListQuery, buildListWhere } from "@base-template/db/lib/list-query
 import type { ListColumns } from "@base-template/db/lib/list-query";
 import { escapeLikePattern } from "@base-template/db/lib/list-values";
 import * as schema from "@base-template/db/schema";
-import { planBulkEnrollment } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
-import { and, asc, count, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, ne, or, sql } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 
 import { requirePermission } from "../../index";
 import { enrollmentListConfig } from "../../lib/enrollment-list-config";
 import { createListInput } from "../../lib/list-input";
 import { changedFields, recordAudit } from "../../sige/audit";
+import {
+  courseNotFound,
+  enrollInCourse,
+  lockEnrollmentCourse,
+} from "../../sige/enrollment-service";
 import { rethrowDbError } from "../../sige/pg-errors";
 import { sigeProcedure } from "../../sige/procedure";
 import {
@@ -27,19 +31,17 @@ import {
  * (owner, admin, coordinator); reads still AND `ScopePolicy.studentWhere()` so a restricted
  * caller could never widen past its students.
  *
- * `createBulk` is one transaction. It locks the course row (`FOR UPDATE`), so concurrent bulk
- * calls on the same course serialise and each capacity check sees the previous call's members,
- * then the selected students in id order (so two calls on different courses sharing students
- * cannot deadlock and a concurrent status change waits). `planBulkEnrollment` decides refusals and
- * rows; the existing `(student, offering, year)` rows are skipped, so a re-run creates nothing.
- * Audit events are recorded after commit.
+ * `createBulk` is one transaction running the shared SCH-R5 routine (`sige/enrollment-service.ts`):
+ * the course row is locked (`FOR UPDATE`) first, so concurrent bulk calls on the same course
+ * serialise and each capacity check sees the previous call's members, then the selected students
+ * in id order (so two calls on different courses sharing students cannot deadlock and a
+ * concurrent status change waits). Existing `(student, offering, year)` rows are skipped, so a
+ * re-run creates nothing. Audit events are recorded after commit.
  */
 
 const listInput = createListInput(enrollmentListConfig);
 
 const notFound = () => new ORPCError("NOT_FOUND", { message: "La matrícula no existe." });
-const courseNotFound = () => new ORPCError("NOT_FOUND", { message: "El grado no existe." });
-const studentNotFound = () => new ORPCError("NOT_FOUND", { message: "El estudiante no existe." });
 
 const studentName = sql<string>`${schema.person.firstName} || ' ' || ${schema.person.lastName}`;
 /** SCH-R7: the enrollment's course is not the student's current course. */
@@ -321,103 +323,15 @@ export const enrollmentRouter = {
       };
       try {
         result = await context.db.transaction(async (tx) => {
-          const [course] = await tx
-            .select({
-              id: schema.course.id,
-              campusId: schema.course.campusId,
-              academicYear: schema.course.academicYear,
-              maxStudents: schema.course.maxStudents,
-            })
-            .from(schema.course)
-            .where(
-              and(eq(schema.course.organizationId, orgId), eq(schema.course.id, input.courseId)),
-            )
-            .for("update");
-          if (!course) throw courseNotFound();
-          const students = await tx
-            .select({
-              id: schema.student.id,
-              status: schema.student.status,
-              courseId: schema.student.courseId,
-            })
-            .from(schema.student)
-            .where(
-              and(
-                eq(schema.student.organizationId, orgId),
-                inArray(schema.student.id, studentIds),
-                context.scope.studentWhere(),
-              ),
-            )
-            .orderBy(asc(schema.student.id))
-            .for("update");
-          if (students.length !== studentIds.length) throw studentNotFound();
-          const [offerings, existing, [members]] = await Promise.all([
-            tx
-              .select({ id: schema.offering.id })
-              .from(schema.offering)
-              .where(
-                and(
-                  eq(schema.offering.organizationId, orgId),
-                  eq(schema.offering.courseId, course.id),
-                ),
-              ),
-            tx
-              .select({
-                studentId: schema.enrollment.studentId,
-                offeringId: schema.enrollment.offeringId,
-                academicYear: schema.enrollment.academicYear,
-              })
-              .from(schema.enrollment)
-              .where(
-                and(
-                  eq(schema.enrollment.organizationId, orgId),
-                  inArray(schema.enrollment.studentId, studentIds),
-                  eq(schema.enrollment.academicYear, course.academicYear),
-                ),
-              ),
-            tx
-              .select({ value: count() })
-              .from(schema.student)
-              .where(
-                and(
-                  eq(schema.student.organizationId, orgId),
-                  eq(schema.student.courseId, course.id),
-                  eq(schema.student.status, "activo"),
-                ),
-              ),
-          ]);
-          // Selection order, not lock order, drives the plan.
-          const byId = new Map(students.map((student) => [student.id, student]));
-          const plan = planBulkEnrollment({
+          const course = await lockEnrollmentCourse(tx, orgId, input.courseId);
+          const summary = await enrollInCourse(tx, {
+            organizationId: orgId,
             course,
-            offeringIds: offerings.map((offering) => offering.id),
-            students: studentIds.map((id) => byId.get(id)!),
-            existing,
-            currentStudents: members?.value ?? 0,
+            studentIds,
+            scope: context.scope.studentWhere(),
             allowOverCapacity: input.allowOverCapacity,
           });
-          if (!plan.ok) throw new ORPCError("BAD_REQUEST", { message: plan.message });
-          if (plan.rows.length > 0) {
-            await tx
-              .insert(schema.enrollment)
-              .values(plan.rows.map((row) => ({ organizationId: orgId, ...row })));
-          }
-          await tx
-            .update(schema.student)
-            .set({ courseId: course.id, campusId: course.campusId })
-            .where(
-              and(
-                eq(schema.student.organizationId, orgId),
-                inArray(schema.student.id, plan.students),
-              ),
-            );
-          return {
-            courseId: course.id,
-            students: plan.students.length,
-            created: plan.created,
-            skipped: plan.skipped,
-            overCapacity: plan.overCapacity,
-          };
+          return { courseId: course.id, ...summary };
         });
       } catch (error) {
         return rethrowDbError(error, "write");
