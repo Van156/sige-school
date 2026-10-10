@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   smallint,
@@ -18,9 +19,12 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { ENROLLMENT_STATUSES } from "@base-template/sige-core/enrollment";
+
 import { organization } from "./auth";
 import { campus, course, subject } from "./institution";
 import { person } from "./person";
+import { student } from "./student";
 
 /** Academic offering and schedule (sige/04 §2): offering, assignment, classroom, block, slot. */
 
@@ -37,6 +41,7 @@ export const classroomType = pgEnum("classroom_type", [
 ]);
 /** `Sabatina` is excluded on purpose (OQ-SCH-3): Saturday courses are reported as skipped. */
 export const timeBlockShift = pgEnum("time_block_shift", ["Mañana", "Tarde", "Nocturna", "Única"]);
+export const enrollmentStatus = pgEnum("enrollment_status", ENROLLMENT_STATUSES);
 
 /**
  * Exact constraint names, matched by the service mappers (sige/04 §4.1, §4.2, SCH-R9) to turn a
@@ -61,6 +66,13 @@ export const SLOT_TEACHER_SYNC_CHECK = "schedule_slot_teacher_sync_check";
 export const SLOT_CLASSROOM_EXCLUDE = "schedule_slot_classroom_overlap_excl";
 export const SLOT_TEACHER_EXCLUDE = "schedule_slot_teacher_overlap_excl";
 export const SLOT_COURSE_EXCLUDE = "schedule_slot_course_overlap_excl";
+export const ENROLLMENT_UNIQUE = "enrollment_organizationId_studentId_offeringId_year_unique";
+export const ENROLLMENT_STUDENT_FK = "enrollment_student_fk";
+/** Restricts `offering.delete` while students are enrolled (P3 D2, sige/04 §4.2). */
+export const ENROLLMENT_OFFERING_FK = "enrollment_offering_fk";
+export const ENROLLMENT_FINAL_SCORE_CHECK = "enrollment_final_score_check";
+export const ENROLLMENT_STATUS_NOTE_CHECK = "enrollment_status_note_check";
+export const ENROLLMENT_YEAR_CHECK = "enrollment_year_check";
 
 const id = () =>
   text("id")
@@ -306,5 +318,57 @@ export const scheduleSlot = pgTable(
     check("schedule_slot_day_check", sql`${table.dayOfWeek} between 0 and 4`),
     check("schedule_slot_times_check", sql`${table.startTime} < ${table.endTime}`),
     check("schedule_slot_year_check", sql`${table.academicYear} ~ '^[0-9]{4}$'`),
+  ],
+);
+
+/**
+ * A student enrolled in one offering for one academic year (sige/04 §2, SCH-R5). `academic_year`
+ * is copied from the course at creation and never edited; the row does not follow later course
+ * changes of the student (SCH-R7, `isStale`). Both FKs restrict: history is never lost silently.
+ */
+export const enrollment = pgTable(
+  "enrollment",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    studentId: text("student_id").notNull(),
+    offeringId: text("offering_id").notNull(),
+    academicYear: text("academic_year").notNull(),
+    enrollmentDate: date("enrollment_date", { mode: "string" })
+      .default(sql`current_date`)
+      .notNull(),
+    status: enrollmentStatus("status").default("activa").notNull(),
+    finalScore: numeric("final_score", { precision: 3, scale: 2 }),
+    statusNote: text("status_note"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    foreignKey({
+      name: ENROLLMENT_STUDENT_FK,
+      columns: [table.organizationId, table.studentId],
+      foreignColumns: [student.organizationId, student.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: ENROLLMENT_OFFERING_FK,
+      columns: [table.organizationId, table.offeringId],
+      foreignColumns: [offering.organizationId, offering.id],
+    }).onDelete("restrict"),
+    unique("enrollment_organizationId_id_unique").on(table.organizationId, table.id),
+    unique(ENROLLMENT_UNIQUE).on(
+      table.organizationId,
+      table.studentId,
+      table.offeringId,
+      table.academicYear,
+    ),
+    index("enrollment_organizationId_offeringId_idx").on(table.organizationId, table.offeringId),
+    index("enrollment_organizationId_studentId_year_idx").on(
+      table.organizationId,
+      table.studentId,
+      table.academicYear,
+    ),
+    check(ENROLLMENT_FINAL_SCORE_CHECK, sql`${table.finalScore} between 1 and 5`),
+    check(ENROLLMENT_STATUS_NOTE_CHECK, sql`char_length(${table.statusNote}) <= 500`),
+    check(ENROLLMENT_YEAR_CHECK, sql`${table.academicYear} ~ '^[0-9]{4}$'`),
   ],
 );

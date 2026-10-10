@@ -39,6 +39,8 @@ export const CAMPUS_MAIN_UNIQUE = "campus_organizationId_main_unique";
 export const CAMPUS_CODE_UNIQUE = "campus_organizationId_code_unique";
 export const LEVEL_NAME_UNIQUE = "grade_level_organizationId_campusId_name_unique";
 export const COURSE_UNIQUE = "course_organizationId_campusId_name_year_shift_unique";
+/** Target of the student -> course composite FK: a student's course belongs to its campus (G-STU-2). */
+export const COURSE_CAMPUS_ID_UNIQUE = "course_organizationId_campusId_id_unique";
 export const LEVEL_CAMPUS_FK = "grade_level_campus_fk";
 export const COURSE_CAMPUS_FK = "course_campus_fk";
 export const COURSE_DIRECTOR_FK = "course_director_fk";
@@ -186,6 +188,7 @@ export const course = pgTable(
       foreignColumns: [person.organizationId, person.id],
     }).onDelete("restrict"),
     unique("course_organizationId_id_unique").on(table.organizationId, table.id),
+    unique(COURSE_CAMPUS_ID_UNIQUE).on(table.organizationId, table.campusId, table.id),
     unique(COURSE_UNIQUE).on(
       table.organizationId,
       table.campusId,
