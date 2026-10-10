@@ -9,6 +9,15 @@ import {
   COURSE_DIRECTOR_FK,
   COURSE_LEVEL_CAMPUS_FK,
   COURSE_UNIQUE,
+  ENROLLMENT_FINAL_SCORE_CHECK,
+  ENROLLMENT_OFFERING_FK,
+  ENROLLMENT_STATUS_NOTE_CHECK,
+  ENROLLMENT_STUDENT_FK,
+  ENROLLMENT_UNIQUE,
+  ENROLLMENT_YEAR_CHECK,
+  GUARDIAN_LINK_UNIQUE,
+  GUARDIAN_PERSON_FK,
+  GUARDIAN_STUDENT_FK,
   IMPORT_JOB_RUNNING_UNIQUE,
   INSTITUTION_NIT_UNIQUE,
   LEVEL_CAMPUS_FK,
@@ -25,6 +34,12 @@ import {
   SLOT_OFFERING_TEACHER_FK,
   SLOT_TEACHER_EXCLUDE,
   SLOT_TEACHER_SYNC_CHECK,
+  STUDENT_CAMPUS_FK,
+  STUDENT_COURSE_CAMPUS_FK,
+  STUDENT_ENROLLED_YEAR_CHECK,
+  STUDENT_PERSON_FK,
+  STUDENT_PERSON_UNIQUE,
+  STUDENT_STRATUM_CHECK,
   SUBJECT_CODE_UNIQUE,
   TIME_BLOCK_CAMPUS_FK,
   TIME_BLOCK_UNIQUE,
@@ -33,7 +48,11 @@ import { ORPCError } from "@orpc/server";
 import { describe, expect, test } from "bun:test";
 
 import {
+  CAMPUS_HAS_STUDENTS_MESSAGE,
+  COURSE_HAS_STUDENTS_MESSAGE,
+  OFFERING_HAS_ENROLLMENTS_MESSAGE,
   OFFERING_HAS_SLOTS_MESSAGE,
+  STUDENT_HAS_RECORDS_MESSAGE,
   TIME_BLOCK_IN_USE_MESSAGE,
   mapDbError,
   rethrowDbError,
@@ -261,5 +280,95 @@ describe("scheduling constraints (sige/04 §4.1, §4.2, SCH-R9)", () => {
 
   test("the teacher-sync check (23514) is not mapped here", () => {
     expect(mapDbError(pgError("23514", SLOT_TEACHER_SYNC_CHECK), "write")).toBeNull();
+  });
+});
+
+describe("student, guardian and enrollment constraints (sige/05 §4, sige/04 §4, sige/02 §4.2)", () => {
+  test.each([
+    [STUDENT_PERSON_UNIQUE, "Ya existe un estudiante con este documento."],
+    [GUARDIAN_LINK_UNIQUE, "Este acudiente ya está vinculado a este estudiante."],
+    [ENROLLMENT_UNIQUE, "El estudiante ya está matriculado en esta materia."],
+  ])("unique %s -> CONFLICT", (constraint, message) => {
+    const error = mapped(pgError("23505", constraint), "write");
+    expect(error.code).toBe("CONFLICT");
+    expect(error.status).toBe(409);
+    expect(error.message).toBe(message);
+  });
+
+  test.each([
+    [STUDENT_STRATUM_CHECK, "El estrato debe estar entre 1 y 6."],
+    [ENROLLMENT_FINAL_SCORE_CHECK, "La nota final debe estar entre 1.0 y 5.0."],
+    [ENROLLMENT_STATUS_NOTE_CHECK, "No puede superar 500 caracteres."],
+  ])("check %s (23514) -> BAD_REQUEST", (constraint, message) => {
+    const error = mapped(wrapped(pgError("23514", constraint)), "write");
+    expect(error.code).toBe("BAD_REQUEST");
+    expect(error.message).toBe(message);
+  });
+
+  test("server-set year checks are not mapped (a service bug, not user input)", () => {
+    for (const constraint of [STUDENT_ENROLLED_YEAR_CHECK, ENROLLMENT_YEAR_CHECK]) {
+      expect(mapDbError(pgError("23514", constraint), "write")).toBeNull();
+    }
+  });
+
+  test.each([
+    [STUDENT_COURSE_CAMPUS_FK, "BAD_REQUEST", "El grado no pertenece a la sede seleccionada."],
+    [STUDENT_CAMPUS_FK, "NOT_FOUND", "La sede no existe."],
+    [STUDENT_PERSON_FK, "NOT_FOUND", "El usuario no existe."],
+    [GUARDIAN_PERSON_FK, "BAD_REQUEST", "El usuario seleccionado no es un acudiente."],
+    [GUARDIAN_STUDENT_FK, "NOT_FOUND", "El estudiante no existe."],
+    [ENROLLMENT_STUDENT_FK, "NOT_FOUND", "El estudiante no existe."],
+    [ENROLLMENT_OFFERING_FK, "NOT_FOUND", "La materia del grado no existe."],
+  ])("FK %s on write -> %s", (constraint, code, message) => {
+    const error = mapped(pgError("23503", constraint), "write");
+    expect(error.code).toBe(code);
+    expect(error.message).toBe(message);
+  });
+
+  test.each([
+    [ENROLLMENT_OFFERING_FK, "La materia del grado tiene estudiantes matriculados."],
+    [STUDENT_CAMPUS_FK, "La sede tiene estudiantes asociados."],
+    [STUDENT_COURSE_CAMPUS_FK, "El grado tiene estudiantes asociados."],
+    [ENROLLMENT_STUDENT_FK, "El estudiante tiene matrículas, notas o asistencia registradas."],
+    [STUDENT_PERSON_FK, "El estudiante tiene un perfil académico con notas y matrículas."],
+    [GUARDIAN_PERSON_FK, "El acudiente tiene estudiantes vinculados."],
+  ])("restrict on %s -> HAS_DEPENDENTS", (constraint, message) => {
+    for (const code of ["23001", "23503"]) {
+      const error = mapped(pgError(code, constraint), "delete");
+      expect(error.code).toBe("HAS_DEPENDENTS");
+      expect(error.status).toBe(409);
+      expect(error.message).toBe(message);
+    }
+  });
+
+  test.each([
+    [
+      "student",
+      STUDENT_PERSON_FK,
+      "El estudiante tiene un perfil académico con notas y matrículas.",
+    ],
+    ["parent", GUARDIAN_PERSON_FK, "El acudiente tiene estudiantes vinculados."],
+    // The FK names the dependent, whatever role the person holds now (USR-R7).
+    ["teacher", GUARDIAN_PERSON_FK, "El acudiente tiene estudiantes vinculados."],
+    [
+      "viewer",
+      STUDENT_PERSON_FK,
+      "El estudiante tiene un perfil académico con notas y matrículas.",
+    ],
+  ])("deleting a %s person blocked by %s -> USR-R7 message", (role, fk, message) => {
+    const error = mapDbError(pgError("23001", fk), "delete", { personRole: role });
+    expect(error?.code).toBe("HAS_DEPENDENTS");
+    expect(error?.message).toBe(message);
+  });
+
+  test("copy no single FK can pick is exported for service pre-checks", () => {
+    expect(OFFERING_HAS_ENROLLMENTS_MESSAGE).toBe(
+      "La materia del grado tiene estudiantes matriculados.",
+    );
+    expect(CAMPUS_HAS_STUDENTS_MESSAGE).toBe("La sede tiene estudiantes asociados.");
+    expect(COURSE_HAS_STUDENTS_MESSAGE).toBe("El grado tiene estudiantes asociados.");
+    expect(STUDENT_HAS_RECORDS_MESSAGE).toBe(
+      "El estudiante tiene matrículas, notas o asistencia registradas.",
+    );
   });
 });
