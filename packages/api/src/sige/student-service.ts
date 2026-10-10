@@ -163,6 +163,60 @@ async function loadDetail(context: StudentServiceContext, studentId: string) {
   return detail;
 }
 
+export type AdmissionActor = { userId: string; impersonatorUserId: string | null };
+
+/**
+ * Path A core inside the caller's transaction: validates campus/course, provisions the login and
+ * admits the profile (STU-R3). Shared by `student.create` and the import (STU-R2 path C); the
+ * caller decides which audit events to write. Throws `ProvisionUserError` or `ORPCError`.
+ */
+async function admitNewStudent(
+  tx: Tx,
+  organizationId: string,
+  input: StudentCreateInput,
+  actor: AdmissionActor,
+) {
+  // Validate before provisioning, so a bad campus/course never hashes a password.
+  await assertCampus(tx, organizationId, input.campusId);
+  if (input.courseId) await assertCourse(tx, organizationId, input.courseId, input.campusId);
+  const provisioned = await provisionUserInTransaction({ auth: provisionAuth }, tx, {
+    organizationId,
+    role: "student",
+    firstName: input.firstName,
+    lastName: input.lastName,
+    documentType: input.documentType,
+    documentNumber: input.documentNumber,
+    phone: input.phone,
+    birthDate: input.birthDate,
+    gender: input.gender,
+    address: input.address,
+    actor: { userId: actor.userId, impersonatorUserId: actor.impersonatorUserId ?? undefined },
+  });
+  const admitted = await admit(tx, organizationId, provisioned.personId, input);
+  return { ...admitted, provisioned };
+}
+
+/**
+ * STU-05 import row (path C): the same one-transaction admission as `createStudent`, without
+ * per-student audit events (the job writes one `student.imported`, §3.2).
+ */
+export async function importStudent(
+  db: Database,
+  organizationId: string,
+  input: StudentCreateInput,
+  actor: AdmissionActor,
+): Promise<{ studentId: string; enrolled: Enrolled }> {
+  try {
+    return await db.transaction(async (tx) => {
+      const { studentId, enrolled } = await admitNewStudent(tx, organizationId, input, actor);
+      return { studentId, enrolled };
+    });
+  } catch (error) {
+    if (error instanceof ProvisionUserError) throw mapProvisionError(error);
+    return rethrowDbError(error, "write");
+  }
+}
+
 /** STU-03 "new" (path A, STU-R2): login + profile + enrollments in one transaction. */
 export async function createStudent(
   context: StudentServiceContext,
@@ -172,26 +226,10 @@ export async function createStudent(
   let result: { studentId: string; username: string; enrolled: Enrolled };
   try {
     result = await context.db.transaction(async (tx) => {
-      // Validate before provisioning, so a bad campus/course never hashes a password.
-      await assertCampus(tx, orgId, input.campusId);
-      if (input.courseId) await assertCourse(tx, orgId, input.courseId, input.campusId);
-      const provisioned = await provisionUserInTransaction({ auth: provisionAuth }, tx, {
-        organizationId: orgId,
-        role: "student",
-        firstName: input.firstName,
-        lastName: input.lastName,
-        documentType: input.documentType,
-        documentNumber: input.documentNumber,
-        phone: input.phone,
-        birthDate: input.birthDate,
-        gender: input.gender,
-        address: input.address,
-        actor: {
-          userId: context.session.user.id,
-          impersonatorUserId: context.session.session.impersonatedBy ?? undefined,
-        },
+      const { provisioned, ...admitted } = await admitNewStudent(tx, orgId, input, {
+        userId: context.session.user.id,
+        impersonatorUserId: context.session.session.impersonatedBy ?? null,
       });
-      const admitted = await admit(tx, orgId, provisioned.personId, input);
       // Audit last (inside the transaction): a failed write rolls everything back.
       await context.auditLogger.record(provisioned.auditEvent);
       await recordAudit(context, {

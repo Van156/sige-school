@@ -1,8 +1,11 @@
 import { ORPCError } from "@orpc/server";
+import { z } from "zod";
 
 import { requireAnyPermission, requirePermission } from "../../index";
 import { createListInput } from "../../lib/list-input";
 import { incompleteStudentListConfig, studentListConfig } from "../../lib/student-list-config";
+import { defaultImportRunner } from "../../sige/import-runner";
+import { XLSX_CONTENT_TYPE } from "../../sige/import-workbook";
 import { sigeProcedure } from "../../sige/procedure";
 import {
   studentCompleteInput,
@@ -24,6 +27,15 @@ import {
   STUDENT_NOT_FOUND_MESSAGE,
   updateStudent,
 } from "../../sige/student-service";
+import {
+  analyzeStudentImport,
+  buildStudentImportTemplate,
+  previewStudentImport,
+  readStudentImportUpload,
+  startStudentImport,
+  STUDENT_IMPORT_TEMPLATE_FILENAME,
+} from "../../sige/student-import-service";
+import { NO_VALID_ROWS_MESSAGE } from "../../sige/user-import-service";
 
 /**
  * `student.*` (sige/05 §3.1, STU-01/02/03). Reads AND `ScopePolicy.studentWhere()` (STU-R1:
@@ -37,6 +49,9 @@ import {
 
 const listInput = createListInput(studentListConfig);
 const incompleteListInput = createListInput(incompleteStudentListConfig);
+
+/** The `.xlsx` upload of `importPreview`/`importStart` (limits enforced by the reader). */
+const importFileInput = z.object({ file: z.instanceof(File) });
 
 export const studentRouter = {
   /** Server-list mode (R3.8): `{ rows, total }`; `total` ignores paging. */
@@ -104,4 +119,51 @@ export const studentRouter = {
     .use(requirePermission({ student: ["delete"] }))
     .input(studentIdInput)
     .handler(({ context, input }) => deleteStudent(context, input.id)),
+
+  /** STU-05 dry run: per-row validation of the upload (STU-R8), no writes. */
+  importPreview: sigeProcedure
+    .use(requirePermission({ student: ["import"] }))
+    .input(importFileInput)
+    .handler(async ({ context, input }) => {
+      const { rows } = await readStudentImportUpload(input.file);
+      return previewStudentImport(context.db, context.org.id, rows);
+    }),
+
+  /** `plantilla-estudiantes.xlsx`: the STU-R8 header row plus an example row. */
+  importTemplate: sigeProcedure.use(requirePermission({ student: ["import"] })).handler(
+    async () =>
+      new File([await buildStudentImportTemplate()], STUDENT_IMPORT_TEMPLATE_FILENAME, {
+        type: XLSX_CONTENT_TYPE,
+      }),
+  ),
+
+  /**
+   * STU-05 (path C): validates the upload, records a `students` job and returns its id; valid rows
+   * are admitted in the background (USR-R12) and polled through `importJob.get`. A running
+   * student import of the institution makes this `CONFLICT`.
+   */
+  importStart: sigeProcedure
+    .use(requirePermission({ student: ["import"] }))
+    .input(importFileInput)
+    .handler(async ({ context, input }) => {
+      const { rows } = await readStudentImportUpload(input.file);
+      const analysis = await analyzeStudentImport(context.db, context.org.id, rows);
+      if (analysis.valid.length === 0) {
+        throw new ORPCError("BAD_REQUEST", { message: NO_VALID_ROWS_MESSAGE });
+      }
+      return startStudentImport(
+        {
+          db: context.db,
+          auditLogger: context.auditLogger,
+          runner: context.importRunner ?? defaultImportRunner,
+        },
+        context.org.id,
+        {
+          userId: context.session.user.id,
+          personId: context.person.id,
+          impersonatorUserId: context.session.session.impersonatedBy ?? null,
+        },
+        analysis,
+      );
+    }),
 };
