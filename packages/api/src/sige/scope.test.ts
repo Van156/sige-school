@@ -1,7 +1,7 @@
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, test } from "bun:test";
 import { ORPCError } from "@orpc/server";
-import { person } from "@base-template/db/schema";
+import { attendanceRecord, observation, person } from "@base-template/db/schema";
 import { sql } from "drizzle-orm";
 
 import { createScopePolicy, DEFAULT_SCOPE_RESOLVERS } from "./scope";
@@ -84,5 +84,38 @@ describe("createScopePolicy", () => {
     await teacher.assertStudent("s-1");
     expect(seen).toEqual(["false"]);
     await expect(teacher.assertStudent("s-2")).rejects.toThrow();
+  });
+});
+
+describe("row predicates lifted onto another table (D4)", () => {
+  test.each(["owner", "admin", "coordinator", "viewer", "custom"] as const)(
+    "%s gets no row predicate, so the module query stays unfiltered",
+    (kind) => {
+      const policy = createScopePolicy(subject(kind));
+      expect(policy.offeringRowWhere(attendanceRecord.offeringId)).toBeUndefined();
+      expect(policy.studentRowWhere(observation.studentId)).toBeUndefined();
+    },
+  );
+
+  test.each(["teacher", "student", "parent"] as const)(
+    "%s fails closed until a module provides the lift",
+    (kind) => {
+      const policy = createScopePolicy(subject(kind));
+      expect(render(policy.offeringRowWhere(attendanceRecord.offeringId))).toBe("false");
+      expect(render(policy.studentRowWhere(observation.studentId))).toBe("false");
+    },
+  );
+
+  test("the lift receives the caller's own scope predicate and the row's column", () => {
+    const resolvers: ScopeResolvers = {
+      ...DEFAULT_SCOPE_RESOLVERS,
+      offeringWhere: { teacher: () => sql`own_offering` },
+      offeringRowWhere: (subjectIn, scopeWhere, idColumn) =>
+        sql`${idColumn} in (${subjectIn.organizationId}) and ${scopeWhere}`,
+    };
+    const policy = createScopePolicy(subject("teacher"), resolvers);
+    expect(render(policy.offeringRowWhere(attendanceRecord.offeringId))).toBe(
+      '"attendance_record"."offering_id" in ($1) and own_offering',
+    );
   });
 });

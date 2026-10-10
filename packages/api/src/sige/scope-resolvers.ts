@@ -9,7 +9,7 @@ import {
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { DEFAULT_SCOPE_RESOLVERS } from "./scope";
-import type { RowPredicate, ScopeResolvers } from "./scope";
+import type { RowLift, RowPredicate, ScopeResolvers } from "./scope";
 
 /**
  * The concrete `ScopeResolvers` the SIGE procedures use (sige/00 §4.3): offering scope (P3) and
@@ -85,6 +85,30 @@ const portalOfferingWhere: Pick<ScopeResolvers["offeringWhere"], "student" | "pa
     )} and ${eq(studentGuardian.guardianPersonId, subject.personId)})`,
 };
 
+/**
+ * The two lifts of D4. A P5 reader selects from `grade_record`, `attendance_record` or
+ * `observation` and needs "rows whose offering / student is in my scope", so the scoped predicate
+ * is wrapped in a correlated `exists` over the scoped table, matched on the row's own foreign key.
+ * The tenant inside the `exists` comes from the session (R3.3), not from the row, and the
+ * subquery's `offering` / `student` shadows any join of the same table in the outer query, which
+ * is what keeps the predicate usable in a query that already joins it for its labels.
+ *
+ * ATT-R5 depends on there being exactly one of these: `attendance.studentSummary`, `history` and
+ * `calendar` all pass their own `offering_id`, so a teacher's KPIs and table cover the same rows.
+ */
+const liftOfferingWhere: RowLift = (subject, scopeWhere, idColumn) =>
+  sql`exists (select 1 from ${offering} where ${eq(
+    offering.organizationId,
+    subject.organizationId,
+  )} and ${eq(offering.id, idColumn)} and ${scopeWhere})`;
+
+/** GRD-08, OBS-01/05 and the student-scoped reads (D4); `student` scope over a row's `student_id`. */
+const liftStudentWhere: RowLift = (subject, scopeWhere, idColumn) =>
+  sql`exists (select 1 from ${student} where ${eq(
+    student.organizationId,
+    subject.organizationId,
+  )} and ${eq(student.id, idColumn)} and ${scopeWhere})`;
+
 export function createSigeScopeResolvers(db: Pick<Database, "select">): ScopeResolvers {
   return {
     ...DEFAULT_SCOPE_RESOLVERS,
@@ -94,6 +118,8 @@ export function createSigeScopeResolvers(db: Pick<Database, "select">): ScopeRes
       ...portalOfferingWhere,
       teacher: teacherOfferingWhere,
     },
+    studentRowWhere: liftStudentWhere,
+    offeringRowWhere: liftOfferingWhere,
     async studentVisible(subject, studentId, scopeWhere) {
       const [row] = await db
         .select({ id: student.id })

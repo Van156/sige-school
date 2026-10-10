@@ -1,3 +1,4 @@
+import { attendanceRecord, gradeRecord, observation } from "@base-template/db/schema";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, test } from "bun:test";
 import { ORPCError } from "@orpc/server";
@@ -98,6 +99,64 @@ describe("student scope resolvers (sige/00 §4.3, sige/05 STU-R1, D2)", () => {
     "%s sees every student of the tenant (no predicate)",
     (kind) => {
       expect(createScopePolicy(subject(kind), resolvers()).studentWhere()).toBeUndefined();
+    },
+  );
+});
+
+describe("row predicates for the P5 readers (D4, ATT-R5)", () => {
+  const policy = (kind: Parameters<typeof createScopePolicy>[0]["kind"]) =>
+    createScopePolicy(subject(kind), resolvers());
+
+  test("a teacher's attendance rows are lifted onto the row's offering column (ATT-R5)", () => {
+    const query = dialect.sqlToQuery(
+      policy("teacher").offeringRowWhere(attendanceRecord.offeringId)!,
+    );
+    expect(query.sql).toContain('exists (select 1 from "offering"');
+    // The tenant comes from the session, never from the row (R3.3).
+    expect(query.sql).toContain('"offering"."organization_id" = $1');
+    expect(query.sql).toContain('"offering"."id" = "attendance_record"."offering_id"');
+    // ... and the offering must still satisfy the caller's own offering scope.
+    expect(query.sql).toContain('"offering"."teacher_person_id" = $2');
+    expect(query.sql).toContain('from "teacher_assignment"');
+    expect(query.params).toEqual(["org-1", "person-1", "activo", "temporal"]);
+  });
+
+  test("studentSummary and history share one predicate: same SQL for the same column", () => {
+    const first = dialect.sqlToQuery(
+      policy("teacher").offeringRowWhere(attendanceRecord.offeringId)!,
+    );
+    const second = dialect.sqlToQuery(
+      policy("teacher").offeringRowWhere(attendanceRecord.offeringId)!,
+    );
+    expect(second.sql).toBe(first.sql);
+    expect(second.params).toEqual(first.params);
+  });
+
+  test.each([
+    ["student", '"student"."person_id" = $2'],
+    ["parent", 'from "student_guardian"'],
+  ] as const)("a %s reads only own/children rows", (kind, fragment) => {
+    const query = dialect.sqlToQuery(policy(kind).offeringRowWhere(attendanceRecord.offeringId)!);
+    expect(query.sql).toContain('exists (select 1 from "offering"');
+    expect(query.sql).toContain(fragment);
+  });
+
+  test("GRD-08 and the observation reads lift the student scope onto their own column (D4)", () => {
+    for (const column of [gradeRecord.studentId, observation.studentId]) {
+      const query = dialect.sqlToQuery(policy("teacher").studentRowWhere(column)!);
+      expect(query.sql).toContain('exists (select 1 from "student"');
+      expect(query.sql).toContain('"student"."organization_id" = $1');
+      expect(query.sql).toContain('"course"."director_person_id" = $');
+    }
+    const own = dialect.sqlToQuery(policy("student").studentRowWhere(observation.studentId)!);
+    expect(own.sql).toContain('"student"."person_id" = $2');
+  });
+
+  test.each(["owner", "admin", "coordinator", "viewer", "custom"] as const)(
+    "%s sees every academic row (no predicate)",
+    (kind) => {
+      expect(policy(kind).offeringRowWhere(attendanceRecord.offeringId)).toBeUndefined();
+      expect(policy(kind).studentRowWhere(observation.studentId)).toBeUndefined();
     },
   );
 });

@@ -2,7 +2,8 @@ import { resolveTestDatabaseUrl, truncateAllTables } from "@base-template/auth/t
 import * as schema from "@base-template/db/schema";
 import { createTestDatabase, requireTestDatabaseOrSkip } from "@base-template/db/testing";
 import type { TestDatabaseHandle } from "@base-template/db/testing";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import { resolveCallerKind } from "./procedure";
@@ -218,6 +219,169 @@ describe.skipIf(!reachable)("student scope", () => {
       }
     }
   }
+
+  /**
+   * One `attendance_record`, `observation` and `grade_record` per course key, so the D4 row
+   * predicates can be checked over real rows of the P5 tables.
+   */
+  async function seedAcademicRows(): Promise<Record<string, string>> {
+    const [period] = await handle.db
+      .insert(schema.academicPeriod)
+      .values({
+        organizationId: orgA,
+        academicYear: "2026",
+        orderNum: 1,
+        name: "Primer Periodo",
+        shortName: "P1",
+        startDate: "2026-01-15",
+        endDate: "2026-03-20",
+      })
+      .returning();
+    const [criterion] = await handle.db
+      .insert(schema.gradeCriterion)
+      .values({ organizationId: orgA, name: "Seguimiento", weight: "100.00", orderNum: 1 })
+      .returning();
+    const ids: Record<string, string> = {};
+    for (const key of ["activo", "temporal", "directed", "other"] as const) {
+      const studentId = world.students[key];
+      const offeringId = world.offerings[key];
+      const [attendance] = await handle.db
+        .insert(schema.attendanceRecord)
+        .values({
+          organizationId: orgA,
+          studentId,
+          offeringId,
+          date: "2026-02-02",
+          status: "presente",
+          recordedBy: world.teacher,
+        })
+        .returning();
+      ids[`attendance:${key}`] = attendance!.id;
+      const [grade] = await handle.db
+        .insert(schema.gradeRecord)
+        .values({
+          organizationId: orgA,
+          studentId,
+          offeringId,
+          periodId: period!.id,
+          criterionId: criterion!.id,
+          score: "4.00",
+          createdBy: world.teacher,
+          updatedBy: world.teacher,
+        })
+        .returning();
+      ids[`grade:${key}`] = grade!.id;
+    }
+    for (const key of ["activo", "temporal", "directed", "other", "noCourse"] as const) {
+      const [row] = await handle.db
+        .insert(schema.observation)
+        .values({
+          organizationId: orgA,
+          studentId: world.students[key],
+          authorPersonId: world.teacher,
+          type: "seguimiento",
+          description: "Nota de seguimiento.",
+          observedAt: new Date("2026-02-02T13:00:00Z"),
+        })
+        .returning();
+      ids[`observation:${key}`] = row!.id;
+    }
+    return ids;
+  }
+
+  /** Ids of `table` visible through `where`, the predicate the policy produced for that table. */
+  const visibleRows = async (
+    table: typeof schema.attendanceRecord | typeof schema.observation | typeof schema.gradeRecord,
+    where: SQL | undefined,
+  ) => {
+    const rows = await handle.db
+      .select({ id: table.id })
+      .from(table)
+      .where(and(eq(table.organizationId, orgA), where));
+    return rows.map((row) => row.id).sort();
+  };
+
+  test("offeringRowWhere filters attendance rows by the caller's offerings (ATT-R5, D4)", async () => {
+    const ids = await seedAcademicRows();
+    const rowsFor = (policy: ScopePolicy) =>
+      visibleRows(
+        schema.attendanceRecord,
+        policy.offeringRowWhere(schema.attendanceRecord.offeringId),
+      );
+    // A teacher tallies only their own offerings' rows, so two teachers see different totals.
+    expect(await rowsFor(policyFor("teacher", world.teacher))).toEqual(
+      [ids["attendance:activo"]!, ids["attendance:temporal"]!].sort(),
+    );
+    // Directing a course is student scope, not offering scope (STU-R1): no attendance rows.
+    expect(await rowsFor(policyFor("teacher", world.director))).toEqual([]);
+    expect(await rowsFor(policyFor("coordinator", world.teacher))).toHaveLength(4);
+    expect(await rowsFor(policyFor("student", world.selfStudent))).toEqual([
+      ids["attendance:activo"]!,
+    ]);
+    expect(await rowsFor(policyFor("parent", world.parent))).toEqual(
+      [ids["attendance:temporal"]!, ids["attendance:other"]!].sort(),
+    );
+    // `studentSummary` and `history` must agree: one predicate, used by both (ATT-R5).
+    const policy = policyFor("teacher", world.teacher);
+    const kpis = await handle.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.attendanceRecord)
+      .where(
+        and(
+          eq(schema.attendanceRecord.organizationId, orgA),
+          policy.offeringRowWhere(schema.attendanceRecord.offeringId),
+        ),
+      );
+    expect(kpis[0]?.total).toBe((await rowsFor(policy)).length);
+  });
+
+  test("an inactivo assignment drops the offering's attendance rows (ATT-R5)", async () => {
+    const ids = await seedAcademicRows();
+    await handle.db
+      .update(schema.teacherAssignment)
+      .set({ status: "inactivo" })
+      .where(eq(schema.teacherAssignment.offeringId, world.offerings.temporal));
+    const policy = policyFor("teacher", world.teacher);
+    expect(
+      await visibleRows(
+        schema.attendanceRecord,
+        policy.offeringRowWhere(schema.attendanceRecord.offeringId),
+      ),
+    ).toEqual([ids["attendance:activo"]!]);
+  });
+
+  test("studentRowWhere filters grades and observations by student scope (GRD-08, OBS, D4)", async () => {
+    const ids = await seedAcademicRows();
+    const observationsFor = (policy: ScopePolicy) =>
+      visibleRows(schema.observation, policy.studentRowWhere(schema.observation.studentId));
+    expect(await observationsFor(policyFor("teacher", world.teacher))).toEqual(
+      [ids["observation:activo"]!, ids["observation:temporal"]!].sort(),
+    );
+    // The director sees their course's students even without an offering there (OD-21).
+    expect(await observationsFor(policyFor("teacher", world.director))).toEqual([
+      ids["observation:directed"]!,
+    ]);
+    expect(await observationsFor(policyFor("coordinator", world.teacher))).toHaveLength(5);
+    expect(await observationsFor(policyFor("student", world.selfStudent))).toEqual([
+      ids["observation:activo"]!,
+    ]);
+    // A child without a course still has observations the parent may read (student scope, not
+    // offering scope).
+    expect(await observationsFor(policyFor("parent", world.parent))).toEqual(
+      [
+        ids["observation:temporal"]!,
+        ids["observation:other"]!,
+        ids["observation:noCourse"]!,
+      ].sort(),
+    );
+    const gradePolicy = policyFor("teacher", world.teacher);
+    expect(
+      await visibleRows(
+        schema.gradeRecord,
+        gradePolicy.studentRowWhere(schema.gradeRecord.studentId),
+      ),
+    ).toEqual([ids["grade:activo"]!, ids["grade:temporal"]!].sort());
+  });
 
   test("teacher: students of courses with an activo/temporal offering (D2)", async () => {
     await expectStudents(policyFor("teacher", world.teacher), ["activo", "temporal"]);
