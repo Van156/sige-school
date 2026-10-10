@@ -4,7 +4,7 @@ import * as schema from "@base-template/db/schema";
 import { createTestDatabase, requireTestDatabaseOrSkip } from "@base-template/db/testing";
 import type { TestDatabaseHandle } from "@base-template/db/testing";
 import { sumWeights } from "@base-template/sige-core";
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { seedSige } from "./seed";
@@ -12,6 +12,8 @@ import { DEMO_ACADEMIC_YEAR, seedInstitutionStructure } from "./seed-structure";
 
 /** P1 seed (sige/00 §9 R4.2): demo institution structure, idempotent. */
 const url = resolveTestDatabaseUrl();
+// The full demo seed provisions ≈ 85 logins (one password hash each); R4.6 targets < 60 s.
+setDefaultTimeout(60_000);
 const reachable = await requireTestDatabaseOrSkip(url, "seedInstitutionStructure (R4.2)");
 
 describe.skipIf(!reachable)("seedInstitutionStructure (R4.2)", () => {
