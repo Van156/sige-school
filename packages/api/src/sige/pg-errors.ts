@@ -1,10 +1,15 @@
 import {
   ASSIGNMENT_OFFERING_FK,
   ASSIGNMENT_OFFERING_UNIQUE,
+  ATTENDANCE_RECORD_OBSERVATION_CHECK,
+  ATTENDANCE_RECORD_OFFERING_FK,
+  ATTENDANCE_RECORD_RECORDED_BY_FK,
+  ATTENDANCE_RECORD_STUDENT_FK,
+  ATTENDANCE_RECORD_WEEKDAY_CHECK,
   CAMPUS_CODE_UNIQUE,
+  CAMPUS_MAIN_UNIQUE,
   CLASSROOM_CAMPUS_FK,
   CLASSROOM_CODE_UNIQUE,
-  CAMPUS_MAIN_UNIQUE,
   COURSE_CAMPUS_FK,
   COURSE_DIRECTOR_FK,
   COURSE_LEVEL_CAMPUS_FK,
@@ -14,6 +19,17 @@ import {
   ENROLLMENT_STATUS_NOTE_CHECK,
   ENROLLMENT_STUDENT_FK,
   ENROLLMENT_UNIQUE,
+  FINAL_GRADE_OFFERING_FK,
+  FINAL_GRADE_PERIOD_FK,
+  FINAL_GRADE_STUDENT_FK,
+  GRADE_RECORD_CREATED_BY_FK,
+  GRADE_RECORD_CRITERION_FK,
+  GRADE_RECORD_OBSERVATION_CHECK,
+  GRADE_RECORD_OFFERING_FK,
+  GRADE_RECORD_PERIOD_FK,
+  GRADE_RECORD_SCORE_CHECK,
+  GRADE_RECORD_STUDENT_FK,
+  GRADE_RECORD_UPDATED_BY_FK,
   GUARDIAN_LINK_UNIQUE,
   GUARDIAN_PERSON_FK,
   GUARDIAN_STUDENT_FK,
@@ -22,11 +38,18 @@ import {
   INSTITUTION_NIT_UNIQUE,
   LEVEL_CAMPUS_FK,
   LEVEL_NAME_UNIQUE,
+  OBSERVATION_AUTHOR_FK,
+  OBSERVATION_COMMITMENTS_CHECK,
+  OBSERVATION_DESCRIPTION_CHECK,
+  OBSERVATION_NOTIFIED_BY_FK,
+  OBSERVATION_STUDENT_FK,
   OFFERING_COURSE_FK,
   OFFERING_SUBJECT_FK,
   OFFERING_TEACHER_FK,
   OFFERING_UNIQUE,
   PERIOD_ACTIVE_UNIQUE,
+  PERIOD_LOCK_LOCKED_BY_FK,
+  PERIOD_LOCK_PERIOD_FK,
   PERIOD_ORDER_UNIQUE,
   PERIOD_SHORT_NAME_UNIQUE,
   PERSON_DOCUMENT_UNIQUE,
@@ -43,6 +66,7 @@ import {
   TIME_BLOCK_CAMPUS_FK,
   TIME_BLOCK_UNIQUE,
 } from "@base-template/db/schema";
+import { attendanceMessages, gradeMessages, observationMessages } from "@base-template/sige-core";
 import { ORPCError } from "@orpc/server";
 
 /**
@@ -55,9 +79,12 @@ import { ORPCError } from "@orpc/server";
  *   (409). `ON DELETE RESTRICT` raises 23001; 23503 covers `NO ACTION` FKs added by later modules.
  * - `23P01` exclusion_violation (schedule double-booking, SCH-R9) -> `CONFLICT` (409).
  * - `23514` check_violation on a user-entered field -> `BAD_REQUEST`; checks on server-set values
- *   (years, teacher sync) stay unmapped because they signal a service bug.
+ *   (years, teacher sync, a computed final, `observation.notified`) stay unmapped because they
+ *   signal a service bug.
  * - `23503` on **insert/update** -> `BAD_REQUEST` or `NOT_FOUND` (a referenced row is missing).
- * Anything else is left to the caller (rethrown unchanged).
+ * Anything else is left to the caller (rethrown unchanged). For the same reason a unique key the
+ * caller cannot aim at stays unmapped: every save path of modules 06/07 is an upsert on its
+ * business key, so `ON CONFLICT` settles the race and a 23505 there means the service forgot it.
  */
 
 export type DbOperation = "write" | "delete";
@@ -113,6 +140,16 @@ const CHECK_MESSAGES: Record<string, string> = {
   [ENROLLMENT_FINAL_SCORE_CHECK]: "La nota final debe estar entre 1.0 y 5.0.",
   // Same copy as the zod schema (`schemas/enrollment.ts`).
   [ENROLLMENT_STATUS_NOTE_CHECK]: "No puede superar 500 caracteres.",
+  // sige/06 GRD-R2, sige/07 ATT-R3/ATT-R9, sige/08 OBS-R2: the same strings the zod schemas use,
+  // imported from sige-core so the DB backstop and the input validation cannot drift. Every one
+  // of these columns carries text or a date the caller typed, so a violation is user input.
+  [GRADE_RECORD_SCORE_CHECK]: gradeMessages.scoreRange,
+  [GRADE_RECORD_OBSERVATION_CHECK]: gradeMessages.observationTooLong,
+  [ATTENDANCE_RECORD_OBSERVATION_CHECK]: attendanceMessages.observationTooLong,
+  // The CHECK only rules out Sunday; ATT-R3 (Saturday depends on the shift) stays a service rule.
+  [ATTENDANCE_RECORD_WEEKDAY_CHECK]: attendanceMessages.notSchoolDay,
+  [OBSERVATION_DESCRIPTION_CHECK]: observationMessages.descriptionTooLong,
+  [OBSERVATION_COMMITMENTS_CHECK]: observationMessages.commitmentsTooLong,
 };
 
 /**
@@ -149,6 +186,15 @@ export const CAMPUS_HAS_STUDENTS_MESSAGE = "La sede tiene estudiantes asociados.
 export const COURSE_HAS_STUDENTS_MESSAGE = "El grado tiene estudiantes asociados.";
 export const STUDENT_HAS_RECORDS_MESSAGE =
   "El estudiante tiene matrículas, notas o asistencia registradas.";
+/** sige/02 §4.2: one message for `grade_record`, `final_grade`, `period_lock` (and P6 cards). */
+export const PERIOD_HAS_GRADES_MESSAGE = "El periodo tiene notas registradas.";
+export const CRITERION_HAS_GRADES_MESSAGE = "El criterio tiene notas registradas.";
+/** sige/04 §4.2 third `offering.delete` rule (P3 D2): grades, finals or attendance. */
+export const OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE =
+  "La materia del grado tiene notas o asistencia registradas.";
+
+/** sige/03 USR-R7 "any other reference": the role-neutral copy, also used by D9 (see below). */
+const USER_DEPENDENTS_FALLBACK = "El usuario tiene registros asociados. Desactívelo en su lugar.";
 
 /** Spec §4.2 messages, keyed by the `restrict` FK that fired (person FKs: see USR-R7 below). */
 const DEPENDENTS_MESSAGES: Record<string, string> = {
@@ -168,6 +214,27 @@ const DEPENDENTS_MESSAGES: Record<string, string> = {
   [STUDENT_CAMPUS_FK]: CAMPUS_HAS_STUDENTS_MESSAGE,
   [STUDENT_COURSE_CAMPUS_FK]: COURSE_HAS_STUDENTS_MESSAGE,
   [ENROLLMENT_STUDENT_FK]: STUDENT_HAS_RECORDS_MESSAGE,
+  // sige/02 §4.2 period and criterion; the three period FKs share one message.
+  [GRADE_RECORD_PERIOD_FK]: PERIOD_HAS_GRADES_MESSAGE,
+  [FINAL_GRADE_PERIOD_FK]: PERIOD_HAS_GRADES_MESSAGE,
+  [PERIOD_LOCK_PERIOD_FK]: PERIOD_HAS_GRADES_MESSAGE,
+  [GRADE_RECORD_CRITERION_FK]: CRITERION_HAS_GRADES_MESSAGE,
+  // sige/04 §4.2 (P3 D2): grades, finals and attendance all read as "notas o asistencia".
+  [GRADE_RECORD_OFFERING_FK]: OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE,
+  [FINAL_GRADE_OFFERING_FK]: OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE,
+  [ATTENDANCE_RECORD_OFFERING_FK]: OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE,
+  // sige/05 STU-R7: "the check covers every referencing table", one message for all of them.
+  [GRADE_RECORD_STUDENT_FK]: STUDENT_HAS_RECORDS_MESSAGE,
+  [FINAL_GRADE_STUDENT_FK]: STUDENT_HAS_RECORDS_MESSAGE,
+  [ATTENDANCE_RECORD_STUDENT_FK]: STUDENT_HAS_RECORDS_MESSAGE,
+  [OBSERVATION_STUDENT_FK]: STUDENT_HAS_RECORDS_MESSAGE,
+  // D9: see USER_DEPENDENTS_GENERIC_FKS; the same copy whether or not a person is being deleted.
+  [GRADE_RECORD_CREATED_BY_FK]: USER_DEPENDENTS_FALLBACK,
+  [GRADE_RECORD_UPDATED_BY_FK]: USER_DEPENDENTS_FALLBACK,
+  [PERIOD_LOCK_LOCKED_BY_FK]: USER_DEPENDENTS_FALLBACK,
+  [ATTENDANCE_RECORD_RECORDED_BY_FK]: USER_DEPENDENTS_FALLBACK,
+  [OBSERVATION_AUTHOR_FK]: USER_DEPENDENTS_FALLBACK,
+  [OBSERVATION_NOTIFIED_BY_FK]: USER_DEPENDENTS_FALLBACK,
 };
 const DEPENDENTS_FALLBACK = "El registro tiene elementos asociados.";
 
@@ -180,8 +247,20 @@ const USER_DEPENDENTS_BY_ROLE: Record<string, string> = {
   student: "El estudiante tiene un perfil académico con notas y matrículas.",
   parent: "El acudiente tiene estudiantes vinculados.",
 };
-const USER_DEPENDENTS_FALLBACK = "El usuario tiene registros asociados. Desactívelo en su lugar.";
-const USER_DEPENDENTS_GENERIC_FKS = new Set<string>([IMPORT_JOB_CREATOR_FK]);
+/**
+ * FKs that make a person "not fresh" without saying anything about their role, so the role
+ * message would mislead: the import-job creator and, per D9, every authorship column of modules
+ * 06/07/08 (a teacher blocked by a grade they typed has no offering to hand over).
+ */
+const USER_DEPENDENTS_GENERIC_FKS = new Set<string>([
+  IMPORT_JOB_CREATOR_FK,
+  GRADE_RECORD_CREATED_BY_FK,
+  GRADE_RECORD_UPDATED_BY_FK,
+  PERIOD_LOCK_LOCKED_BY_FK,
+  ATTENDANCE_RECORD_RECORDED_BY_FK,
+  OBSERVATION_AUTHOR_FK,
+  OBSERVATION_NOTIFIED_BY_FK,
+]);
 /** FKs onto `person` that name the dependent themselves, whatever role the person holds now. */
 const USER_DEPENDENTS_BY_FK: Record<string, string> = {
   [STUDENT_PERSON_FK]: USER_DEPENDENTS_BY_ROLE.student!,

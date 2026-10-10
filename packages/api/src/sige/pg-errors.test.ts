@@ -1,10 +1,16 @@
 import {
   ASSIGNMENT_OFFERING_FK,
   ASSIGNMENT_OFFERING_UNIQUE,
+  ATTENDANCE_RECORD_OBSERVATION_CHECK,
+  ATTENDANCE_RECORD_OFFERING_FK,
+  ATTENDANCE_RECORD_RECORDED_BY_FK,
+  ATTENDANCE_RECORD_STUDENT_FK,
+  ATTENDANCE_RECORD_UNIQUE,
+  ATTENDANCE_RECORD_WEEKDAY_CHECK,
   CAMPUS_CODE_UNIQUE,
+  CAMPUS_MAIN_UNIQUE,
   CLASSROOM_CAMPUS_FK,
   CLASSROOM_CODE_UNIQUE,
-  CAMPUS_MAIN_UNIQUE,
   COURSE_CAMPUS_FK,
   COURSE_DIRECTOR_FK,
   COURSE_LEVEL_CAMPUS_FK,
@@ -15,6 +21,20 @@ import {
   ENROLLMENT_STUDENT_FK,
   ENROLLMENT_UNIQUE,
   ENROLLMENT_YEAR_CHECK,
+  FINAL_GRADE_OFFERING_FK,
+  FINAL_GRADE_PERIOD_FK,
+  FINAL_GRADE_SCORE_CHECK,
+  FINAL_GRADE_STUDENT_FK,
+  FINAL_GRADE_UNIQUE,
+  GRADE_RECORD_CREATED_BY_FK,
+  GRADE_RECORD_CRITERION_FK,
+  GRADE_RECORD_OBSERVATION_CHECK,
+  GRADE_RECORD_OFFERING_FK,
+  GRADE_RECORD_PERIOD_FK,
+  GRADE_RECORD_SCORE_CHECK,
+  GRADE_RECORD_STUDENT_FK,
+  GRADE_RECORD_UNIQUE,
+  GRADE_RECORD_UPDATED_BY_FK,
   GUARDIAN_LINK_UNIQUE,
   GUARDIAN_PERSON_FK,
   GUARDIAN_STUDENT_FK,
@@ -22,11 +42,20 @@ import {
   INSTITUTION_NIT_UNIQUE,
   LEVEL_CAMPUS_FK,
   LEVEL_NAME_UNIQUE,
+  OBSERVATION_AUTHOR_FK,
+  OBSERVATION_COMMITMENTS_CHECK,
+  OBSERVATION_DESCRIPTION_CHECK,
+  OBSERVATION_NOTIFIED_BY_FK,
+  OBSERVATION_NOTIFIED_CHECK,
+  OBSERVATION_STUDENT_FK,
   OFFERING_COURSE_FK,
   OFFERING_SUBJECT_FK,
   OFFERING_TEACHER_FK,
   OFFERING_UNIQUE,
   PERIOD_ACTIVE_UNIQUE,
+  PERIOD_LOCK_LOCKED_BY_FK,
+  PERIOD_LOCK_PERIOD_FK,
+  PERIOD_LOCK_UNIQUE,
   SLOT_CLASSROOM_EXCLUDE,
   SLOT_CLASSROOM_FK,
   SLOT_COURSE_EXCLUDE,
@@ -50,8 +79,11 @@ import { describe, expect, test } from "bun:test";
 import {
   CAMPUS_HAS_STUDENTS_MESSAGE,
   COURSE_HAS_STUDENTS_MESSAGE,
+  CRITERION_HAS_GRADES_MESSAGE,
+  OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE,
   OFFERING_HAS_ENROLLMENTS_MESSAGE,
   OFFERING_HAS_SLOTS_MESSAGE,
+  PERIOD_HAS_GRADES_MESSAGE,
   STUDENT_HAS_RECORDS_MESSAGE,
   TIME_BLOCK_IN_USE_MESSAGE,
   mapDbError,
@@ -369,6 +401,89 @@ describe("student, guardian and enrollment constraints (sige/05 §4, sige/04 §4
     expect(COURSE_HAS_STUDENTS_MESSAGE).toBe("El grado tiene estudiantes asociados.");
     expect(STUDENT_HAS_RECORDS_MESSAGE).toBe(
       "El estudiante tiene matrículas, notas o asistencia registradas.",
+    );
+  });
+});
+
+describe("academic operations constraints (sige/06 §4, sige/07 §4, sige/08 §4, D9)", () => {
+  test.each([
+    [GRADE_RECORD_PERIOD_FK, "El periodo tiene notas registradas."],
+    [FINAL_GRADE_PERIOD_FK, "El periodo tiene notas registradas."],
+    [PERIOD_LOCK_PERIOD_FK, "El periodo tiene notas registradas."],
+    [GRADE_RECORD_CRITERION_FK, "El criterio tiene notas registradas."],
+    [GRADE_RECORD_OFFERING_FK, "La materia del grado tiene notas o asistencia registradas."],
+    [ATTENDANCE_RECORD_OFFERING_FK, "La materia del grado tiene notas o asistencia registradas."],
+    [FINAL_GRADE_OFFERING_FK, "La materia del grado tiene notas o asistencia registradas."],
+    [GRADE_RECORD_STUDENT_FK, "El estudiante tiene matrículas, notas o asistencia registradas."],
+    [FINAL_GRADE_STUDENT_FK, "El estudiante tiene matrículas, notas o asistencia registradas."],
+    [
+      ATTENDANCE_RECORD_STUDENT_FK,
+      "El estudiante tiene matrículas, notas o asistencia registradas.",
+    ],
+    [OBSERVATION_STUDENT_FK, "El estudiante tiene matrículas, notas o asistencia registradas."],
+  ])("restrict on %s -> HAS_DEPENDENTS", (constraint, message) => {
+    // Both codes: PG18 raises 23001 for `on delete restrict`, PG16 raises 23503 (T3 carry-over).
+    for (const code of ["23001", "23503"]) {
+      const error = mapped(pgError(code, constraint), "delete");
+      expect(error.code).toBe("HAS_DEPENDENTS");
+      expect(error.status).toBe(409);
+      expect(error.message).toBe(message);
+    }
+  });
+
+  test.each([
+    GRADE_RECORD_CREATED_BY_FK,
+    GRADE_RECORD_UPDATED_BY_FK,
+    PERIOD_LOCK_LOCKED_BY_FK,
+    ATTENDANCE_RECORD_RECORDED_BY_FK,
+    OBSERVATION_AUTHOR_FK,
+    OBSERVATION_NOTIFIED_BY_FK,
+  ])("the person FK %s falls back to the USR-R7 copy for every role (D9)", (constraint) => {
+    const fallback = "El usuario tiene registros asociados. Desactívelo en su lugar.";
+    expect(mapped(pgError("23001", constraint), "delete").message).toBe(fallback);
+    // D9: the role message would be wrong here (a teacher with grades has no offering to lose).
+    for (const personRole of ["teacher", "student", "parent", "viewer"]) {
+      const error = mapDbError(pgError("23001", constraint), "delete", { personRole });
+      expect(error?.code).toBe("HAS_DEPENDENTS");
+      expect(error?.message).toBe(fallback);
+    }
+  });
+
+  test.each([
+    [GRADE_RECORD_SCORE_CHECK, "La nota debe estar entre 1.0 y 5.0."],
+    [GRADE_RECORD_OBSERVATION_CHECK, "La observación no puede superar 500 caracteres."],
+    [ATTENDANCE_RECORD_OBSERVATION_CHECK, "La observación no puede superar 300 caracteres."],
+    [ATTENDANCE_RECORD_WEEKDAY_CHECK, "Las clases se dictan de lunes a viernes."],
+    [OBSERVATION_DESCRIPTION_CHECK, "La descripción no puede superar 2000 caracteres."],
+    [OBSERVATION_COMMITMENTS_CHECK, "Los compromisos no pueden superar 1000 caracteres."],
+  ])("check %s (23514) on user input -> BAD_REQUEST", (constraint, message) => {
+    const error = mapped(wrapped(pgError("23514", constraint)), "write");
+    expect(error.code).toBe("BAD_REQUEST");
+    expect(error.message).toBe(message);
+  });
+
+  test("checks on server-set values are not mapped (a service bug, not user input)", () => {
+    for (const constraint of [FINAL_GRADE_SCORE_CHECK, OBSERVATION_NOTIFIED_CHECK]) {
+      expect(mapDbError(pgError("23514", constraint), "write")).toBeNull();
+    }
+  });
+
+  test("the four upsert keys are not mapped: a 23505 there is a service bug", () => {
+    for (const constraint of [
+      GRADE_RECORD_UNIQUE,
+      FINAL_GRADE_UNIQUE,
+      ATTENDANCE_RECORD_UNIQUE,
+      PERIOD_LOCK_UNIQUE,
+    ]) {
+      expect(mapDbError(pgError("23505", constraint), "write")).toBeNull();
+    }
+  });
+
+  test("copy no single FK can pick is exported for the service pre-checks", () => {
+    expect(PERIOD_HAS_GRADES_MESSAGE).toBe("El periodo tiene notas registradas.");
+    expect(CRITERION_HAS_GRADES_MESSAGE).toBe("El criterio tiene notas registradas.");
+    expect(OFFERING_HAS_ACADEMIC_RECORDS_MESSAGE).toBe(
+      "La materia del grado tiene notas o asistencia registradas.",
     );
   });
 });
